@@ -1,0 +1,237 @@
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  animation: fadeIn 0.2s ease-in-out;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Content */
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+  border: 2px solid #800000;
+  position: relative;
+  z-index: 1000000;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Header - Red Theme */
+.modal-header {
+  padding: 24px 24px 16px;
+  border-bottom: 2px solid #800000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #fecaca;
+  cursor: pointer;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.close-btn:hover:not(:disabled) {
+  background-color: rgba(254, 202, 202, 0.2);
+  color: #ffffff;
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Modal Body */
+.modal-body {
+  padding: 32px 24px;
+  background-color: #ffffff;
+}
+
+.modal-body p {
+  margin: 0;
+  font-size: 16px;
+  color: #4b5563;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* Modal Footer - Red Theme */
+.modal-footer {
+  padding: 16px 24px 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  background: linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.btn-cancel,
+.btn-logout {
+  padding: 12px 28px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.btn-cancel {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 2px solid #d1d5db;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background-color: #e5e7eb;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-logout {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(127, 29, 29, 0.4);
+  border: 2px solid #6b1a1a;
+}
+
+.btn-logout:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(127, 29, 29, 0.5);
+}
+
+.btn-cancel:disabled,
+.btn-logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-logout:disabled {
+  background: #9ca3af;
+  box-shadow: none;
+  border-color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .modal-content {
+    width: 95%;
+    margin: 0 10px;
+    border-radius: 12px;
+  }
+
+  .modal-header h2 {
+    font-size: 20px;
+  }
+
+  .modal-body {
+    padding: 24px 20px;
+  }
+
+  .modal-body p {
+    font-size: 15px;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .btn-cancel,
+  .btn-logout {
+    width: 100%;
+    padding: 14px 20px;
+  }
+}
+
+/* Dark mode support (optional) */
+.dark .modal-content {
+  background: #1f2937;
+  color: #f3f4f6;
+  border-color: #800000;
+}
+
+.dark .modal-header {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  border-bottom-color: #800000;
+}
+
+.dark .modal-header h2 {
+  color: #fecaca;
+}
+
+.dark .modal-body {
+  background-color: #1f2937;
+}
+
+.dark .modal-body p {
+  color: #d1d5db;
+}
+
+.dark .modal-footer {
+  background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+}
+
+.dark .btn-cancel {
+  background-color: #374151;
+  color: #e5e7eb;
+  border-color: #4b5563;
+}
+
+.dark .btn-cancel:hover:not(:disabled) {
+  background-color: #4b5563;
+}

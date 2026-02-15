@@ -1,0 +1,569 @@
+/* ================= GLOBAL ================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  height: 100%;
+  background: var(--page-bg-soft);
+  overflow: hidden; /* prevent body scroll, sidebar fixed */
+}
+
+:root {
+  --surface-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  --page-bg-soft: #f3f5f8;
+}
+
+/* ================= DASHBOARD CONTAINER ================= */
+.dashboard-container {
+  display: flex;
+  width: 100%;
+  height: 100vh; /* full viewport height */
+  overflow: hidden; /* prevent body scroll */
+}
+
+/* Shared container elevation across pages */
+.dashboard-page .dash-card,
+.parcels-filter-section,
+.parcels-table-wrapper,
+.reports-card.reports-card-modern,
+.rider-map-card,
+.riders-table-wrapper,
+.settings-container,
+.profile-header-card,
+.profile-info-card {
+  box-shadow: var(--surface-shadow) !important;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.page-title::before {
+  content: "";
+  width: 4px;
+  height: 36px;
+  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+  border-radius: 4px;
+}
+
+/* ================= SIDEBAR ================= */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 20px 0 12px;
+  flex-shrink: 0; /* prevent shrinking */
+  transition: width 0.22s ease;
+}
+
+.sidebar.collapsed {
+  width: 86px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px 0 12px;
+  margin-bottom: 8px;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.24);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.sidebar-toggle-lines {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.sidebar-toggle-line {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+/* Logo */
+.sidebar-logo {
+  width: 130px;
+  height: 130px;
+  margin: 0 auto 24px;
+}
+
+.sidebar-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sidebar-logo-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+}
+
+/* Navigation */
+.nav-menu {
+  list-style: none;
+  width: 100%;
+  padding: 0 24px;
+  transition: padding 0.22s ease;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  color: white; /* ensures icons and text are visible */
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.nav-icon {
+  margin-right: 12px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-label {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ================= USER PROFILE ================= */
+.user-profile {
+  width: 100%;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px 16px; /* enough padding for full email */
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.user-avatar-wrapper {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+
+.user-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: white;
+  background-size: cover;
+  background-position: center;
+}
+
+.user-avatar-wrapper input[type=file] {
+  display: none;
+    position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.avatar-pen {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: #ff0000;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+  
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.user-role {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Make user-info clickable like other nav items */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  cursor: pointer; /* shows it's clickable */
+  padding: 12px 18px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+/* Hover effect for user-info */
+.user-info:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+/* Active state for profile page */
+.user-info.active {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+
+/* ================= USER ACTIONS ================= */
+.user-actions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.user-actions .nav-item {
+  margin-bottom: 6px;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.user-actions .nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.user-actions .nav-icon {
+  margin-right: 12px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 16px;
+}
+
+.sidebar.collapsed .nav-menu {
+  padding: 0 8px;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 13px 8px;
+}
+
+.sidebar.collapsed .nav-item:hover {
+  transform: none;
+}
+
+.sidebar.collapsed .nav-icon,
+.sidebar.collapsed .user-actions .nav-icon {
+  margin-right: 0;
+}
+
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .user-details,
+.sidebar.collapsed .avatar-pen {
+  display: none;
+}
+
+.sidebar.collapsed .user-profile {
+  padding: 16px 8px;
+}
+
+.sidebar.collapsed .user-info {
+  justify-content: center;
+  padding: 10px 6px;
+  margin-bottom: 10px;
+}
+
+.sidebar.collapsed .user-avatar-wrapper {
+  width: 48px;
+  height: 48px;
+}
+
+
+/* ================= DARK MODE ================= */
+body.dark {
+  --dm-bg: #0b1220;
+  --dm-surface: #111827;
+  --dm-surface-2: #1f2937;
+  --dm-border: #334155;
+  --dm-text: #f8fafc;
+  --dm-muted: #cbd5e1;
+  --dm-muted-2: #94a3b8;
+  --dm-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --surface-shadow: var(--dm-shadow);
+  background: var(--dm-bg);
+  color: var(--dm-text);
+}
+
+body.dark .page-title {
+  color: var(--dm-text);
+}
+
+body.dark .sidebar {
+  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+}
+
+body.dark .sidebar-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+body.dark .sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+body.dark .nav-item {
+  color: var(--dm-text);
+}
+
+body.dark .nav-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+body.dark .nav-item.active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark .user-name,
+body.dark .user-role {
+  color: var(--dm-text);
+}
+/* ===== MODAL OVERLAY ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* ===== LOGOUT MODAL ===== */
+.logout-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: 380px;
+  max-width: 90%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  animation: pop 0.2s ease;
+}
+
+.logout-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ff0000; /* primary red */
+}
+
+.logout-text {
+  font-size: 14px;
+  color: #444;
+  margin-bottom: 20px;
+}
+
+/* ===== ACTIONS ===== */
+.logout-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #f2f2f2;
+}
+
+.btn-danger {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #ff0000;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #800000;
+}
+
+/* subtle animation */
+@keyframes pop {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===== PAGE SPINNER ===== */
+.page-spinner-wrap {
+  width: 100%;
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-spinner-wrap.fullscreen {
+  position: fixed;
+  inset: 0;
+  min-height: 100vh;
+  width: 100vw;
+  z-index: 9999;
+  background: #f5f5f5;
+}
+
+.page-spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 0, 0, 0.2);
+  border-top-color: #ff0000;
+  animation: page-spin 0.75s linear infinite;
+}
+
+.page-spinner-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+}
+
+@keyframes page-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body.dark .page-spinner {
+  border-color: rgba(255, 255, 255, 0.2);
+  border-top-color: #ffffff;
+}
+
+body.dark .page-spinner-label {
+  color: var(--dm-muted);
+}
+
+body.dark .page-spinner-wrap.fullscreen {
+  background: var(--dm-bg);
+}
+
+/* Hide X buttons across modals; keep action buttons (e.g., OK/Cancel) */
+.modal-close-btn,
+.profile-success-close,
+.close-btn {
+  display: none !important;
+}

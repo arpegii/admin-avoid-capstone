@@ -1,0 +1,309 @@
+/* ================= SETTINGS PAGE - MODERN DESIGN ================= */
+
+/* Scope styles to settings page only */
+.settings-page {
+  flex: 1;
+  background: var(--page-bg-soft);
+  overflow: visible !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  height: auto !important;
+  min-height: 100vh;
+  padding: 40px;
+}
+
+.settings-page > h1 {
+  margin-bottom: 32px;
+}
+
+/* ================= SETTINGS HEADER ================= */
+
+.settings-page > h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 32px;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-page > h1::before {
+  content: '';
+  width: 4px;
+  height: 36px;
+  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+  border-radius: 4px;
+}
+
+/* ================= SETTINGS CONTAINER ================= */
+
+.settings-container {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08),
+              0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================= SETTINGS ITEM ================= */
+
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 32px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.2s ease;
+}
+
+.settings-item:last-child {
+  border-bottom: none;
+}
+
+.settings-item:hover {
+  background: #fafafa;
+}
+
+.settings-item span {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.setting-info {
+  flex: 1;
+}
+
+.setting-description {
+  font-size: 13px;
+  color: #64748b;
+  margin: 4px 0 0 0;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.3);
+}
+
+.logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.4);
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+}
+
+.logout-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ================= TOGGLE SWITCH ================= */
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #cbd5e1;
+  border-radius: 34px;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 24px;
+  width: 24px;
+  left: 4px;
+  bottom: 4px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .slider {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(28px);
+}
+
+.toggle-switch:hover .slider {
+  opacity: 0.9;
+}
+
+.toggle-switch input:focus + .slider {
+  box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1),
+              inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ================= LOGOUT MODAL ================= */
+
+/* Only ensure modal is visible on settings page - styling comes from logoutModal.css */
+body:has(.settings-container) .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ================= RESPONSIVE DESIGN ================= */
+
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 24px 16px;
+  }
+
+  .settings-page > h1 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+
+  .settings-container {
+    border-radius: 16px;
+  }
+
+  .settings-item {
+    padding: 24px 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .settings-item span {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-page > h1 {
+    font-size: 20px;
+  }
+
+  .settings-item {
+    padding: 20px 16px;
+  }
+}
+
+/* ================= FOCUS VISIBLE ================= */
+
+.toggle-switch input:focus-visible + .slider {
+  outline: 2px solid #ff0000;
+  outline-offset: 2px;
+}
+
+/* ================= DARK MODE SUPPORT (if needed) ================= */
+body.dark .settings-page {
+  background: var(--dm-bg);
+}
+
+body.dark .settings-container {
+  background: var(--dm-surface);
+  box-shadow: var(--dm-shadow);
+}
+
+body.dark .settings-item {
+  border-bottom-color: var(--dm-border);
+}
+
+body.dark .settings-item:hover {
+  background: #334155;
+}
+
+body.dark .settings-item span {
+  color: var(--dm-text);
+}
+
+body.dark .setting-description {
+  color: var(--dm-muted-2);
+}
+
+body.dark .logout-btn {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+}
+
+body.dark .logout-btn:hover {
+  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+}
+
+body.dark .settings-page > h1 {
+  color: var(--dm-text);
+}
+
+/* ================= ADDITIONAL SETTINGS ITEMS ================= */
+
+/* Style for future settings items */
+.settings-item.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.settings-item .description {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 400;
+  margin-top: 4px;
+  display: block;
+}
+
+body.dark .settings-item .description {
+  color: var(--dm-muted-2);
+}
+

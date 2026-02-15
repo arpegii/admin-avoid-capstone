@@ -1,0 +1,960 @@
+/* ================= LOGIN PAGE ================= */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  --red: #e8192c;
+  --red-dark: #b0101e;
+  --red-light: #ff4d5e;
+  --bg-red: #d9192b;
+  --panel-bg: #f5f5f7;
+  --white: #ffffff;
+  --text-dark: #1a1a2e;
+  --text-muted: #8a8a9a;
+  --border: #e0e0e8;
+  --shadow: 0 32px 80px rgba(0, 0, 0, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+}
+
+/* ── Page wrapper ── */
+.login-page {
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative floating shapes */
+.login-page::before,
+.login-page::after {
+  display: none;
+}
+
+.float-shape {
+  position: absolute;
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* Top-left large square — matches reference */
+.float-shape--1 {
+  width: 72px;
+  height: 72px;
+  top: 7%;
+  left: 4%;
+  background: rgba(160, 8, 18, 0.6);
+  border-radius: 18px;
+  animation-name: floatShape1;
+  animation-duration: 5.5s;
+  animation-delay: 0s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Top-left tall rectangle */
+.float-shape--2 {
+  width: 28px;
+  height: 68px;
+  top: 5%;
+  left: 11%;
+  background: rgba(190, 15, 25, 0.35);
+  border-radius: 10px;
+  animation-name: floatShape2;
+  animation-duration: 7s;
+  animation-delay: 0.8s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Bottom-right large square */
+.float-shape--3 {
+  width: 56px;
+  height: 56px;
+  bottom: 8%;
+  right: 4%;
+  background: rgba(160, 8, 18, 0.5);
+  border-radius: 16px;
+  animation-name: floatShape3;
+  animation-duration: 6.5s;
+  animation-delay: 1.2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Bottom-right small square */
+.float-shape--4 {
+  width: 30px;
+  height: 30px;
+  bottom: 19%;
+  right: 9%;
+  background: rgba(200, 25, 35, 0.3);
+  border-radius: 8px;
+  animation-name: floatShape4;
+  animation-duration: 5s;
+  animation-delay: 2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Top-right medium square */
+.float-shape--5 {
+  width: 46px;
+  height: 46px;
+  top: 8%;
+  right: 6%;
+  background: rgba(175, 12, 22, 0.32);
+  border-radius: 13px;
+  animation-name: floatShape5;
+  animation-duration: 8s;
+  animation-delay: 0.4s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Bottom-left small accent */
+.float-shape--6 {
+  width: 26px;
+  height: 26px;
+  bottom: 10%;
+  left: 5%;
+  background: rgba(210, 35, 45, 0.28);
+  border-radius: 7px;
+  animation-name: floatShape6;
+  animation-duration: 6s;
+  animation-delay: 1.6s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Additional lower-left shapes */
+.float-shape--7 {
+  width: 38px;
+  height: 38px;
+  bottom: 25%;
+  left: 3%;
+  background: rgba(165, 10, 20, 0.45);
+  border-radius: 11px;
+  animation-name: floatShape7;
+  animation-duration: 7.2s;
+  animation-delay: 0.6s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.float-shape--8 {
+  width: 22px;
+  height: 52px;
+  bottom: 15%;
+  left: 10%;
+  background: rgba(195, 18, 28, 0.38);
+  border-radius: 9px;
+  animation-name: floatShape8;
+  animation-duration: 5.8s;
+  animation-delay: 1.4s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.float-shape--9 {
+  width: 34px;
+  height: 34px;
+  bottom: 32%;
+  left: 8%;
+  background: rgba(180, 15, 25, 0.42);
+  border-radius: 10px;
+  animation-name: floatShape9;
+  animation-duration: 6.8s;
+  animation-delay: 0.3s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.float-shape--10 {
+  width: 44px;
+  height: 44px;
+  bottom: 40%;
+  left: 2%;
+  background: rgba(155, 8, 18, 0.5);
+  border-radius: 12px;
+  animation-name: floatShape10;
+  animation-duration: 6.2s;
+  animation-delay: 2.2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes floatShape1 {
+  0%,
+  100% {
+    transform: rotate(12deg) translateY(0);
+  }
+  50% {
+    transform: rotate(12deg) translateY(-16px);
+  }
+}
+@keyframes floatShape2 {
+  0%,
+  100% {
+    transform: rotate(8deg) translateY(0);
+  }
+  50% {
+    transform: rotate(8deg) translateY(-12px);
+  }
+}
+@keyframes floatShape3 {
+  0%,
+  100% {
+    transform: rotate(-14deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-14deg) translateY(-14px);
+  }
+}
+@keyframes floatShape4 {
+  0%,
+  100% {
+    transform: rotate(20deg) translateY(0);
+  }
+  50% {
+    transform: rotate(20deg) translateY(-10px);
+  }
+}
+@keyframes floatShape5 {
+  0%,
+  100% {
+    transform: rotate(-10deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-10deg) translateY(-18px);
+  }
+}
+@keyframes floatShape6 {
+  0%,
+  100% {
+    transform: rotate(30deg) translateY(0);
+  }
+  50% {
+    transform: rotate(30deg) translateY(-8px);
+  }
+}
+@keyframes floatShape7 {
+  0%,
+  100% {
+    transform: rotate(-18deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-18deg) translateY(-15px);
+  }
+}
+@keyframes floatShape8 {
+  0%,
+  100% {
+    transform: rotate(15deg) translateY(0);
+  }
+  50% {
+    transform: rotate(15deg) translateY(-13px);
+  }
+}
+@keyframes floatShape9 {
+  0%,
+  100% {
+    transform: rotate(-25deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-25deg) translateY(-11px);
+  }
+}
+@keyframes floatShape10 {
+  0%,
+  100% {
+    transform: rotate(22deg) translateY(0);
+  }
+  50% {
+    transform: rotate(22deg) translateY(-17px);
+  }
+}
+
+/* ── Card ── */
+.centered-content {
+  width: 100%;
+  max-width: 940px;
+  animation: cardIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modern-card {
+  display: flex;
+  flex-direction: row;
+  background: none;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  min-height: 520px;
+  height: clamp(480px, 62vh, 620px);
+}
+
+/* ── Left illustration panel ── */
+.login-card-brand {
+  flex: 1.2;
+  background: linear-gradient(160deg, #f2f2f6 0%, #e9e9ef 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  min-height: 520px;
+}
+
+/* Gridlines removed */
+.login-card-brand::before {
+  display: none;
+}
+
+.logo-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 10%;
+  position: absolute;
+  inset: 0;
+  filter: none;
+  animation: illustrationIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+@keyframes illustrationIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Hide the subtitle text that was in the brand section */
+.login-card-brand .subtitle {
+  display: none;
+}
+
+/* ── Right form panel ── */
+.login-right-panel {
+  flex: 0.85;
+  padding: 52px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  background: linear-gradient(160deg, #e8192c 0%, #800000 100%);
+}
+
+/* Logo above the form */
+.login-logo-top {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 44px;
+}
+
+.login-logo-top img {
+  height: 133px;
+  max-width: 250px;
+  object-fit: contain;
+}
+
+/* ── Form elements ── */
+.modern-card form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.form-group label {
+  font-family: "Poppins", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: 0.03em;
+}
+
+.form-input {
+  width: 100%;
+  padding: 13px 16px 13px 44px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-family: "Inter", sans-serif;
+  background: #ffffff;
+  color: #1a1a2e;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
+}
+
+.form-input::placeholder {
+  color: #a0a0b0;
+}
+
+.form-input:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.form-input:focus {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.2);
+}
+
+/* ── Input icon wrapper ── */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  color: #b0102a;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+/* ── Login button ── */
+.login-btn {
+  background: #ffffff;
+  color: var(--red);
+  border: none;
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 15px;
+  font-family: "Poppins", sans-serif;
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    box-shadow 0.2s,
+    padding 0.2s;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  min-height: 50px;
+}
+
+.login-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.18),
+    transparent
+  );
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+}
+
+.login-btn:hover::after {
+  transform: translateX(100%);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(232, 25, 44, 0.3);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.login-btn.loading {
+  color: transparent;
+  padding: 20px 0;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.login-btn.loading::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid rgba(232, 25, 44, 0.25);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+
+/* ── Error ── */
+.login-error {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  padding: 10px 13px;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  animation: shake 0.38s ease;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+
+/* ── OTP info ── */
+.otp-info {
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.otp-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+}
+
+.otp-info strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.otp-subtext {
+  margin-top: 6px !important;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* ── OTP boxes ── */
+.otp-input-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 9px;
+  margin-top: 4px;
+}
+
+.otp-input-box {
+  width: 100%;
+  height: 54px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: "Poppins", sans-serif;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 11px;
+  outline: none;
+  background: #ffffff;
+  color: #1a1a2e;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
+}
+
+.otp-input-box:focus {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.2);
+  background: #ffffff;
+}
+
+.otp-auto-verify {
+  margin: -4px 0 2px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+/* ── OTP actions (resend / back) ── */
+.otp-actions {
+  text-align: center;
+  margin-top: 4px;
+}
+
+.otp-link-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.otp-link-btn:hover {
+  color: #ffffff;
+}
+
+.otp-link-btn:disabled {
+  color: rgba(255, 255, 255, 0.4);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.otp-divider {
+  margin: 0 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── OTP result modal ── */
+.otp-result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 20, 0.55);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+  animation: fadeOverlay 0.25s ease;
+}
+
+@keyframes fadeOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.otp-result-modal {
+  width: min(92vw, 400px);
+  background: var(--white);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.otp-result-header {
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
+  padding: 18px 20px;
+  text-align: center;
+}
+
+.otp-result-header h3 {
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.otp-result-body {
+  padding: 24px 20px 20px;
+  text-align: center;
+}
+
+.otp-result-symbol {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: resultPop 0.45s ease-out;
+}
+
+.otp-result-symbol.success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 2px solid rgba(52, 211, 153, 0.4);
+}
+
+.otp-result-symbol.error {
+  background: rgba(232, 25, 44, 0.1);
+  border: 2px solid rgba(232, 25, 44, 0.35);
+}
+
+.otp-result-checkmark {
+  width: 13px;
+  height: 26px;
+  border-right: 3.5px solid #10b981;
+  border-bottom: 3.5px solid #10b981;
+  transform: rotate(45deg) scale(0.85);
+  opacity: 0;
+  animation: tickDraw 0.3s ease-out 0.18s forwards;
+}
+
+@keyframes tickDraw {
+  from {
+    opacity: 0;
+    transform: rotate(45deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(45deg) scale(1);
+  }
+}
+
+.otp-result-xmark {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.otp-result-xmark::before,
+.otp-result-xmark::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 2px;
+  width: 3.5px;
+  height: 24px;
+  border-radius: 99px;
+  background: var(--red);
+  opacity: 0;
+  animation: xDraw 0.26s ease-out 0.2s forwards;
+}
+
+.otp-result-xmark::before {
+  transform: rotate(45deg);
+}
+.otp-result-xmark::after {
+  transform: rotate(-45deg);
+}
+
+@keyframes xDraw {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes resultPop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.otp-result-message {
+  margin: 6px 0 18px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.otp-result-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 11px 22px;
+  min-width: 130px;
+  color: var(--white);
+  font-family: "Poppins", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-dark) 100%);
+  box-shadow: 0 4px 14px rgba(232, 25, 44, 0.3);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.otp-result-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(232, 25, 44, 0.38);
+}
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .modern-card {
+    flex-direction: column;
+    min-height: unset;
+    height: auto;
+  }
+
+  .login-card-brand {
+    min-height: 260px;
+    height: 260px;
+    padding: 0;
+  }
+
+  .logo-placeholder {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    inset: 0;
+  }
+
+  .login-right-panel {
+    padding: 32px 28px 36px;
+  }
+
+  .login-logo-top img {
+    height: 56px;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-right-panel {
+    padding: 24px 20px 28px;
+  }
+
+  .otp-input-box {
+    height: 48px;
+    font-size: 19px;
+  }
+}
+
+/* Autofill fix */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1a1a2e;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ── Dark mode ── */
+body.dark .login-page {
+  background: #1a0a0d;
+}
+
+body.dark .modern-card {
+  background: #12121a;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+}
+
+body.dark .login-card-brand {
+  background: linear-gradient(160deg, #1e1e2a 0%, #16161f 100%);
+}
+
+body.dark .login-card-brand::before {
+  display: none;
+}
+
+body.dark .login-right-panel {
+  background: #12121a;
+}
+
+body.dark .form-group label {
+  color: #e8e8f0;
+}
+
+body.dark .form-input {
+  background: #1e1e2e;
+  border-color: #2e2e42;
+  color: #e8e8f0;
+}
+
+body.dark .form-input::placeholder {
+  color: #5a5a7a;
+}
+
+body.dark .form-input:focus {
+  background: #22223a;
+}
+
+body.dark .otp-input-box {
+  background: #1e1e2e;
+  border-color: #2e2e42;
+  color: #e8e8f0;
+}
+
+body.dark .otp-info p {
+  color: #d0d0e0;
+}
+
+body.dark .otp-result-modal {
+  background: #12121a;
+}
+
+body.dark .otp-result-body {
+  background: #12121a;
+}
+
+body.dark .otp-result-message {
+  color: #a0a0b8;
+}
+
+body.dark .login-error {
+  color: #f87171;
+}

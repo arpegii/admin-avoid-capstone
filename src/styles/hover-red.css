@@ -1,0 +1,95 @@
+:root {
+  --hover-red: #dc2626;
+  --hover-red-dark: #b91c1c;
+  --hover-red-soft: rgba(220, 38, 38, 0.14);
+}
+
+a:hover {
+  color: var(--hover-red) !important;
+}
+
+button:hover {
+  border-color: var(--hover-red) !important;
+}
+
+.nav-item:hover,
+.user-info:hover,
+.settings-item:hover,
+.dash-card:hover,
+.parcel-table tbody tr:hover,
+.rider-table tbody tr:hover,
+.sidebar.collapsed .nav-item:hover,
+body.dark .nav-item:hover,
+body.dark .settings-item:hover,
+body.dark .parcel-table tbody tr:hover,
+body.dark .rider-table tbody tr:hover {
+  background: var(--hover-red-soft) !important;
+  border-color: var(--hover-red) !important;
+}
+
+[class^="btn-"]:hover,
+[class*=" btn-"]:hover,
+.btn-edit:hover,
+.login-btn:hover,
+.logout-btn:hover,
+.track-btn:hover,
+.btn-generate:hover,
+.profile-success-btn:hover,
+.profile-success-close:hover,
+.modal-close-btn:hover,
+.close-btn:hover {
+  background: var(--hover-red) !important;
+  border-color: var(--hover-red-dark) !important;
+  color: #fff !important;
+}
+
+input:hover,
+select:hover,
+.form-input:hover,
+.otp-input-box:hover,
+.form-row input[type="date"]:hover,
+.form-row select:hover,
+.filter-section input[type="text"]:hover,
+.filter-section select:hover {
+  border-color: var(--hover-red) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+}
+
+.profile-avatar-large:hover .avatar-camera-icon {
+  background: var(--hover-red) !important;
+  color: #fff !important;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover,
+.view-parcel-modal .modal-body::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--hover-red) !important;
+}
+
+/* Sidebar hover override: keep sidebar interactions white */
+.sidebar .nav-item:hover,
+.sidebar .user-info:hover,
+.sidebar .user-actions .nav-item:hover,
+.sidebar.collapsed .nav-item:hover,
+body.dark .sidebar .nav-item:hover,
+body.dark .sidebar .user-info:hover,
+body.dark .sidebar .user-actions .nav-item:hover,
+body.dark .sidebar.collapsed .nav-item:hover {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.sidebar .nav-item:hover .nav-icon,
+.sidebar .nav-item:hover .nav-label,
+.sidebar .user-info:hover .user-name,
+.sidebar .user-info:hover .user-role,
+.sidebar .user-actions .nav-item:hover .nav-icon,
+.sidebar .user-actions .nav-item:hover .nav-label,
+body.dark .sidebar .nav-item:hover .nav-icon,
+body.dark .sidebar .nav-item:hover .nav-label,
+body.dark .sidebar .user-info:hover .user-name,
+body.dark .sidebar .user-info:hover .user-role,
+body.dark .sidebar .user-actions .nav-item:hover .nav-icon,
+body.dark .sidebar .user-actions .nav-item:hover .nav-label {
+  color: #111827 !important;
+}
