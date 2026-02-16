@@ -1061,7 +1061,11 @@ const Dashboard = () => {
               <div className="dash-card bottom-card growth rounded-2xl">
                 <div className="card-label">Delivery Growth by Year</div>
                 <div className="growth-canvas-shell">
-                  <canvas ref={growthChartRef}></canvas>
+                  {dashboardData.years.length > 0 ? (
+                    <canvas ref={growthChartRef}></canvas>
+                  ) : (
+                    <div className="growth-empty">No delivery data yet</div>
+                  )}
                 </div>
               </div>
 

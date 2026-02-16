@@ -933,6 +933,10 @@
 }
 
 @media (max-width: 768px) {
+  .parcel-track-map .leaflet-control-zoom {
+    display: none !important;
+  }
+
   .parcels-page .page-title {
     font-size: 24px;
     margin-bottom: 20px;

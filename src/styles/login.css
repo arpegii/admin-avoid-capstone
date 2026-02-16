@@ -1,6 +1,4 @@
 /* ================= LOGIN PAGE ================= */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
-
 :root {
   --red: #e8192c;
   --red-dark: #b0101e;
@@ -21,7 +19,7 @@
 }
 
 body {
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* ── Page wrapper ── */
@@ -401,7 +399,7 @@ body {
 }
 
 .form-group label {
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
@@ -414,7 +412,7 @@ body {
   border: 1.5px solid rgba(255, 255, 255, 0.3);
   border-radius: 12px;
   font-size: 14.5px;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   background: #ffffff;
   color: #1a1a2e;
   outline: none;
@@ -463,7 +461,7 @@ body {
   border-radius: 12px;
   padding: 14px 0;
   font-size: 15px;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 700;
   width: 100%;
   cursor: pointer;
@@ -604,7 +602,7 @@ body {
   text-align: center;
   font-size: 22px;
   font-weight: 700;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   border: 1.5px solid rgba(255, 255, 255, 0.3);
   border-radius: 11px;
   outline: none;
@@ -712,7 +710,7 @@ body {
 
 .otp-result-header h3 {
   margin: 0;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 700;
   color: var(--white);
@@ -828,7 +826,7 @@ body {
   padding: 11px 22px;
   min-width: 130px;
   color: var(--white);
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -894,4 +892,5 @@ body {
   box-shadow: 0 0 0 1000px #ffffff inset;
   transition: background-color 9999s ease-in-out 0s;
 }
+
 
