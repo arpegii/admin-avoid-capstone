@@ -40,15 +40,28 @@
 /* ================= SETTINGS CONTAINER ================= */
 
 .settings-container {
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08),
-              0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
   width: 100%;
   max-width: 800px;
   margin: 0 auto;
   animation: slideUp 0.6s ease-out;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-stack {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.settings-section {
+  margin: 0;
 }
 
 @keyframes slideUp {
@@ -69,8 +82,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 28px 32px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: none;
   transition: background 0.2s ease;
+  margin: 0;
 }
 
 .settings-item:last-child {
@@ -192,7 +206,7 @@
 /* ================= LOGOUT MODAL ================= */
 
 /* Only ensure modal is visible on settings page - styling comes from logoutModal.css */
-body:has(.settings-container) .modal-overlay {
+body:has(.settings-page) .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -255,11 +269,12 @@ body.dark .settings-page {
 }
 
 body.dark .settings-container {
-  background: var(--dm-surface);
-  box-shadow: var(--dm-shadow);
+  background: transparent;
+  box-shadow: none;
 }
 
 body.dark .settings-item {
+  background: var(--dm-surface-2) !important;
   border-bottom-color: var(--dm-border);
 }
 
@@ -306,4 +321,3 @@ body.dark .settings-page > h1 {
 body.dark .settings-item .description {
   color: var(--dm-muted-2);
 }
-

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Sidebar from "../components/sidebar";
-import { supabaseClient } from "../App"; // ✅ Import from App.jsx instead of creating new client
+import { supabaseClient } from "../App";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "../styles/riders.css";
@@ -16,6 +16,26 @@ const normalizeCoordinate = (value) => {
   return Number.isFinite(numericValue) ? numericValue : null;
 };
 
+const formatViolationLogDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const month = date.toLocaleString("en-US", { month: "long" });
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const rawHour = date.getHours();
+  const meridiem = rawHour >= 12 ? "PM" : "AM";
+  const hour12 = rawHour % 12 || 12;
+  const hour = String(hour12).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${month} ${day}, ${year} ${hour}:${minute} ${meridiem}`;
+};
+
+const getRiderDisplayName = (rider) => {
+  const fullName = [rider?.fname, rider?.lname].filter(Boolean).join(" ").trim();
+  return fullName || rider?.username || "Unknown Rider";
+};
+
 export default function Riders() {
   const [riders, setRiders] = useState([]);
   const [trackModalOpen, setTrackModalOpen] = useState(false);
@@ -27,6 +47,10 @@ export default function Riders() {
   const [infoError, setInfoError] = useState("");
   const [selectedRiderInfo, setSelectedRiderInfo] = useState(null);
   const [performanceModalOpen, setPerformanceModalOpen] = useState(false);
+  const [violationLogsModalOpen, setViolationLogsModalOpen] = useState(false);
+  const [riderViolationLogs, setRiderViolationLogs] = useState([]);
+  const [loadingViolationLogs, setLoadingViolationLogs] = useState(false);
+  const [violationLogsError, setViolationLogsError] = useState("");
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createUsername, setCreateUsername] = useState("");
@@ -48,6 +72,15 @@ export default function Riders() {
   const [fullWeatherForecast, setFullWeatherForecast] = useState([]);
   const [showFullWeatherPanel, setShowFullWeatherPanel] = useState(false);
   const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
+  const [queuedInfoRider, setQueuedInfoRider] = useState("");
+
+  useEffect(() => {
+    if (!showCreateSuccessModal) return undefined;
+    const timerId = setTimeout(() => {
+      setShowCreateSuccessModal(false);
+    }, 2400);
+    return () => clearTimeout(timerId);
+  }, [showCreateSuccessModal]);
 
   const normalizedCreateUsername = createUsername.trim();
   const usernameLengthValid = normalizedCreateUsername.length >= 3;
@@ -67,7 +100,10 @@ export default function Riders() {
     passwordSpecialValid;
   const deliveredForQuota = Number(selectedRiderInfo?.deliveredParcels);
   const quotaPercent = Number.isFinite(deliveredForQuota)
-    ? Math.min(Math.round((deliveredForQuota / RIDER_DELIVERY_QUOTA) * 100), 100)
+    ? Math.min(
+        Math.round((deliveredForQuota / RIDER_DELIVERY_QUOTA) * 100),
+        100,
+      )
     : 0;
   const quotaStrokeDasharray = `${quotaPercent * 3.02} 302`;
   const joinDateToday = useMemo(() => {
@@ -77,6 +113,14 @@ export default function Riders() {
     const day = String(now.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }, []);
+  const trackingRiderDisplayName = useMemo(() => {
+    const trackedRider = riders.find((rider) => rider.username === trackingRider);
+    return getRiderDisplayName(trackedRider || { username: trackingRider });
+  }, [riders, trackingRider]);
+  const selectedRiderDisplayName = useMemo(
+    () => getRiderDisplayName(selectedRiderInfo),
+    [selectedRiderInfo],
+  );
 
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
@@ -92,13 +136,40 @@ export default function Riders() {
   const fullWeatherOverlayRef = useRef(null);
   const fullFloodOverlayRef = useRef(null);
   const popupHandlerMapRef = useRef(new Map());
+  const trackModalOpenRef = useRef(false);
   const hasAutoCenteredAllMapRef = useRef(false);
   const hasAutoCenteredFullMapRef = useRef(false);
+
+  useEffect(() => {
+    trackModalOpenRef.current = trackModalOpen;
+  }, [trackModalOpen]);
+
+  useEffect(() => {
+    if (trackModalOpen || !queuedInfoRider) return;
+    const riderToOpen = queuedInfoRider;
+    setQueuedInfoRider("");
+    void openInfoModal(riderToOpen);
+  }, [trackModalOpen, queuedInfoRider]);
+
+  const openRiderInfoFromPopup = (riderName) => {
+    const normalizedRiderName = String(riderName || "").trim();
+    if (!normalizedRiderName) return;
+
+    if (trackModalOpenRef.current) {
+      setQueuedInfoRider(normalizedRiderName);
+      closeTrackModal();
+      return;
+    }
+
+    void openInfoModal(normalizedRiderName);
+  };
 
   const fetchRiderLocations = useCallback(async () => {
     const { data, error } = await supabaseClient
       .from("users")
-      .select("username, status, last_seen_lat, last_seen_lng");
+      .select(
+        "user_id, username, fname, lname, status, last_seen_lat, last_seen_lng",
+      );
 
     if (error) {
       throw error;
@@ -111,6 +182,71 @@ export default function Riders() {
     }));
   }, []);
 
+  const fetchRiderMetrics = useCallback(async (ridersData = []) => {
+    const riderIds = (ridersData || [])
+      .map((rider) => rider.user_id)
+      .filter(Boolean);
+
+    if (riderIds.length === 0) {
+      return (ridersData || []).map((rider) => ({
+        ...rider,
+        deliveredParcels: 0,
+        ongoingParcels: 0,
+        delayedParcels: 0,
+      }));
+    }
+
+    const { data: parcelsData, error: parcelsError } = await supabaseClient
+      .from("parcels")
+      .select("assigned_rider_id, status, attempt1_status")
+      .in("assigned_rider_id", riderIds);
+
+    if (parcelsError) {
+      throw parcelsError;
+    }
+
+    const statsByRiderId = new Map();
+    riderIds.forEach((id) => {
+      statsByRiderId.set(id, {
+        deliveredParcels: 0,
+        ongoingParcels: 0,
+        delayedParcels: 0,
+      });
+    });
+
+    (parcelsData || []).forEach((parcel) => {
+      const riderId = parcel?.assigned_rider_id;
+      if (!riderId || !statsByRiderId.has(riderId)) return;
+      const stats = statsByRiderId.get(riderId);
+      const normalizedStatus = parcel?.status?.toLowerCase?.() || "";
+      const normalizedAttempt1 = parcel?.attempt1_status?.toLowerCase?.() || "";
+
+      if (normalizedStatus === "successfully delivered") {
+        stats.deliveredParcels += 1;
+      }
+      if (normalizedStatus === "on-going") {
+        stats.ongoingParcels += 1;
+      }
+      if (normalizedAttempt1 === "failed") {
+        stats.delayedParcels += 1;
+      }
+    });
+
+    return (ridersData || []).map((rider) => ({
+      ...rider,
+      ...(statsByRiderId.get(rider.user_id) || {
+        deliveredParcels: 0,
+        ongoingParcels: 0,
+        delayedParcels: 0,
+      }),
+    }));
+  }, []);
+
+  const refreshRiders = useCallback(async () => {
+    const ridersData = await fetchRiderLocations();
+    return fetchRiderMetrics(ridersData);
+  }, [fetchRiderLocations, fetchRiderMetrics]);
+
   const escapeHtml = (value = "") =>
     value
       .replace(/&/g, "&amp;")
@@ -122,9 +258,15 @@ export default function Riders() {
   const buildLocationPopup = (riderName) => {
     const safeName = escapeHtml(riderName || "");
     const selected = riders.find((r) => r.username === riderName);
+    const displayName = getRiderDisplayName(selected || { username: riderName });
+    const safeDisplayName = escapeHtml(displayName);
     const normalizedStatus = selected?.status?.toLowerCase() || "";
     const isOnline = ["online", "active"].includes(normalizedStatus);
-    const statusClass = isOnline ? "is-online" : ["offline", "inactive"].includes(normalizedStatus) ? "is-offline" : "is-default";
+    const statusClass = isOnline
+      ? "is-online"
+      : ["offline", "inactive"].includes(normalizedStatus)
+        ? "is-offline"
+        : "is-default";
     const statusLabel = selected?.status || "Unknown";
     return `
       <div class="rider-location-popup ${statusClass}" data-rider-name="${safeName}">
@@ -132,7 +274,7 @@ export default function Riders() {
           <span class="rider-location-dot" aria-hidden="true"></span>
           <span class="rider-location-popup-label">Rider location</span>
         </div>
-        <button type="button" class="rider-location-popup-btn" data-rider-name="${safeName}">${safeName}</button>
+        <button type="button" class="rider-location-popup-btn" data-rider-name="${safeName}">${safeDisplayName}</button>
         <span class="rider-location-status">${escapeHtml(statusLabel)}</span>
         <span class="rider-location-popup-hint">Tap name to view rider details</span>
       </div>
@@ -147,28 +289,44 @@ export default function Riders() {
       const button = popupElement.querySelector(".rider-location-popup-btn");
       if (!button) return;
 
-      const clickHandler = () => {
-        openInfoModal(riderName);
+      L.DomEvent.disableClickPropagation(popupElement);
+      L.DomEvent.disableScrollPropagation(popupElement);
+
+      const clickHandler = (clickEvent) => {
+        L.DomEvent.stop(clickEvent);
+        const clickedRiderName =
+          button?.getAttribute?.("data-rider-name") || riderName;
+        openRiderInfoFromPopup(clickedRiderName);
       };
 
       const popupId = event.popup?._leaflet_id;
       if (!popupId) {
-        button.addEventListener("click", clickHandler);
+        L.DomEvent.on(button, "click", clickHandler);
+        L.DomEvent.on(button, "touchend", clickHandler);
         return;
       }
 
       const previousHandler = popupHandlerMapRef.current.get(popupId);
       if (previousHandler) {
-        button.removeEventListener("click", previousHandler);
+        L.DomEvent.off(button, "click", previousHandler);
+        L.DomEvent.off(button, "touchend", previousHandler);
       }
 
-      button.addEventListener("click", clickHandler);
+      L.DomEvent.on(button, "click", clickHandler);
+      L.DomEvent.on(button, "touchend", clickHandler);
       popupHandlerMapRef.current.set(popupId, clickHandler);
     });
 
     marker.on("popupclose", (event) => {
+      const popupElement = event.popup?.getElement();
+      const button = popupElement?.querySelector?.(".rider-location-popup-btn");
       const popupId = event.popup?._leaflet_id;
-      if (!popupId) return;
+      if (!button || !popupId) return;
+      const previousHandler = popupHandlerMapRef.current.get(popupId);
+      if (previousHandler) {
+        L.DomEvent.off(button, "click", previousHandler);
+        L.DomEvent.off(button, "touchend", previousHandler);
+      }
       popupHandlerMapRef.current.delete(popupId);
     });
   };
@@ -182,10 +340,10 @@ export default function Riders() {
     try {
       const [currentRes, forecastRes] = await Promise.all([
         fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`,
         ),
         fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`,
         ),
       ]);
 
@@ -234,10 +392,10 @@ export default function Riders() {
     try {
       const [currentRes, forecastRes] = await Promise.all([
         fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`,
         ),
         fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_API_KEY}`,
         ),
       ]);
 
@@ -279,7 +437,7 @@ export default function Riders() {
 
   const riderLocations = useMemo(
     () => riders.filter((rider) => rider.lat !== null && rider.lng !== null),
-    [riders]
+    [riders],
   );
 
   // Load riders on mount
@@ -288,7 +446,7 @@ export default function Riders() {
 
     async function loadRiders() {
       try {
-        const ridersData = await fetchRiderLocations();
+        const ridersData = await refreshRiders();
         if (isMounted) {
           setRiders(ridersData);
         }
@@ -305,7 +463,7 @@ export default function Riders() {
 
     const pollingInterval = setInterval(async () => {
       try {
-        const ridersData = await fetchRiderLocations();
+        const ridersData = await refreshRiders();
         if (isMounted) {
           setRiders(ridersData);
         }
@@ -318,14 +476,19 @@ export default function Riders() {
       isMounted = false;
       clearInterval(pollingInterval);
     };
-  }, [fetchRiderLocations]);
+  }, [refreshRiders]);
 
   useEffect(() => {
     if (loading || !allMapRef.current) return;
 
     if (!allLeafletMapRef.current) {
-      allLeafletMapRef.current = L.map(allMapRef.current).setView([14.676, 121.0437], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(allLeafletMapRef.current);
+      allLeafletMapRef.current = L.map(allMapRef.current).setView(
+        [14.676, 121.0437],
+        13,
+      );
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(allLeafletMapRef.current);
     }
 
     const map = allLeafletMapRef.current;
@@ -358,7 +521,10 @@ export default function Riders() {
       const bounds = L.featureGroup(allMarkersRef.current).getBounds().pad(0.2);
       map.fitBounds(bounds);
       hasAutoCenteredAllMapRef.current = true;
-    } else if (!hasAutoCenteredAllMapRef.current && allMarkersRef.current.length === 1) {
+    } else if (
+      !hasAutoCenteredAllMapRef.current &&
+      allMarkersRef.current.length === 1
+    ) {
       const first = allMarkersRef.current[0].getLatLng();
       map.setView([first.lat, first.lng], 14);
       hasAutoCenteredAllMapRef.current = true;
@@ -367,7 +533,7 @@ export default function Riders() {
     setTimeout(() => {
       map.invalidateSize();
     }, 120);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, riderLocations]);
 
   useEffect(() => {
@@ -392,10 +558,13 @@ export default function Riders() {
     if (!fullMapRef.current) return;
 
     if (!fullLeafletMapRef.current) {
-      fullLeafletMapRef.current = L.map(fullMapRef.current).setView([14.676, 121.0437], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(
-        fullLeafletMapRef.current
+      fullLeafletMapRef.current = L.map(fullMapRef.current).setView(
+        [14.676, 121.0437],
+        13,
       );
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(fullLeafletMapRef.current);
     }
 
     const map = fullLeafletMapRef.current;
@@ -424,11 +593,19 @@ export default function Riders() {
       fullMarkersRef.current.push(marker);
     });
 
-    if (!hasAutoCenteredFullMapRef.current && fullMarkersRef.current.length > 1) {
-      const bounds = L.featureGroup(fullMarkersRef.current).getBounds().pad(0.2);
+    if (
+      !hasAutoCenteredFullMapRef.current &&
+      fullMarkersRef.current.length > 1
+    ) {
+      const bounds = L.featureGroup(fullMarkersRef.current)
+        .getBounds()
+        .pad(0.2);
       map.fitBounds(bounds);
       hasAutoCenteredFullMapRef.current = true;
-    } else if (!hasAutoCenteredFullMapRef.current && fullMarkersRef.current.length === 1) {
+    } else if (
+      !hasAutoCenteredFullMapRef.current &&
+      fullMarkersRef.current.length === 1
+    ) {
       const first = fullMarkersRef.current[0].getLatLng();
       map.setView([first.lat, first.lng], 14);
       hasAutoCenteredFullMapRef.current = true;
@@ -449,10 +626,13 @@ export default function Riders() {
         {
           maxZoom: 19,
           opacity: 0.9,
-        }
+        },
       );
       fullWeatherOverlayRef.current.on("tileerror", (event) => {
-        console.error("OpenWeather tile failed to load (fullscreen map):", event);
+        console.error(
+          "OpenWeather tile failed to load (fullscreen map):",
+          event,
+        );
       });
       fullWeatherOverlayRef.current.addTo(map);
     } else if (activeMapLayer === "flood") {
@@ -461,7 +641,7 @@ export default function Riders() {
         {
           maxZoom: 19,
           opacity: 0.9,
-        }
+        },
       );
       fullFloodOverlayRef.current.on("tileerror", (event) => {
         console.error("Flood tile failed to load (fullscreen map):", event);
@@ -472,13 +652,21 @@ export default function Riders() {
     setTimeout(() => {
       map.invalidateSize();
     }, 120);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullMapModalOpen, riderLocations, activeMapLayer]);
 
   useEffect(() => {
-    if (!trackModalOpen || !trackingRider || !currentMarkerRef.current || !leafletMapRef.current) return;
+    if (
+      !trackModalOpen ||
+      !trackingRider ||
+      !currentMarkerRef.current ||
+      !leafletMapRef.current
+    )
+      return;
 
-    const selectedRider = riderLocations.find((rider) => rider.username === trackingRider);
+    const selectedRider = riderLocations.find(
+      (rider) => rider.username === trackingRider,
+    );
     if (!selectedRider) return;
 
     const nextPosition = [selectedRider.lat, selectedRider.lng];
@@ -504,7 +692,7 @@ export default function Riders() {
         {
           maxZoom: 19,
           opacity: 0.9,
-        }
+        },
       );
       weatherOverlayRef.current.on("tileerror", (event) => {
         console.error("OpenWeather tile failed to load:", event);
@@ -517,7 +705,7 @@ export default function Riders() {
         {
           maxZoom: 19,
           opacity: 0.9,
-        }
+        },
       );
       floodOverlayRef.current.on("tileerror", (event) => {
         console.error("Flood tile failed to load:", event);
@@ -623,25 +811,30 @@ export default function Riders() {
       if (!mapRef.current) return;
 
       setLoadingMap(false);
-      const selectedRider = riderLocations.find((r) => r.username === riderName);
+      const selectedRider = riderLocations.find(
+        (r) => r.username === riderName,
+      );
       const focusedLat = selectedRider?.lat ?? 14.676;
       const focusedLng = selectedRider?.lng ?? 121.0437;
 
       const map = L.map(mapRef.current).setView([focusedLat, focusedLng], 14);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(map);
 
       const riderIcon = L.icon({
-        iconUrl: "/images/rider.png", // replace with your PNG
+        iconUrl: "/images/rider.png",
         iconSize: [40, 40],
         iconAnchor: [20, 40],
         popupAnchor: [0, -40],
       });
 
-      const marker = L.marker(
-        [focusedLat, focusedLng],
-        { icon: riderIcon, zIndexOffset: 1200, riseOnHover: true }
-      )
+      const marker = L.marker([focusedLat, focusedLng], {
+        icon: riderIcon,
+        zIndexOffset: 1200,
+        riseOnHover: true,
+      })
         .addTo(map)
         .bindPopup(buildLocationPopup(riderName), {
           className: "rider-location-leaflet-popup",
@@ -658,7 +851,7 @@ export default function Riders() {
         marker.openPopup();
         marker.getPopup()?.update();
       }, 200);
-    }, 500); // wait 500ms for modal animation
+    }, 900);
   };
 
   const closeTrackModal = () => {
@@ -678,28 +871,87 @@ export default function Riders() {
     setLoadingInfo(true);
     setInfoError("");
     setSelectedRiderInfo(null);
+    setViolationLogsModalOpen(false);
+    setRiderViolationLogs([]);
+    setViolationLogsError("");
+    setLoadingViolationLogs(false);
 
     try {
-      const { data, error } = await supabaseClient
+      // Step 1: Fetch rider information including their UUID
+      const { data: riderData, error: riderError } = await supabaseClient
         .from("users")
-        .select("username, email, fname, lname, mname, gender, age, status, pnumber, profile_url")
+        .select(
+          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url",
+        )
         .eq("username", riderName)
         .maybeSingle();
 
-      if (error) {
-        throw error;
+      if (riderError) {
+        throw riderError;
       }
 
-      if (!data) {
+      if (!riderData) {
         setInfoError("Rider information not found.");
         return;
       }
 
+      console.log("Rider data:", riderData);
+      console.log("Rider UUID:", riderData.user_id);
+
+      // Step 2: Fetch parcels using the rider's UUID
+      const { data: parcelsData, error: parcelsError } = await supabaseClient
+        .from("parcels")
+        .select("status, assigned_rider_id")
+        .eq("assigned_rider_id", riderData.user_id);
+
+      setLoadingViolationLogs(true);
+      const { data: violationData, error: violationError } = await supabaseClient
+        .from("violation_logs")
+        .select("violation, date, lat, lng, name")
+        .eq("user_id", riderData.user_id)
+        .order("date", { ascending: false });
+      setLoadingViolationLogs(false);
+
+      if (parcelsError) {
+        console.error("Failed to fetch parcels:", parcelsError);
+        // Continue with rider data even if parcels fail
+      }
+      if (violationError) {
+        console.error("Failed to fetch rider violation logs:", violationError);
+        setViolationLogsError("Failed to load rider violation logs.");
+      } else {
+        setRiderViolationLogs(violationData || []);
+      }
+
+      console.log("Parcels data:", parcelsData);
+
+      // Step 3: Calculate parcel counts based on status
+      const parcels = parcelsData || [];
+
+      const deliveredParcels = parcels.filter(
+        (p) => p.status?.toLowerCase() === "successfully delivered",
+      ).length;
+
+      const ongoingParcels = parcels.filter(
+        (p) => p.status?.toLowerCase() === "on-going",
+      ).length;
+
+      const cancelledParcels = parcels.filter(
+        (p) => p.status?.toLowerCase() === "cancelled",
+      ).length;
+
+      console.log("Parcel counts:", {
+        delivered: deliveredParcels,
+        ongoing: ongoingParcels,
+        cancelled: cancelledParcels,
+        total: parcels.length,
+      });
+
       setSelectedRiderInfo({
-        ...data,
-        deliveredParcels: "--",
-        ongoingParcels: "--",
-        cancelledParcels: "--",
+        ...riderData,
+        deliveredParcels,
+        ongoingParcels,
+        cancelledParcels,
         quotaTarget: RIDER_DELIVERY_QUOTA,
       });
     } catch (err) {
@@ -713,9 +965,13 @@ export default function Riders() {
   const closeInfoModal = () => {
     setInfoModalOpen(false);
     setPerformanceModalOpen(false);
+    setViolationLogsModalOpen(false);
     setSelectedRiderInfo(null);
     setInfoError("");
     setPhotoPreviewOpen(false);
+    setRiderViolationLogs([]);
+    setViolationLogsError("");
+    setLoadingViolationLogs(false);
   };
 
   const openCreateModal = () => {
@@ -746,7 +1002,9 @@ export default function Riders() {
       return;
     }
     if (!isUsernameValid) {
-      setCreateRiderError("Username must be at least 3 characters and use letters, numbers, or underscore only.");
+      setCreateRiderError(
+        "Username must be at least 3 characters and use letters, numbers, or underscore only.",
+      );
       return;
     }
 
@@ -758,7 +1016,7 @@ export default function Riders() {
 
     if (!isPasswordValid) {
       setCreateRiderError(
-        "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
+        "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
       );
       return;
     }
@@ -766,16 +1024,17 @@ export default function Riders() {
     setCreatingRider(true);
 
     try {
-      const { data: updatedRows, error: usersUpdateError } = await supabaseClient
-        .from("users")
-        .update({
-          new_user: true,
-          username: normalizedUsername,
-          password: createPassword,
-          doj: joinDateToday,
-        })
-        .eq("email", normalizedEmail)
-        .select("email");
+      const { data: updatedRows, error: usersUpdateError } =
+        await supabaseClient
+          .from("users")
+          .update({
+            new_user: true,
+            username: normalizedUsername,
+            password: createPassword,
+            doj: joinDateToday,
+          })
+          .eq("email", normalizedEmail)
+          .select("email");
 
       if (usersUpdateError) {
         throw usersUpdateError;
@@ -797,7 +1056,7 @@ export default function Riders() {
         }
       }
 
-      const ridersData = await fetchRiderLocations();
+      const ridersData = await refreshRiders();
       if (ridersData) {
         setRiders(ridersData);
       }
@@ -817,56 +1076,60 @@ export default function Riders() {
   };
 
   return (
-    <div className="dashboard-container">
-      {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
+    <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       <Sidebar currentPage="riders.html" />
-      
-      <div className="riders-page">
+
+      <div className="riders-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {loading ? (
           <PageSpinner fullScreen label="Loading riders..." />
         ) : (
-          <div className="riders-content-shell">
-            <div className="rider-header-row">
-              <h1 className="page-title">Rider Management</h1>
+          <div className="riders-content-shell p-6">
+            <div className="rider-header-row mb-5">
+              <h1 className="page-title mb-6">Rider Management</h1>
               <button
                 type="button"
-                className="add-rider-btn"
+                className="add-rider-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110"
                 onClick={openCreateModal}
               >
                 Add Rider
               </button>
             </div>
             <div className="riders-split-layout">
-              <div className="riders-table-wrapper">
+              <div className="riders-table-wrapper rounded-2xl bg-white shadow-2xl shadow-slate-900/12 dark:bg-slate-900 dark:shadow-black/45">
                 <table className="rider-table">
                   <thead>
                     <tr>
-                      <th>No.</th>
-                      <th>Name</th>
-                      <th>Delivered</th>
-                      <th>Ongoing</th>
-                      <th>Delayed</th>
-                      <th>Location</th>
+                      <th className="col-index">No.</th>
+                      <th className="col-name">Name</th>
+                      <th className="col-metric">Delivered</th>
+                      <th className="col-metric">Ongoing</th>
+                      <th className="col-metric">Delayed</th>
+                      <th className="col-action">Location</th>
                     </tr>
                   </thead>
                   <tbody>
                     {riders.map((rider, idx) => (
                       <tr key={rider.username}>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="rider-name-btn"
-                          onClick={() => openInfoModal(rider.username)}
-                        >
-                          {rider.username}
-                        </button>
-                      </td>
-                      <td>0</td>
-                      <td>0</td>
-                      <td>0</td>
-                        <td>
-                          <button className="track-btn" onClick={() => openTrackModal(rider.username)}>
+                        <td className="col-index">{idx + 1}</td>
+                        <td className="col-name">
+                          <button
+                            type="button"
+                            className="rider-name-btn"
+                            onClick={() => openInfoModal(rider.username)}
+                          >
+                            {getRiderDisplayName(rider)}
+                          </button>
+                        </td>
+                        <td className="col-metric">
+                          {rider.deliveredParcels ?? 0}
+                        </td>
+                        <td className="col-metric">{rider.ongoingParcels ?? 0}</td>
+                        <td className="col-metric">{rider.delayedParcels ?? 0}</td>
+                        <td className="col-action">
+                          <button
+                            className="track-btn rounded-lg bg-gradient-to-r from-red-600 to-red-800 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition hover:brightness-110"
+                            onClick={() => openTrackModal(rider.username)}
+                          >
                             Track
                           </button>
                         </td>
@@ -875,14 +1138,17 @@ export default function Riders() {
                   </tbody>
                 </table>
               </div>
-              <div className="rider-map-card">
+              <div className="rider-map-card rounded-2xl bg-white shadow-2xl shadow-slate-900/12 dark:bg-slate-900 dark:shadow-black/45">
                 <div className="rider-map-header">
                   <div className="rider-map-header-top">
                     <h2>Live Rider Map</h2>
                     <div className="rider-weather-toggle">
                       <div className="rider-layer-toggle-row">
                         <span>Weather</span>
-                        <label className="rider-toggle-switch" aria-label="Toggle weather layer">
+                        <label
+                          className="rider-toggle-switch"
+                          aria-label="Toggle weather layer"
+                        >
                           <input
                             type="checkbox"
                             checked={activeMapLayer === "weather"}
@@ -903,7 +1169,10 @@ export default function Riders() {
                       </div>
                       <div className="rider-layer-toggle-row">
                         <span>Flood</span>
-                        <label className="rider-toggle-switch" aria-label="Toggle flood layer">
+                        <label
+                          className="rider-toggle-switch"
+                          aria-label="Toggle flood layer"
+                        >
                           <input
                             type="checkbox"
                             checked={activeMapLayer === "flood"}
@@ -920,7 +1189,11 @@ export default function Riders() {
                           <span className="rider-toggle-slider" />
                         </label>
                       </div>
-                      <button type="button" className="rider-map-size-btn" onClick={() => setFullMapModalOpen(true)}>
+                      <button
+                        type="button"
+                        className="rider-map-size-btn rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm transition hover:bg-red-50"
+                        onClick={() => setFullMapModalOpen(true)}
+                      >
                         Open Fullscreen Map
                       </button>
                     </div>
@@ -935,7 +1208,11 @@ export default function Riders() {
                         type="button"
                         className={`weather-panel-toggle-btn ${showWeatherPanel ? "open" : ""}`}
                         onClick={() => setShowWeatherPanel((prev) => !prev)}
-                        aria-label={showWeatherPanel ? "Hide weather panel" : "Show weather panel"}
+                        aria-label={
+                          showWeatherPanel
+                            ? "Hide weather panel"
+                            : "Show weather panel"
+                        }
                       >
                         <span aria-hidden="true">☁</span>
                       </button>
@@ -943,15 +1220,21 @@ export default function Riders() {
                     {activeMapLayer === "weather" && showWeatherPanel && (
                       <div className="weather-forecast-card">
                         {weatherLoading ? (
-                          <p className="weather-forecast-loading">Loading weather...</p>
+                          <p className="weather-forecast-loading">
+                            Loading weather...
+                          </p>
                         ) : weatherError ? (
-                          <p className="weather-forecast-error">{weatherError}</p>
+                          <p className="weather-forecast-error">
+                            {weatherError}
+                          </p>
                         ) : weatherCurrent ? (
                           <>
                             <div className="weather-now">
                               <div className="weather-now-main">
                                 <strong>{weatherCurrent.city}</strong>
-                                <span className="weather-desc">{weatherCurrent.description}</span>
+                                <span className="weather-desc">
+                                  {weatherCurrent.description}
+                                </span>
                               </div>
                               <div className="weather-temp-block">
                                 {weatherCurrent.icon && (
@@ -970,7 +1253,10 @@ export default function Riders() {
                             </div>
                             <div className="weather-forecast-row">
                               {weatherForecast.map((item) => (
-                                <div key={`${item.time}-${item.temp}`} className="weather-forecast-chip">
+                                <div
+                                  key={`${item.time}-${item.temp}`}
+                                  className="weather-forecast-chip"
+                                >
                                   <span>{item.time}</span>
                                   {item.icon && (
                                     <img
@@ -984,7 +1270,9 @@ export default function Riders() {
                             </div>
                           </>
                         ) : (
-                          <p className="weather-forecast-loading">Weather data unavailable.</p>
+                          <p className="weather-forecast-loading">
+                            Weather data unavailable.
+                          </p>
                         )}
                       </div>
                     )}
@@ -997,14 +1285,23 @@ export default function Riders() {
       </div>
 
       {fullMapModalOpen && (
-        <div className="riders-modal-overlay" onClick={() => setFullMapModalOpen(false)}>
-          <div className="riders-modal-content rider-full-map-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="riders-modal-overlay bg-slate-950/60 backdrop-blur-sm"
+          onClick={() => setFullMapModalOpen(false)}
+        >
+          <div
+            className="riders-modal-content rider-full-map-modal rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="riders-modal-header rider-full-map-header">
               <h2>Live Rider Map</h2>
               <div className="rider-full-map-controls">
                 <div className="rider-layer-toggle-row">
                   <span>Weather</span>
-                  <label className="rider-toggle-switch" aria-label="Toggle weather layer (fullscreen)">
+                  <label
+                    className="rider-toggle-switch"
+                    aria-label="Toggle weather layer (fullscreen)"
+                  >
                     <input
                       type="checkbox"
                       checked={activeMapLayer === "weather"}
@@ -1022,7 +1319,10 @@ export default function Riders() {
                 </div>
                 <div className="rider-layer-toggle-row">
                   <span>Flood</span>
-                  <label className="rider-toggle-switch" aria-label="Toggle flood layer (fullscreen)">
+                  <label
+                    className="rider-toggle-switch"
+                    aria-label="Toggle flood layer (fullscreen)"
+                  >
                     <input
                       type="checkbox"
                       checked={activeMapLayer === "flood"}
@@ -1039,7 +1339,11 @@ export default function Riders() {
                   </label>
                 </div>
               </div>
-              <button type="button" className="rider-full-map-close" onClick={() => setFullMapModalOpen(false)}>
+              <button
+                type="button"
+                className="rider-full-map-close rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-red-900 shadow-sm transition hover:bg-red-50"
+                onClick={() => setFullMapModalOpen(false)}
+              >
                 Close
               </button>
             </div>
@@ -1051,7 +1355,11 @@ export default function Riders() {
                     type="button"
                     className={`weather-panel-toggle-btn ${showFullWeatherPanel ? "open" : ""}`}
                     onClick={() => setShowFullWeatherPanel((prev) => !prev)}
-                    aria-label={showFullWeatherPanel ? "Hide weather panel" : "Show weather panel"}
+                    aria-label={
+                      showFullWeatherPanel
+                        ? "Hide weather panel"
+                        : "Show weather panel"
+                    }
                   >
                     <span aria-hidden="true">☁</span>
                   </button>
@@ -1059,15 +1367,21 @@ export default function Riders() {
                 {activeMapLayer === "weather" && showFullWeatherPanel && (
                   <div className="weather-forecast-card">
                     {fullWeatherLoading ? (
-                      <p className="weather-forecast-loading">Loading weather...</p>
+                      <p className="weather-forecast-loading">
+                        Loading weather...
+                      </p>
                     ) : fullWeatherError ? (
-                      <p className="weather-forecast-error">{fullWeatherError}</p>
+                      <p className="weather-forecast-error">
+                        {fullWeatherError}
+                      </p>
                     ) : fullWeatherCurrent ? (
                       <>
                         <div className="weather-now">
                           <div className="weather-now-main">
                             <strong>{fullWeatherCurrent.city}</strong>
-                            <span className="weather-desc">{fullWeatherCurrent.description}</span>
+                            <span className="weather-desc">
+                              {fullWeatherCurrent.description}
+                            </span>
                           </div>
                           <div className="weather-temp-block">
                             {fullWeatherCurrent.icon && (
@@ -1086,10 +1400,16 @@ export default function Riders() {
                         </div>
                         <div className="weather-forecast-row">
                           {fullWeatherForecast.map((item) => (
-                            <div key={`${item.time}-${item.temp}`} className="weather-forecast-chip">
+                            <div
+                              key={`${item.time}-${item.temp}`}
+                              className="weather-forecast-chip"
+                            >
                               <span>{item.time}</span>
                               {item.icon && (
-                                <img src={`https://openweathermap.org/img/wn/${item.icon}.png`} alt="forecast icon" />
+                                <img
+                                  src={`https://openweathermap.org/img/wn/${item.icon}.png`}
+                                  alt="forecast icon"
+                                />
                               )}
                               <strong>{item.temp}°</strong>
                             </div>
@@ -1097,7 +1417,9 @@ export default function Riders() {
                         </div>
                       </>
                     ) : (
-                      <p className="weather-forecast-loading">Weather data unavailable.</p>
+                      <p className="weather-forecast-loading">
+                        Weather data unavailable.
+                      </p>
                     )}
                   </div>
                 )}
@@ -1111,7 +1433,11 @@ export default function Riders() {
         <div
           className="riders-modal-overlay"
           onClick={closeTrackModal}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
           <div
             className="riders-modal-content track-rider-modal"
@@ -1123,15 +1449,27 @@ export default function Riders() {
             </div>
             <div className="riders-modal-body track-rider-body">
               <p>
-                Tracking the location of: <strong>{trackingRider}</strong>
+                Tracking the location of: <strong>{trackingRiderDisplayName}</strong>
               </p>
               {loadingMap && (
-                <div className="track-rider-loading">
-                  <img
-                    src="/images/motor.gif"
-                    alt="Loading map..."
-                    style={{ width: 120, display: "block" }}
-                  />
+                <div
+                  className="track-rider-loading"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Loading rider map"
+                >
+                  <div className="track-loader-shell">
+                    <div className="track-loader-spinner" aria-hidden="true">
+                      <span className="track-loader-ring" />
+                      <span className="track-loader-core" />
+                    </div>
+                    <p className="track-loader-title">Preparing live location map</p>
+                    <div className="track-loader-skeleton" aria-hidden="true">
+                      <span className="track-loader-line line-a" />
+                      <span className="track-loader-line line-b" />
+                      <span className="track-loader-line line-c" />
+                    </div>
+                  </div>
                 </div>
               )}
               <div
@@ -1150,7 +1488,11 @@ export default function Riders() {
         <div
           className="riders-modal-overlay"
           onClick={closeInfoModal}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
           <div
             className="riders-modal-content rider-info-modal"
@@ -1185,28 +1527,43 @@ export default function Riders() {
                         </button>
                       ) : (
                         <div className="rider-info-avatar rider-info-avatar-fallback">
-                          {(selectedRiderInfo?.fname?.[0] || selectedRiderInfo?.username?.[0] || "R").toUpperCase()}
+                          {(
+                            selectedRiderInfo?.fname?.[0] ||
+                            selectedRiderInfo?.username?.[0] ||
+                            "R"
+                          ).toUpperCase()}
                         </div>
                       )}
                     </div>
                     <div className="rider-info-main">
                       <div className="rider-info-headline">
-                        <h3>{selectedRiderInfo?.username || "Rider"}</h3>
+                        <h3>{selectedRiderDisplayName}</h3>
                         <p>
-                          {[selectedRiderInfo?.fname, selectedRiderInfo?.mname, selectedRiderInfo?.lname]
+                          {[
+                            selectedRiderInfo?.fname,
+                            selectedRiderInfo?.mname,
+                            selectedRiderInfo?.lname,
+                          ]
                             .filter(Boolean)
                             .join(" ") || "No full name available"}
                         </p>
                         <div className="rider-status-row">
                           {(() => {
-                            const normalizedStatus = selectedRiderInfo?.status?.toLowerCase() || "";
-                            const statusClass = ["online", "active"].includes(normalizedStatus)
+                            const normalizedStatus =
+                              selectedRiderInfo?.status?.toLowerCase() || "";
+                            const statusClass = ["online", "active"].includes(
+                              normalizedStatus,
+                            )
                               ? "is-online"
-                              : ["offline", "inactive"].includes(normalizedStatus)
-                              ? "is-offline"
-                              : "is-default";
+                              : ["offline", "inactive"].includes(
+                                    normalizedStatus,
+                                  )
+                                ? "is-offline"
+                                : "is-default";
                             return (
-                              <span className={`rider-status-pill ${statusClass}`}>
+                              <span
+                                className={`rider-status-pill ${statusClass}`}
+                              >
                                 {selectedRiderInfo?.status || "Unknown"}
                               </span>
                             );
@@ -1218,25 +1575,58 @@ export default function Riders() {
                           >
                             Performance
                           </button>
+                          <button
+                            type="button"
+                            className="rider-performance-btn rider-violations-btn"
+                            onClick={() => setViolationLogsModalOpen(true)}
+                          >
+                            Violation Logs
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="rider-info-grid">
-                    <div className="rider-info-item"><span>Email</span><strong>{selectedRiderInfo?.email || "-"}</strong></div>
-                    <div className="rider-info-item"><span>Phone Number</span><strong>{selectedRiderInfo?.pnumber || "-"}</strong></div>
-                    <div className="rider-info-item"><span>First Name</span><strong>{selectedRiderInfo?.fname || "-"}</strong></div>
-                    <div className="rider-info-item"><span>Middle Name</span><strong>{selectedRiderInfo?.mname || "-"}</strong></div>
-                    <div className="rider-info-item"><span>Last Name</span><strong>{selectedRiderInfo?.lname || "-"}</strong></div>
-                    <div className="rider-info-item"><span>Gender</span><strong>{selectedRiderInfo?.gender || "-"}</strong></div>
-                    <div className="rider-info-item"><span>Age</span><strong>{selectedRiderInfo?.age ?? "-"}</strong></div>
-                    <div className="rider-info-item"><span>Status</span><strong>{selectedRiderInfo?.status || "-"}</strong></div>
+                    <div className="rider-info-item">
+                      <span>Email</span>
+                      <strong>{selectedRiderInfo?.email || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Phone Number</span>
+                      <strong>{selectedRiderInfo?.pnumber || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>First Name</span>
+                      <strong>{selectedRiderInfo?.fname || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Middle Name</span>
+                      <strong>{selectedRiderInfo?.mname || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Last Name</span>
+                      <strong>{selectedRiderInfo?.lname || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Gender</span>
+                      <strong>{selectedRiderInfo?.gender || "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Age</span>
+                      <strong>{selectedRiderInfo?.age ?? "-"}</strong>
+                    </div>
+                    <div className="rider-info-item">
+                      <span>Status</span>
+                      <strong>{selectedRiderInfo?.status || "-"}</strong>
+                    </div>
                   </div>
                   {selectedRiderInfo?.profile_url && (
-                    <p className="rider-info-photo-hint">Tip: Click the profile photo to view it larger.</p>
+                    <p className="rider-info-photo-hint">
+                      Tip: Click the profile photo to view it larger.
+                    </p>
                   )}
-                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1247,7 +1637,11 @@ export default function Riders() {
         <div
           className="riders-modal-overlay"
           onClick={() => setPerformanceModalOpen(false)}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
           <div
             className="riders-modal-content rider-performance-modal"
@@ -1255,15 +1649,23 @@ export default function Riders() {
             style={{ width: 620, maxWidth: "92%" }}
           >
             <div className="riders-modal-header">
-              <h2>{selectedRiderInfo.username || "Rider"} Performance</h2>
+              <h2>{selectedRiderDisplayName} Performance</h2>
             </div>
             <div className="riders-modal-body rider-performance-body">
               <div className="rider-performance-grid">
                 <div className="rider-performance-card rider-performance-quota">
                   <span>Quota Progress</span>
                   <div className="rider-performance-ring-wrap">
-                    <svg viewBox="0 0 120 120" className="rider-performance-ring">
-                      <circle className="rider-performance-ring-bg" cx="60" cy="60" r="48" />
+                    <svg
+                      viewBox="0 0 120 120"
+                      className="rider-performance-ring"
+                    >
+                      <circle
+                        className="rider-performance-ring-bg"
+                        cx="60"
+                        cy="60"
+                        r="48"
+                      />
                       <circle
                         className="rider-performance-ring-fg"
                         cx="60"
@@ -1272,21 +1674,25 @@ export default function Riders() {
                         strokeDasharray={quotaStrokeDasharray}
                       />
                     </svg>
-                    <strong className="rider-performance-ring-label">{quotaPercent}%</strong>
+                    <strong className="rider-performance-ring-label">
+                      {quotaPercent}%
+                    </strong>
                   </div>
                   <small className="rider-performance-ring-note">
-                    {selectedRiderInfo.deliveredParcels ?? "--"}/{selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA} delivered
+                    {selectedRiderInfo.deliveredParcels ?? 0}/
+                    {selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA}{" "}
+                    delivered
                   </small>
                 </div>
-                <div className="rider-performance-card">
+                <div className="rider-performance-card rider-performance-delivered">
                   <span>Delivered Parcels</span>
                   <strong>{selectedRiderInfo.deliveredParcels ?? 0}</strong>
                 </div>
-                <div className="rider-performance-card">
+                <div className="rider-performance-card rider-performance-ongoing">
                   <span>Ongoing Parcels</span>
                   <strong>{selectedRiderInfo.ongoingParcels ?? 0}</strong>
                 </div>
-                <div className="rider-performance-card">
+                <div className="rider-performance-card rider-performance-cancelled">
                   <span>Cancelled Parcels</span>
                   <strong>{selectedRiderInfo.cancelledParcels ?? 0}</strong>
                 </div>
@@ -1300,7 +1706,11 @@ export default function Riders() {
         <div
           className="riders-modal-overlay"
           onClick={() => setPhotoPreviewOpen(false)}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
           <div
             className="riders-modal-content rider-photo-modal"
@@ -1321,11 +1731,68 @@ export default function Riders() {
         </div>
       )}
 
+      {violationLogsModalOpen && selectedRiderInfo && (
+        <div
+          className="riders-modal-overlay"
+          onClick={() => setViolationLogsModalOpen(false)}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="riders-modal-content rider-violations-modal"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: 760, maxWidth: "96%" }}
+          >
+            <div className="riders-modal-header">
+              <h2>{selectedRiderDisplayName} Violation Logs</h2>
+            </div>
+            <div className="riders-modal-body rider-violations-body">
+              {loadingViolationLogs ? (
+                <PageSpinner label="Loading violation logs..." />
+              ) : violationLogsError ? (
+                <p className="rider-info-error">{violationLogsError}</p>
+              ) : riderViolationLogs.length === 0 ? (
+                <p className="rider-violations-empty">
+                  No violation logs found for this rider.
+                </p>
+              ) : (
+                <div className="rider-violations-list">
+                  {riderViolationLogs.map((log, index) => (
+                    <div
+                      className="rider-violations-item"
+                      key={`${log.date || "no-date"}-${log.violation || "no-violation"}-${index}`}
+                    >
+                      <div className="rider-violations-fields">
+                        <div className="rider-violations-field">
+                          <span className="rider-violations-label">Violation Type</span>
+                          <strong>{log.violation || "Unknown violation"}</strong>
+                        </div>
+                        <div className="rider-violations-field">
+                          <span className="rider-violations-label">Date</span>
+                          <strong>{formatViolationLogDate(log.date)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {createModalOpen && (
         <div
           className="riders-modal-overlay"
           onClick={closeCreateModal}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
           <div
             className="riders-modal-content rider-create-modal"
@@ -1363,12 +1830,26 @@ export default function Riders() {
                   <div className="rider-rules-box" aria-live="polite">
                     <p className="rider-rules-title">Username requirements</p>
                     <div className="rider-create-rules">
-                      <label className={`rider-rule-item ${usernameLengthValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={usernameLengthValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${usernameLengthValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={usernameLengthValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>At least 3 characters</span>
                       </label>
-                      <label className={`rider-rule-item ${usernamePatternValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={usernamePatternValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${usernamePatternValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={usernamePatternValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>Letters, numbers, underscore only</span>
                       </label>
                     </div>
@@ -1405,31 +1886,68 @@ export default function Riders() {
                   <div className="rider-rules-box" aria-live="polite">
                     <p className="rider-rules-title">Password requirements</p>
                     <div className="rider-create-rules">
-                      <label className={`rider-rule-item ${passwordLengthValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={passwordLengthValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${passwordLengthValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={passwordLengthValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>At least 8 characters</span>
                       </label>
-                      <label className={`rider-rule-item ${passwordUpperValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={passwordUpperValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${passwordUpperValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={passwordUpperValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>Has uppercase letter</span>
                       </label>
-                      <label className={`rider-rule-item ${passwordLowerValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={passwordLowerValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${passwordLowerValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={passwordLowerValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>Has lowercase letter</span>
                       </label>
-                      <label className={`rider-rule-item ${passwordNumberValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={passwordNumberValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${passwordNumberValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={passwordNumberValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>Has number</span>
                       </label>
-                      <label className={`rider-rule-item ${passwordSpecialValid ? "met" : ""}`}>
-                        <input type="checkbox" checked={passwordSpecialValid} readOnly tabIndex={-1} />
+                      <label
+                        className={`rider-rule-item ${passwordSpecialValid ? "met" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={passwordSpecialValid}
+                          readOnly
+                          tabIndex={-1}
+                        />
                         <span>Has special character</span>
                       </label>
                     </div>
                   </div>
                 </div>
 
-                {createRiderError && <p className="rider-create-error">{createRiderError}</p>}
+                {createRiderError && (
+                  <p className="rider-create-error">{createRiderError}</p>
+                )}
 
                 <div className="rider-create-actions">
                   <button
@@ -1440,7 +1958,13 @@ export default function Riders() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="rider-create-submit" disabled={creatingRider || !isUsernameValid || !isPasswordValid}>
+                  <button
+                    type="submit"
+                    className="rider-create-submit"
+                    disabled={
+                      creatingRider || !isUsernameValid || !isPasswordValid
+                    }
+                  >
                     {creatingRider ? "Creating..." : "Create Account"}
                   </button>
                 </div>
@@ -1451,8 +1975,14 @@ export default function Riders() {
       )}
 
       {showCreateSuccessModal && (
-        <div className="riders-modal-overlay" onClick={() => setShowCreateSuccessModal(false)}>
-          <div className="riders-success-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="riders-modal-overlay"
+          onClick={() => setShowCreateSuccessModal(false)}
+        >
+          <div
+            className="riders-success-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="riders-success-header">
               <h3>Success</h3>
             </div>
@@ -1461,13 +1991,6 @@ export default function Riders() {
                 <span className="riders-success-checkmark" />
               </div>
               <p>{createSuccessMessage}</p>
-              <button
-                type="button"
-                className="riders-success-btn"
-                onClick={() => setShowCreateSuccessModal(false)}
-              >
-                OK
-              </button>
             </div>
           </div>
         </div>
@@ -1475,5 +1998,3 @@ export default function Riders() {
     </div>
   );
 }
-
-

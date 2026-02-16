@@ -255,7 +255,7 @@ export default function Login({ setOtpVerified }) {
 
   // ------------------- RENDER -------------------
   return (
-    <div className="login-page">
+    <div className="login-page bg-gradient-to-br from-red-600 via-red-700 to-red-900 font-sans">
       {/* Floating decorative shapes */}
       <div className="float-shape float-shape--1" />
       <div className="float-shape float-shape--2" />
@@ -269,7 +269,7 @@ export default function Login({ setOtpVerified }) {
       <div className="float-shape float-shape--10" />
 
       <div className="centered-content">
-        <div className="modern-card">
+        <div className="modern-card overflow-hidden rounded-3xl border border-white/20 shadow-2xl shadow-slate-950/40">
           {/* ── Left panel: illustration ── */}
           <div className="login-card-brand">
             <img
@@ -280,7 +280,7 @@ export default function Login({ setOtpVerified }) {
           </div>
 
           {/* ── Right panel: form ── */}
-          <div className="login-right-panel">
+          <div className="login-right-panel bg-gradient-to-br from-red-600 to-red-900">
             {/* Logo at the top of the form */}
             <div className="login-logo-top">
               <img src="images/logo.png" alt="Logo" />
@@ -306,7 +306,7 @@ export default function Login({ setOtpVerified }) {
                     </svg>
                     <input
                       type="email"
-                      className="form-input"
+                      className="form-input rounded-xl border border-white/30 bg-white/95 focus:ring-4 focus:ring-white/25"
                       placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -332,7 +332,7 @@ export default function Login({ setOtpVerified }) {
                     </svg>
                     <input
                       type="password"
-                      className="form-input"
+                      className="form-input rounded-xl border border-white/30 bg-white/95 focus:ring-4 focus:ring-white/25"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -345,7 +345,7 @@ export default function Login({ setOtpVerified }) {
 
                 <button
                   type="submit"
-                  className={`login-btn ${isLoading ? "loading" : ""}`}
+                  className={`login-btn ${isLoading ? "loading" : ""} rounded-xl bg-white font-semibold text-red-700 shadow-lg transition hover:bg-red-50`}
                   disabled={isLoading}
                 >
                   {isLoading ? "" : "Login"}
@@ -377,7 +377,7 @@ export default function Login({ setOtpVerified }) {
                         inputMode="numeric"
                         pattern="[0-9]*"
                         autoComplete="one-time-code"
-                        className="otp-input-box"
+                        className="otp-input-box rounded-xl border border-white/30 bg-white/95 text-slate-900 focus:ring-4 focus:ring-white/20"
                         value={digit}
                         onChange={(e) => handleOtpChange(index, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
@@ -401,7 +401,7 @@ export default function Login({ setOtpVerified }) {
                     type="button"
                     onClick={handleResendOTP}
                     disabled={isLoading || resendCooldown > 0}
-                    className="otp-link-btn"
+                    className="otp-link-btn font-semibold text-white transition hover:text-red-100"
                   >
                     {resendCooldown > 0
                       ? `Resend in ${resendCooldown}s`
@@ -416,7 +416,7 @@ export default function Login({ setOtpVerified }) {
                       lastAutoSubmittedOtpRef.current = "";
                       setError("");
                     }}
-                    className="otp-link-btn"
+                    className="otp-link-btn font-semibold text-white transition hover:text-red-100"
                   >
                     Back to Login
                   </button>
@@ -430,13 +430,13 @@ export default function Login({ setOtpVerified }) {
       {/* OTP result modal */}
       {otpResultModal.open && (
         <div
-          className="otp-result-overlay"
+          className="otp-result-overlay bg-slate-950/60 backdrop-blur-sm"
           onClick={() => {
             if (otpResultModal.type === "error") closeOtpResultModal();
           }}
         >
           <div
-            className="otp-result-modal"
+            className="otp-result-modal rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="otp-result-header">
@@ -465,7 +465,7 @@ export default function Login({ setOtpVerified }) {
               {otpResultModal.type === "error" && (
                 <button
                   type="button"
-                  className="otp-result-btn"
+                  className="otp-result-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-5 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110"
                   onClick={closeOtpResultModal}
                 >
                   Try Again

@@ -256,13 +256,13 @@ export default function Profile() {
   if (loading) return <PageSpinner fullScreen label="Loading profile..." />;
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar />
 
-      <div className="profile-main-content">
+      <div className="profile-main-content bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {/* Profile Header Card */}
-        <div className="profile-header-card">
+        <div className="profile-header-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
           <div className="profile-header-content">
             <div
               className="profile-avatar-large"
@@ -310,11 +310,11 @@ export default function Profile() {
         </div>
 
         {/* Personal Information Card */}
-        <div className="profile-info-card">
+        <div className="profile-info-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
           <div className="card-header">
             <h3 className="card-title">Personal Information</h3>
             <button 
-              className="btn-edit"
+              className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
               onClick={() => {
                 if (editingPersonal) {
                   handleSavePersonal();
@@ -399,11 +399,11 @@ export default function Profile() {
         </div>
 
         {/* Address Card */}
-        <div className="profile-info-card">
+        <div className="profile-info-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
           <div className="card-header">
             <h3 className="card-title">Address</h3>
             <button 
-              className="btn-edit"
+              className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
               onClick={() => {
                 if (editingAddress) {
                   handleSaveAddress();
@@ -467,8 +467,8 @@ export default function Profile() {
       </div>
 
       {showSuccessModal && (
-        <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
-          <div className="profile-success-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowSuccessModal(false)}>
+          <div className="profile-success-modal rounded-2xl bg-white shadow-2xl shadow-slate-900/30 dark:bg-slate-900 dark:shadow-black/50" onClick={(e) => e.stopPropagation()}>
             <div className="profile-success-header">
               <h3>Success</h3>
               <button

@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+/* eslint-disable react-refresh/only-export-components */
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useEffect } from "react";
@@ -15,8 +16,8 @@ import Profile from "./pages/profile";
 import LogoutModal from "./components/logoutmodal";
 import PageSpinner from "./components/PageSpinner";
 
-const SUPABASE_URL = "https://jyoumapskekkstkuzeai.supabase.co";
-const SUPABASE_KEY = "sb_publishable_s2slGVKymzp1c54Hg_J80Q_oKO9eG7V";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
@@ -42,15 +43,6 @@ function ProtectedRoute({ children }) {
 
 function GlobalLogoutModal() {
   const { showLogoutModal, closeLogoutModal, handleLogout } = useAuth();
-
-  // Force re-render tracking
-  useEffect(() => {
-    console.log("=== GLOBAL LOGOUT MODAL useEffect ===");
-    console.log("showLogoutModal changed to:", showLogoutModal);
-  }, [showLogoutModal]);
-
-  console.log("=== GLOBAL LOGOUT MODAL RENDER ===");
-  console.log("showLogoutModal:", showLogoutModal);
 
   return (
     <>
@@ -82,36 +74,54 @@ function AppRoutes() {
 }
 
 function AppContent() {
-  const { showLogoutModal } = useAuth();
-  
-  console.log("=== APP CONTENT RENDER ===");
-  console.log("showLogoutModal in AppContent:", showLogoutModal);
-  
+  const location = useLocation();
+
   // ==================== GLOBAL DARK MODE INITIALIZATION ====================
   useEffect(() => {
+    const updateFavicon = () => {
+      const faviconHref = "/images/rider.png";
+      let favicon = document.querySelector("link[rel='icon']");
+
+      if (!favicon) {
+        favicon = document.createElement("link");
+        favicon.setAttribute("rel", "icon");
+        document.head.appendChild(favicon);
+      }
+
+      favicon.setAttribute("type", "image/png");
+      favicon.setAttribute("href", faviconHref);
+    };
+
     const initializeDarkMode = () => {
       const savedDarkMode = localStorage.getItem('darkMode');
       
       if (savedDarkMode === 'enabled') {
         // User has dark mode enabled
         document.body.classList.add('dark');
+        return;
       } else if (savedDarkMode === 'disabled') {
         // User has dark mode disabled
         document.body.classList.remove('dark');
+        return;
       } else {
-        // No preference saved - check system preference
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) {
-          document.body.classList.add('dark');
-          localStorage.setItem('darkMode', 'enabled');
-        } else {
-          localStorage.setItem('darkMode', 'disabled');
-        }
+        // No preference saved - default to light mode.
+        document.body.classList.remove('dark');
+        localStorage.setItem('darkMode', 'disabled');
       }
     };
 
     // Initialize dark mode on app load
     initializeDarkMode();
+    updateFavicon();
+
+    // Keep favicon in sync when dark mode class changes in this tab
+    const darkClassObserver = new MutationObserver(() => {
+      updateFavicon();
+    });
+    darkClassObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
 
     // Sync dark mode across browser tabs
     const handleStorageChange = (e) => {
@@ -121,6 +131,7 @@ function AppContent() {
         } else {
           document.body.classList.remove('dark');
         }
+        updateFavicon();
       }
     };
 
@@ -128,10 +139,24 @@ function AppContent() {
 
     // Cleanup
     return () => {
+      darkClassObserver.disconnect();
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
   // ==================== END DARK MODE INITIALIZATION ====================
+
+  useEffect(() => {
+    const pageTitles = {
+      "/": "Login",
+      "/dashboard": "Dashboard",
+      "/riders": "Riders",
+      "/parcels": "Parcels",
+      "/settings": "Settings",
+      "/profile": "Profile",
+    };
+
+    document.title = pageTitles[location.pathname] || "Login";
+  }, [location.pathname]);
   
   return (
     <>
@@ -142,8 +167,6 @@ function AppContent() {
 }
 
 function App() {
-  console.log("=== APP COMPONENT RENDER ===");
-  
   return (
     <Router>
       <AuthProvider>

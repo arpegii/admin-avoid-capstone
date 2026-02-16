@@ -1,3 +1,11 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@custom-variant dark (&:where(body.dark, body.dark *));
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
+}
+
 /* App-level base reset (replaces Vite starter layout rules) */
 * {
   box-sizing: border-box;
@@ -10,4 +18,10 @@ body,
   height: 100%;
   min-height: 100%;
   margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: radial-gradient(circle at top left, #ffe4e6 0%, #f8fafc 42%, #eef2ff 100%);
+  color: #0f172a;
 }

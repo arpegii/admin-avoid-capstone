@@ -1,13 +1,67 @@
 // Parcel.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
 import "../styles/global.css";
 import "../styles/parcels.css";
-import { useAuth } from "../contexts/AuthContext";
 import PageSpinner from "../components/PageSpinner";
 
 const MAX_PARCEL_ROWS = 10;
+
+const formatTimelineDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const month = date.toLocaleString("en-US", { month: "long" });
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const rawHour = date.getHours();
+  const meridiem = rawHour >= 12 ? "PM" : "AM";
+  const hour12 = rawHour % 12 || 12;
+  const hour = String(hour12).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${month} ${day}, ${year} ${hour}:${minute} ${meridiem}`;
+};
+
+const formatStatusLabel = (value) => {
+  if (!value) return "-";
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const getAttemptStatusClass = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "is-default";
+  if (
+    normalized === "success" ||
+    normalized === "successful" ||
+    normalized === "successfully delivered" ||
+    normalized === "delivered"
+  ) {
+    return "is-success";
+  }
+  if (
+    normalized === "pending" ||
+    normalized === "on-going" ||
+    normalized === "ongoing" ||
+    normalized === "in progress"
+  ) {
+    return "is-pending";
+  }
+  if (
+    normalized === "failed" ||
+    normalized === "failure" ||
+    normalized === "cancelled" ||
+    normalized === "canceled"
+  ) {
+    return "is-failed";
+  }
+  return "is-default";
+};
 
 const Parcel = () => {
   const [parcels, setParcels] = useState([]);
@@ -19,76 +73,258 @@ const Parcel = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewParcel, setViewParcel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [trackModalOpen, setTrackModalOpen] = useState(false);
+  const [trackingParcel, setTrackingParcel] = useState(null);
+  const [loadingTrackMap, setLoadingTrackMap] = useState(false);
 
-  const avatarRef = useRef(null);
-
-  const handleAvatarUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !avatarRef.current) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      avatarRef.current.style.backgroundImage = `url('${reader.result}')`;
-      avatarRef.current.style.backgroundSize = "cover";
-      avatarRef.current.style.backgroundPosition = "center";
-      avatarRef.current.textContent = "";
-    };
-    reader.readAsDataURL(file);
-  };
+  const trackMapRef = useRef(null);
+  const trackLeafletMapRef = useRef(null);
+  const trackMarkerRef = useRef(null);
 
   useEffect(() => {
     const loadParcels = async () => {
       setLoading(true);
-      const from = (parcelPage - 1) * parcelRows;
-      const to = from + parcelRows - 1;
       const [sortColumn, sortDir] = sortBy.split("-");
       const ascending = sortDir === "asc";
-
-      let query = supabaseClient
-        .from("parcels")
-        .select("*", { count: "exact" })
-        .order(sortColumn, { ascending })
-        .range(from, to);
-
-      if (statusFilter !== "All") query = query.ilike("status", statusFilter);
-
-      if (searchTerm.trim()) {
-        const id = parseInt(searchTerm, 10);
-        query = isNaN(id)
-          ? query.eq("parcel_id", -1)
-          : query.eq("parcel_id", id);
-      }
+      const chunkSize = 1000;
+      let from = 0;
+      const allParcels = [];
 
       try {
-        const { data, count } = await query;
-        setParcels(data || []);
-        setParcelTotalRows(count || 0);
+        while (true) {
+          const { data, error } = await supabaseClient
+            .from("parcels")
+            .select(
+              `
+          *,
+          assigned_rider:users!parcels_assigned_rider_id_fkey(
+            fname,
+            lname
+          )
+        `,
+            )
+            .order(sortColumn, { ascending })
+            .range(from, from + chunkSize - 1);
+
+          if (error) {
+            throw error;
+          }
+
+          const chunk = data || [];
+          allParcels.push(...chunk);
+          if (chunk.length < chunkSize) {
+            break;
+          }
+          from += chunkSize;
+        }
+
+        // Transform the data to include rider name
+        const parcelsWithRiderNames = allParcels.map((parcel) => ({
+          ...parcel,
+          riderFullName: parcel.assigned_rider
+            ? `${parcel.assigned_rider.fname || ""} ${parcel.assigned_rider.lname || ""}`.trim() ||
+              "Unassigned"
+            : "Unassigned",
+        }));
+
+        setParcels(parcelsWithRiderNames);
+        setParcelTotalRows(parcelsWithRiderNames.length);
+      } catch (err) {
+        console.error("Failed to load parcels:", err);
+        setParcels([]);
+        setParcelTotalRows(0);
       } finally {
         setLoading(false);
       }
     };
     loadParcels();
-  }, [parcelPage, statusFilter, sortBy, searchTerm, parcelRows]);
+  }, [sortBy]);
 
-  const totalPages = Math.ceil(parcelTotalRows / parcelRows);
+  const statusFilteredParcels = useMemo(() => {
+    if (statusFilter === "All") return parcels;
+    const normalizedFilter = statusFilter.trim().toLowerCase();
+    return parcels.filter(
+      (parcel) =>
+        String(parcel?.status || "")
+          .trim()
+          .toLowerCase() === normalizedFilter,
+    );
+  }, [parcels, statusFilter]);
+
+  const filteredParcels = useMemo(() => {
+    const keyword = searchTerm.trim();
+    // When searching by parcel ID, search across all loaded parcels
+    // regardless of status filter so exact IDs never disappear.
+    const source = keyword ? parcels : statusFilteredParcels;
+    if (!keyword) return source;
+    return source.filter((parcel) =>
+      String(parcel?.parcel_id ?? "").startsWith(keyword),
+    );
+  }, [parcels, searchTerm, statusFilteredParcels]);
+
+  useEffect(() => {
+    setParcelTotalRows(filteredParcels.length);
+    const nextTotalPages = Math.max(
+      1,
+      Math.ceil(filteredParcels.length / parcelRows),
+    );
+    if (parcelPage > nextTotalPages) {
+      setParcelPage(nextTotalPages);
+    }
+  }, [filteredParcels, parcelPage, parcelRows]);
+
+  const totalPages = Math.max(1, Math.ceil(parcelTotalRows / parcelRows));
   const prevPage = () => setParcelPage((p) => Math.max(1, p - 1));
   const nextPage = () => setParcelPage((p) => Math.min(totalPages, p + 1));
+  const pageStartIndex = (parcelPage - 1) * parcelRows;
+  const pageEndIndex = pageStartIndex + parcelRows;
+  const pagedParcels = filteredParcels.slice(pageStartIndex, pageEndIndex);
 
   const openParcelModal = (parcel) => setViewParcel(parcel);
   const closeParcelModal = () => setViewParcel(null);
+  const getParcelCoords = (parcel) => {
+    const lat = Number(parcel?.r_lat);
+    const lng = Number(parcel?.r_lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  };
+  const openTrackModal = (parcel) => {
+    if (!getParcelCoords(parcel)) return;
+    setTrackingParcel(parcel);
+    setLoadingTrackMap(true);
+    setTrackModalOpen(true);
+  };
+  const closeTrackModal = () => {
+    if (trackMarkerRef.current) {
+      trackMarkerRef.current.remove();
+      trackMarkerRef.current = null;
+    }
+    if (trackLeafletMapRef.current) {
+      trackLeafletMapRef.current.remove();
+      trackLeafletMapRef.current = null;
+    }
+    setTrackModalOpen(false);
+    setTrackingParcel(null);
+    setLoadingTrackMap(false);
+  };
+  const buildParcelTrackPopup = (parcel) => {
+    const rawStatus = parcel?.status || "Unknown";
+    const statusText = formatStatusLabel(rawStatus);
+    const addressText = parcel?.address || "No address available";
+    const normalizedStatus = String(rawStatus).trim().toLowerCase();
+    const statusClass =
+      normalizedStatus === "successfully delivered"
+        ? "status-delivered"
+        : normalizedStatus === "on-going"
+          ? "status-ongoing"
+          : normalizedStatus === "cancelled"
+            ? "status-cancelled"
+            : "status-default";
+    return `
+      <div class="parcel-track-popup-card">
+        <div class="parcel-track-popup-head">
+          <span class="parcel-track-popup-icon" aria-hidden="true">📦</span>
+          <strong>Parcel #${parcel?.parcel_id || "-"}</strong>
+        </div>
+        <div class="parcel-track-popup-row">
+          <span>Status</span>
+          <b class="parcel-track-popup-status ${statusClass}">${statusText}</b>
+        </div>
+        <div class="parcel-track-popup-row address">
+          <span>Address</span>
+          <b>${addressText}</b>
+        </div>
+      </div>
+    `;
+  };
+
+  useEffect(() => {
+    if (!trackModalOpen || !trackingParcel) return;
+
+    const coords = getParcelCoords(trackingParcel);
+    if (!coords) {
+      setLoadingTrackMap(false);
+      return;
+    }
+
+    if (trackMarkerRef.current) {
+      trackMarkerRef.current.remove();
+      trackMarkerRef.current = null;
+    }
+    if (trackLeafletMapRef.current) {
+      trackLeafletMapRef.current.remove();
+      trackLeafletMapRef.current = null;
+    }
+
+    const initTimer = setTimeout(() => {
+      if (!trackMapRef.current) {
+        setLoadingTrackMap(false);
+        return;
+      }
+
+      const map = L.map(trackMapRef.current).setView([coords.lat, coords.lng], 15);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const parcelIcon = L.divIcon({
+        className: "parcel-map-marker-wrap",
+        html: `<span class="parcel-map-marker" aria-hidden="true">📦</span>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -18],
+      });
+
+      const marker = L.marker([coords.lat, coords.lng], {
+        icon: parcelIcon,
+        zIndexOffset: 1200,
+      })
+        .addTo(map)
+        .bindPopup(
+          buildParcelTrackPopup(trackingParcel),
+          { className: "parcel-track-popup", closeButton: false },
+        );
+
+      trackLeafletMapRef.current = map;
+      trackMarkerRef.current = marker;
+
+      setTimeout(() => {
+        map.invalidateSize();
+        marker.openPopup();
+        setLoadingTrackMap(false);
+      }, 180);
+    }, 380);
+
+    return () => clearTimeout(initTimer);
+  }, [trackModalOpen, trackingParcel]);
+
+  useEffect(() => {
+    return () => {
+      if (trackMarkerRef.current) {
+        trackMarkerRef.current.remove();
+        trackMarkerRef.current = null;
+      }
+      if (trackLeafletMapRef.current) {
+        trackLeafletMapRef.current.remove();
+        trackLeafletMapRef.current = null;
+      }
+    };
+  }, []);
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       <Sidebar currentPage="parcels.html" />
 
-      <div className="parcels-page">
+      <div className="parcels-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {loading ? (
           <PageSpinner fullScreen label="Loading parcels..." />
         ) : (
           <>
-            <h1 className="page-title">Parcel Management</h1>
+            <h1 className="page-title mb-6">Parcel Management</h1>
 
             {/* Filters */}
-            <div className="parcels-filter-section">
+            <div className="parcels-filter-section mb-5 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
               <label>
                 <strong>Search:</strong>
               </label>
@@ -105,38 +341,44 @@ const Parcel = () => {
               <label>
                 <strong>Filter by Status:</strong>
               </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setParcelPage(1);
-                  setStatusFilter(e.target.value);
-                }}
-              >
-                <option value="All">All</option>
-                <option value="Successfully Delivered">
-                  Successfully Delivered
-                </option>
-                <option value="On-going">On-going</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
+              <div className="parcel-filter-select-wrap">
+                <select
+                  className="parcel-filter-select"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setParcelPage(1);
+                    setStatusFilter(e.target.value);
+                  }}
+                >
+                  <option value="All">All</option>
+                  <option value="Successfully Delivered">
+                    Successfully Delivered
+                  </option>
+                  <option value="On-going">On-going</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
 
               <label>
                 <strong>Sort by:</strong>
               </label>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setParcelPage(1);
-                  setSortBy(e.target.value);
-                }}
-              >
-                <option value="parcel_id-asc">Parcel ID (Ascending)</option>
-                <option value="parcel_id-desc">Parcel ID (Descending)</option>
-              </select>
+              <div className="parcel-filter-select-wrap">
+                <select
+                  className="parcel-filter-select"
+                  value={sortBy}
+                  onChange={(e) => {
+                    setParcelPage(1);
+                    setSortBy(e.target.value);
+                  }}
+                >
+                  <option value="parcel_id-asc">Parcel ID (Ascending)</option>
+                  <option value="parcel_id-desc">Parcel ID (Descending)</option>
+                </select>
+              </div>
             </div>
 
             {/* Table */}
-            <div className="parcels-table-wrapper">
+            <div className="parcels-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
               <table className="parcel-table">
                 {/* colgroup locks each column to a fixed width so headers and cells always align */}
                 <colgroup>
@@ -167,13 +409,13 @@ const Parcel = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {parcels.map((parcel, idx) => (
+                  {pagedParcels.map((parcel, idx) => (
                     <tr key={idx}>
                       <td>{parcel.parcel_id || "-"}</td>
                       <td>{parcel.recipient_name || "-"}</td>
                       <td>{parcel.recipient_phone || "-"}</td>
                       <td>{parcel.address || "-"}</td>
-                      <td>{parcel.assigned_rider || "Unassigned"}</td>
+                      <td>{parcel.riderFullName}</td>
                       <td
                         className={
                           parcel.status === "successfully delivered"
@@ -189,7 +431,7 @@ const Parcel = () => {
                       </td>
                       <td>
                         <button
-                          className="btn-view"
+                          className="btn-view rounded-lg bg-gradient-to-r from-red-600 to-red-800 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition hover:brightness-110"
                           onClick={() => openParcelModal(parcel)}
                         >
                           View
@@ -198,7 +440,7 @@ const Parcel = () => {
                     </tr>
                   ))}
 
-                  {Array.from({ length: parcelRows - parcels.length }).map(
+                  {Array.from({ length: parcelRows - pagedParcels.length }).map(
                     (_, i) => (
                       <tr key={`empty-${i}`}>
                         <td colSpan={7} style={{ height: "45px" }} />
@@ -226,50 +468,179 @@ const Parcel = () => {
 
             {/* Modal */}
             {viewParcel && (
-              <div className="parcels-modal-overlay show">
-                <div className="parcels-modal-content view-parcel-modal">
+              <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeParcelModal}>
+                <div
+                  className="parcels-modal-content view-parcel-modal rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="parcels-modal-header">
                     <h3>Parcel Details</h3>
-                    <span
-                      className="parcels-close-btn"
-                      onClick={closeParcelModal}
-                    >
-                      &times;
-                    </span>
                   </div>
                   <div className="parcels-modal-body">
+                    <div className="parcel-view-shell">
+                      <section className="parcel-view-card">
+                        <h4>Delivery Details</h4>
+                        <div className="parcel-view-grid">
+                          <div className="parcel-view-item">
+                            <span>Parcel ID</span>
+                            <strong>{viewParcel.parcel_id || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Status</span>
+                            <strong
+                              className={`parcel-view-status ${
+                                (viewParcel.status || "").toLowerCase() ===
+                                "successfully delivered"
+                                  ? "is-delivered"
+                                  : (viewParcel.status || "").toLowerCase() ===
+                                      "on-going"
+                                    ? "is-ongoing"
+                                    : (viewParcel.status || "").toLowerCase() ===
+                                        "cancelled"
+                                      ? "is-cancelled"
+                                      : "is-default"
+                              }`}
+                            >
+                              {viewParcel.status || "-"}
+                            </strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Recipient Name</span>
+                            <strong>{viewParcel.recipient_name || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Recipient Phone</span>
+                            <strong>{viewParcel.recipient_phone || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item parcel-view-item-full">
+                            <span>Address</span>
+                            <strong>{viewParcel.address || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Assigned Rider</span>
+                            <strong>{viewParcel.riderFullName || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item parcel-view-item-full parcel-view-action-inline">
+                            <button
+                              type="button"
+                              className="parcel-track-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110 disabled:opacity-50"
+                              onClick={() => openTrackModal(viewParcel)}
+                              disabled={!getParcelCoords(viewParcel)}
+                            >
+                              Track Parcel
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="parcel-view-card">
+                        <h4>Sender Details</h4>
+                        <div className="parcel-view-grid">
+                          <div className="parcel-view-item">
+                            <span>Sender Name</span>
+                            <strong>{viewParcel.sender_name || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Sender Phone</span>
+                            <strong>{viewParcel.sender_phone || "-"}</strong>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="parcel-view-card">
+                        <h4>Attempt History</h4>
+                        <div className="parcel-view-grid">
+                          <div className="parcel-view-item">
+                            <span>Attempt 1 Status</span>
+                            <strong
+                              className={`parcel-attempt-status ${getAttemptStatusClass(
+                                viewParcel.attempt1_status,
+                              )}`}
+                            >
+                              {formatStatusLabel(viewParcel.attempt1_status)}
+                            </strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Attempt 1 Date</span>
+                            <strong>{viewParcel.attempt1_datetime || "-"}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Attempt 2 Status</span>
+                            <strong
+                              className={`parcel-attempt-status ${getAttemptStatusClass(
+                                viewParcel.attempt2_status,
+                              )}`}
+                            >
+                              {formatStatusLabel(viewParcel.attempt2_status)}
+                            </strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Attempt 2 Date</span>
+                            <strong>{viewParcel.attempt2_datetime || "-"}</strong>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="parcel-view-card">
+                        <h4>System Timeline</h4>
+                        <div className="parcel-view-grid">
+                          <div className="parcel-view-item">
+                            <span>Created At</span>
+                            <strong>{formatTimelineDateTime(viewParcel.created_at)}</strong>
+                          </div>
+                          <div className="parcel-view-item">
+                            <span>Updated At</span>
+                            <strong>{formatTimelineDateTime(viewParcel.updated_at)}</strong>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {trackModalOpen && (
+              <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeTrackModal}>
+                <div
+                  className="parcels-modal-content parcel-track-modal rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="parcels-modal-header">
+                    <h3>Track Parcel</h3>
+                  </div>
+                  <div className="parcels-modal-body parcel-track-body">
                     <p>
-                      <strong>Sender Name:</strong>{" "}
-                      {viewParcel.sender_name || "-"}
+                      Tracking parcel: <strong>#{trackingParcel?.parcel_id || "-"}</strong>
                     </p>
-                    <p>
-                      <strong>Sender Phone:</strong>{" "}
-                      {viewParcel.sender_phone || "-"}
-                    </p>
-                    <p>
-                      <strong>Attempt 1 Status:</strong>{" "}
-                      {viewParcel.attempt1_status || "-"}
-                    </p>
-                    <p>
-                      <strong>Attempt 1 Date:</strong>{" "}
-                      {viewParcel.attempt1_datetime || "-"}
-                    </p>
-                    <p>
-                      <strong>Attempt 2 Status:</strong>{" "}
-                      {viewParcel.attempt2_status || "-"}
-                    </p>
-                    <p>
-                      <strong>Attempt 2 Date:</strong>{" "}
-                      {viewParcel.attempt2_datetime || "-"}
-                    </p>
-                    <p>
-                      <strong>Created At:</strong>{" "}
-                      {viewParcel.created_at || "-"}
-                    </p>
-                    <p>
-                      <strong>Updated At:</strong>{" "}
-                      {viewParcel.updated_at || "-"}
-                    </p>
+                    <div className="parcel-track-map-wrap">
+                      {loadingTrackMap && (
+                        <div
+                          className="parcel-track-loading-overlay"
+                          role="status"
+                          aria-live="polite"
+                          aria-label="Loading parcel tracking map"
+                        >
+                          <div className="parcel-track-loader-shell">
+                            <div className="parcel-track-loader-spinner" aria-hidden="true">
+                              <span className="parcel-track-loader-ring" />
+                              <span className="parcel-track-loader-core" />
+                            </div>
+                            <p className="parcel-track-loader-title">Tracking parcel</p>
+                            <div className="parcel-track-loader-bars" aria-hidden="true">
+                              <span className="parcel-track-loader-bar bar-a" />
+                              <span className="parcel-track-loader-bar bar-b" />
+                              <span className="parcel-track-loader-bar bar-c" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        ref={trackMapRef}
+                        className="parcel-track-map"
+                        style={{ visibility: loadingTrackMap ? "hidden" : "visible" }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

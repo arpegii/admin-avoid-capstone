@@ -144,6 +144,7 @@ const Reports = () => {
     else if (reportType === "violations") setColumnsOptions(violationColumns);
     else setColumnsOptions(parcelColumns);
     setColumn("All");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportType]);
 
   // ================= VALIDATION MODAL =================
@@ -242,7 +243,7 @@ const Reports = () => {
       let startX = (pageWidth - totalWidth) / 2;
       const infoY = headerHeight + 12;
 
-      infoTexts.forEach((text, idx) => {
+      infoTexts.forEach((text) => {
         doc.text(text, startX, infoY);
         startX += doc.getTextWidth(text) + spacing;
       });
@@ -289,7 +290,7 @@ const Reports = () => {
 
   // ================= CSV GENERATION =================
   const generateCsvReport = async (reportType, startDate, endDate, column) => {
-    const { data, columns } = await fetchReportData(reportType, startDate, endDate, column);
+    const { data } = await fetchReportData(reportType, startDate, endDate, column);
     let csv = "";
 
     if (reportType === "overall") {
@@ -353,13 +354,13 @@ const Reports = () => {
 
   // ================= RENDER =================
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar currentPage="reports.html" />
 
-      <div className="reports-page">
-        <div className="reports-layout">
-          <div className="reports-card reports-preview-card">
+      <div className="reports-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        <div className="reports-layout gap-6">
+          <div className="reports-card reports-preview-card rounded-2xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/90">
             <div className="reports-header"><h1 className="reports-page-title">Data Lists</h1></div>
             <div className="reports-preview-body">
               <section className="reports-preview-section">
@@ -412,7 +413,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="reports-card reports-card-modern">
+          <div className="reports-card reports-card-modern rounded-2xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/90">
             <div className="reports-header"><h1 className="reports-page-title">Generate Reports</h1></div>
             <div className="reports-form">
             <div className="reports-form-row full">
@@ -457,7 +458,7 @@ const Reports = () => {
             </div>
 
             <div className="reports-form-buttons">
-              <button className="reports-btn-generate" onClick={handleGenerateReport} disabled={isGenerating}>
+              <button className="reports-btn-generate rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110 disabled:opacity-60" onClick={handleGenerateReport} disabled={isGenerating}>
                 {isGenerating ? (
                   <>
                     <span className="inline-spinner" aria-hidden="true" />
@@ -474,8 +475,8 @@ const Reports = () => {
       </div>
 
       {showValidation && (
-        <div className="reports-validation-modal">
-          <div className="reports-validation-content">
+        <div className="reports-validation-modal bg-slate-950/60 backdrop-blur-sm">
+          <div className="reports-validation-content rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <p>All fields are required.</p>
             <button onClick={hideValidationModal}>OK</button>
           </div>
@@ -486,4 +487,3 @@ const Reports = () => {
 };
 
 export default Reports;
-

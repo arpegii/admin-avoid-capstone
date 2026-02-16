@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabaseClient } from "../App";
@@ -62,28 +63,18 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const openLogoutModal = () => {
-    console.log("=== openLogoutModal CALLED ===");
-    console.log("Current showLogoutModal state:", showLogoutModal);
     setShowLogoutModal(true);
-    console.log("setShowLogoutModal(true) executed");
   };
 
   const closeLogoutModal = () => {
-    console.log("=== closeLogoutModal CALLED ===");
     setShowLogoutModal(false);
   };
 
   const handleLogout = async () => {
-    console.log("=== handleLogout CALLED ===");
     await supabaseClient.auth.signOut();
     setShowLogoutModal(false);
     navigate("/");
   };
-
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("=== showLogoutModal STATE CHANGED ===", showLogoutModal);
-  }, [showLogoutModal]);
 
   const value = {
     user,

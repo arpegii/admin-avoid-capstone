@@ -119,6 +119,7 @@ export default function Sidebar() {
   };
 
   const isActive = (href) => location.pathname === href;
+  const isSettingsPage = location.pathname === "/settings";
 
   const menuItems = [
     { label: "Dashboard", href: "/dashboard", icon: <FaChartBar /> },
@@ -150,10 +151,12 @@ export default function Sidebar() {
   ];
 
   return (
-    <div className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
+    <div
+      className={`sidebar ${isCollapsed ? "collapsed" : ""} bg-gradient-to-b from-red-600 via-red-700 to-red-900 shadow-2xl`}
+    >
       <button
         type="button"
-        className="sidebar-logo sidebar-logo-toggle"
+        className="sidebar-logo sidebar-logo-toggle rounded-2xl transition duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
         onClick={() => setIsCollapsed((prev) => !prev)}
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
@@ -161,11 +164,11 @@ export default function Sidebar() {
       </button>
 
       {/* Main Navigation */}
-      <ul className="nav-menu">
+      <ul className="nav-menu space-y-1">
         {menuItems.map((item) => (
           <li
             key={item.href}
-            className={`nav-item ${isActive(item.href) ? "active" : ""}`}
+            className={`nav-item ${isActive(item.href) ? "active" : ""} border border-transparent backdrop-blur-sm hover:border-white/20`}
             onClick={() => navigate(item.href)}
           >
             <span className="nav-icon">{item.icon}</span>
@@ -177,7 +180,7 @@ export default function Sidebar() {
       {/* Logged-in User */}
       <div className="user-profile">
         <div
-          className={`user-info ${isActive("/profile") ? "active" : ""}`}
+          className={`user-info ${isActive("/profile") ? "active" : ""} border border-transparent hover:border-white/25`}
           onClick={() => navigate("/profile")}
         >
           <div className="user-avatar-wrapper">
@@ -194,7 +197,7 @@ export default function Sidebar() {
             </div>
             <button
               type="button"
-              className="avatar-pen"
+              className="avatar-pen ring-2 ring-white/30"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate("/profile");
@@ -212,13 +215,13 @@ export default function Sidebar() {
         </div>
 
         {/* User Actions */}
-        <ul className="user-actions">
+        <ul className="user-actions mt-2 space-y-1">
           {userActions.map((action, idx) => (
             <li
               key={idx}
-              className={`nav-item ${
-                action.href && isActive(action.href) ? "active" : ""
-              }`}
+              className={`nav-item user-action-item ${
+                action.label === "Settings" && isSettingsPage ? "active" : ""
+              } border border-transparent hover:border-white/20`}
               onClick={(e) => {
                 e.stopPropagation();
                 console.log("=== USER ACTION CLICKED ===");

@@ -2,17 +2,18 @@
   --dash-bg-1: #f8fafc;
   --dash-bg-2: #ffe4e6;
   --dash-bg-3: #fff1f2;
-  --dash-card: rgba(255, 255, 255, 0.9);
+  --dash-card: #ffffff;
   --dash-text: #0f172a;
   --dash-muted: #64748b;
-  --dash-border: rgba(148, 163, 184, 0.25);
-  --dash-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  --dash-border: rgba(100, 116, 139, 0.34);
+  --dash-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
   --dash-accent: #ef4444;
   --dash-success: #16a34a;
   --dash-danger: #dc2626;
 }
 
 .dashboard-page {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -20,11 +21,38 @@
   min-height: 0;
   padding: 1.5rem 1.5rem 2rem;
   background:
-    radial-gradient(900px 400px at 95% -5%, var(--dash-bg-2), transparent 60%),
     radial-gradient(700px 380px at 5% 115%, var(--dash-bg-3), transparent 55%),
     linear-gradient(160deg, var(--page-bg-soft) 0%, var(--dash-bg-1) 80%);
   color: var(--dash-text);
   overflow-y: auto;
+  isolation: isolate;
+}
+
+.dashboard-page::before,
+.dashboard-page::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(40px);
+}
+
+.dashboard-page::before {
+  width: 320px;
+  height: 320px;
+  right: 2%;
+  top: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.16), transparent 70%);
+}
+
+.dashboard-page::after {
+  width: 280px;
+  height: 280px;
+  left: 0;
+  top: 45%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.08), transparent 72%);
 }
 
 .dashboard-page .dash-header {
@@ -63,6 +91,12 @@
   display: block;
 }
 
+.dashboard-page .page-title {
+  margin: 0;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.6rem, 2.6vw, 2.15rem);
+}
+
 .dashboard-page .date-range {
   padding: 0.45rem 0.92rem;
   border-radius: 999px;
@@ -82,8 +116,8 @@
   grid-template-areas:
     "delivered cancelled violation"
     "growth growth violation"
-    "month year violation"
-    "rider rider violation";
+    "growth growth violation"
+    "topmonth topyear toprider";
   grid-auto-rows: minmax(110px, auto);
   gap: 1rem;
   align-items: stretch;
@@ -99,36 +133,32 @@
   padding: 1rem;
   min-height: 120px;
   transition: transform 0.16s ease, box-shadow 0.2s ease, border-color 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-page .dash-card::before {
+  content: none;
 }
 
 .dashboard-page .dash-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 22px 45px rgba(15, 23, 42, 0.12);
-  border-color: rgba(239, 68, 68, 0.26);
+  box-shadow: 0 24px 46px rgba(15, 23, 42, 0.16);
+  border-color: rgba(239, 68, 68, 0.38);
 }
 
 .dashboard-page .delivered-card {
   grid-area: delivered;
+  background: var(--dash-card);
 }
 
 .dashboard-page .cancelled-card {
   grid-area: cancelled;
+  background: var(--dash-card);
 }
 
 .dashboard-page .growth {
   grid-area: growth;
-}
-
-.dashboard-page .top-month {
-  grid-area: month;
-}
-
-.dashboard-page .top-year {
-  grid-area: year;
-}
-
-.dashboard-page .top-rider-card {
-  grid-area: rider;
 }
 
 .dashboard-page .violation-map-card {
@@ -136,8 +166,7 @@
 }
 
 .dashboard-page .metric-card,
-.dashboard-page .small-card,
-.dashboard-page .top-rider-card,
+.dashboard-page .performance-highlight-standalone,
 .dashboard-page .violation-map-card {
   display: grid;
   align-content: start;
@@ -146,23 +175,25 @@
 
 .dashboard-page .card-label {
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--dash-muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
 .dashboard-page .card-value {
   font-size: clamp(1.5rem, 2.3vw, 2rem);
   line-height: 1.05;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: -0.02em;
   color: var(--dash-text);
+  text-wrap: balance;
 }
 
 .dashboard-page .card-desc {
   font-size: 0.86rem;
   color: var(--dash-muted);
+  font-weight: 600;
 }
 
 .dashboard-page .metric-pill {
@@ -172,7 +203,7 @@
   border-radius: 999px;
   padding: 0.34rem 0.7rem;
   font-size: 0.73rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -189,9 +220,57 @@
 
 .dashboard-page .growth {
   display: grid;
-  align-content: start;
+  align-content: stretch;
+  grid-template-rows: auto 1fr;
   gap: 0.85rem;
-  min-height: 280px;
+  min-height: 360px;
+  background: #ffffff;
+}
+
+.dashboard-page .performance-highlight-standalone {
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 0.72rem 0.76rem;
+  min-height: 92px;
+  display: grid;
+  align-content: start;
+  gap: 0.22rem;
+}
+
+.dashboard-page .top-month-card {
+  grid-area: topmonth;
+}
+
+.dashboard-page .top-year-card {
+  grid-area: topyear;
+}
+
+.dashboard-page .top-rider-card {
+  grid-area: toprider;
+  background: #ffffff;
+}
+
+.dashboard-page .performance-highlight-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--dash-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-page .performance-highlight-value {
+  font-size: clamp(1.02rem, 1.55vw, 1.28rem);
+  font-weight: 900;
+  color: var(--dash-text);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-page .performance-highlight-meta {
+  font-size: 0.74rem;
+  color: var(--dash-muted);
+  font-weight: 600;
 }
 
 .dashboard-page .violation-map-card {
@@ -205,8 +284,12 @@
 }
 
 .dashboard-page .growth-canvas-shell {
-  height: 220px;
-  min-height: 220px;
+  height: 100%;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  background: #ffffff;
+  padding: 6px 8px;
 }
 
 .dashboard-page .growth-canvas-shell canvas {
@@ -225,7 +308,7 @@
 
 .dashboard-page .violation-map-header {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
   color: #ffffff;
 }
@@ -258,10 +341,12 @@
   color: #7f1d1d;
   background: #ffffff;
   cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease;
 }
 
 .dashboard-page .violation-map-size-btn:hover {
   background: #fee2e2;
+  transform: translateY(-1px);
 }
 
 .dashboard-page .violation-map-body {
@@ -315,6 +400,7 @@
 .dashboard-report-modal-header h2 {
   margin: 0;
   font-size: 1.12rem;
+  font-weight: 800;
 }
 
 .dashboard-report-modal-body {
@@ -416,6 +502,7 @@
   border: none;
   border-radius: 12px;
   width: 100%;
+  box-sizing: border-box;
   min-height: 44px;
   padding: 10px 14px;
   font-size: 0.84rem;
@@ -435,6 +522,14 @@
   width: 14px;
   min-width: 14px;
   height: 14px;
+}
+
+.dashboard-report-send-btn span,
+.dashboard-report-download-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-report-download-btn {
@@ -773,6 +868,114 @@
   background: #fff7ed;
 }
 
+.violation-warning-marker-wrap {
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.violation-warning-pulse {
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.22);
+  animation: violationWarningPulse 1.8s ease-out infinite;
+}
+
+.violation-warning-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  inset: 2px;
+  background: linear-gradient(160deg, #ffffff 0%, #fee2e2 100%);
+  border: 2px solid #b91c1c;
+  color: #991b1b;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow:
+    0 8px 16px rgba(15, 23, 42, 0.28),
+    0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.violation-cluster-wrap {
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.violation-cluster-pulse {
+  position: absolute;
+  inset: 7px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.2);
+  animation: violationWarningPulse 1.8s ease-out infinite;
+}
+
+.violation-cluster-core {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  position: absolute;
+  inset: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px solid #b91c1c;
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(160deg, #ffffff 0%, #fee2e2 100%);
+  box-shadow:
+    0 10px 18px rgba(15, 23, 42, 0.24),
+    0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.violation-cluster-wrap .violation-cluster-icon {
+  font-size: 13px;
+  transform: translateY(-0.5px);
+}
+
+.violation-cluster-wrap .violation-cluster-core strong {
+  letter-spacing: 0.2px;
+}
+
+.violation-cluster-wrap.medium .violation-cluster-pulse {
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.violation-cluster-wrap.medium .violation-cluster-core {
+  border-color: #b45309;
+  color: #92400e;
+  background: linear-gradient(160deg, #fffbeb 0%, #fde68a 100%);
+}
+
+.violation-cluster-wrap.low .violation-cluster-pulse {
+  background: rgba(34, 197, 94, 0.22);
+}
+
+.violation-cluster-wrap.low .violation-cluster-core {
+  border-color: #15803d;
+  color: #14532d;
+  background: linear-gradient(160deg, #f0fdf4 0%, #bbf7d0 100%);
+}
+
+@keyframes violationWarningPulse {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
 .violation-hotspot-popup-card {
   min-width: 220px;
   display: grid;
@@ -850,9 +1053,9 @@
     grid-template-areas:
       "delivered cancelled"
       "growth growth"
-      "month year"
-      "rider rider"
-      "violation violation";
+      "violation violation"
+      "topmonth topyear"
+      "toprider toprider";
     grid-auto-rows: minmax(110px, auto);
   }
 
@@ -886,10 +1089,10 @@
       "delivered"
       "cancelled"
       "growth"
-      "month"
-      "year"
-      "rider"
-      "violation";
+      "violation"
+      "topmonth"
+      "topyear"
+      "toprider";
     grid-template-rows: auto;
     flex: initial;
   }
@@ -897,8 +1100,8 @@
   .dashboard-page .growth { min-height: 250px; }
 
   .dashboard-page .growth-canvas-shell {
-    height: 180px;
-    min-height: 180px;
+    height: 240px;
+    min-height: 240px;
   }
 
   .dashboard-page .violation-map-canvas { min-height: 280px; }
@@ -939,14 +1142,57 @@ body.dark .dashboard-page {
   background: var(--dm-bg);
 }
 
+body.dark .dashboard-page::before {
+  background: radial-gradient(circle, rgba(248, 113, 113, 0.16), transparent 70%);
+}
+
+body.dark .dashboard-page::after {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.1), transparent 72%);
+}
+
 body.dark .dashboard-page .page-title {
   color: var(--dm-text);
 }
 
 body.dark .dashboard-page .dash-card {
-  background: var(--dm-surface);
-  border-color: var(--dm-border);
+  background: #172235;
+  border-color: #475569;
   box-shadow: var(--dm-shadow);
+}
+
+body.dark .dashboard-page .dash-card::before {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+body.dark .dashboard-page .delivered-card {
+  background: var(--dm-surface);
+}
+
+body.dark .dashboard-page .cancelled-card {
+  background: var(--dm-surface);
+}
+
+body.dark .dashboard-page .performance-highlight-standalone {
+  background: #111c2e;
+  border-color: #475569;
+}
+
+body.dark .dashboard-page .top-rider-card {
+  background: var(--dm-surface-2);
+}
+
+body.dark .dashboard-page .performance-highlight-label,
+body.dark .dashboard-page .performance-highlight-meta {
+  color: var(--dm-muted);
+}
+
+body.dark .dashboard-page .performance-highlight-value {
+  color: var(--dm-text);
 }
 
 body.dark .dashboard-page .card-label,
@@ -981,6 +1227,11 @@ body.dark .dashboard-page .metric-pill.warning {
 body.dark .dashboard-page .violation-map-canvas {
   border-color: var(--dm-border);
   background: var(--dm-surface-2);
+}
+
+body.dark .dashboard-page .growth-canvas-shell {
+  border-color: #475569;
+  background: #111c2e;
 }
 
 body.dark .dashboard-page .violation-map-placeholder-panel {
@@ -1087,6 +1338,52 @@ body.dark .violation-hotspot-popup .leaflet-popup-tip {
   background: #0f172a;
 }
 
+body.dark .violation-warning-marker {
+  background: linear-gradient(160deg, #1f2937 0%, #0f172a 100%);
+  color: #fca5a5;
+  border-color: #fb7185;
+  box-shadow:
+    0 8px 16px rgba(2, 6, 23, 0.6),
+    0 0 0 2px rgba(248, 113, 113, 0.25);
+}
+
+body.dark .violation-warning-pulse {
+  background: rgba(248, 113, 113, 0.28);
+}
+
+body.dark .violation-cluster-core {
+  background: linear-gradient(160deg, #1f2937 0%, #0f172a 100%);
+  border-color: #fb7185;
+  color: #fecaca;
+  box-shadow:
+    0 10px 18px rgba(2, 6, 23, 0.58),
+    0 0 0 2px rgba(248, 113, 113, 0.2);
+}
+
+body.dark .violation-cluster-pulse {
+  background: rgba(248, 113, 113, 0.28);
+}
+
+body.dark .violation-cluster-wrap.medium .violation-cluster-core {
+  border-color: #f59e0b;
+  color: #fde68a;
+  background: linear-gradient(160deg, rgba(217, 119, 6, 0.45) 0%, rgba(30, 41, 59, 0.95) 100%);
+}
+
+body.dark .violation-cluster-wrap.medium .violation-cluster-pulse {
+  background: rgba(251, 191, 36, 0.28);
+}
+
+body.dark .violation-cluster-wrap.low .violation-cluster-core {
+  border-color: #22c55e;
+  color: #bbf7d0;
+  background: linear-gradient(160deg, rgba(22, 163, 74, 0.42) 0%, rgba(30, 41, 59, 0.95) 100%);
+}
+
+body.dark .violation-cluster-wrap.low .violation-cluster-pulse {
+  background: rgba(34, 197, 94, 0.25);
+}
+
 body.dark .violation-hotspot-popup-card {
   background: linear-gradient(160deg, rgba(127, 29, 29, 0.35) 0%, rgba(30, 41, 59, 0.92) 100%);
   border-color: rgba(248, 113, 113, 0.3);
@@ -1102,4 +1399,40 @@ body.dark .violation-hotspot-popup-card p {
 
 body.dark .violation-hotspot-popup-card small {
   color: #cbd5e1;
+}
+
+/* Unified dark-mode button palette */
+body.dark .dashboard-page .dash-generate-report-btn,
+body.dark .dashboard-page .violation-map-size-btn,
+body.dark .violation-full-map-close,
+body.dark .dashboard-report-send-btn,
+body.dark .dashboard-report-download-btn,
+body.dark .dashboard-send-cancel-btn,
+body.dark .dashboard-send-confirm-btn {
+  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
+  border-color: #ef4444;
+  color: #fff5f5;
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.35);
+}
+
+body.dark .dashboard-page .dash-generate-report-btn:hover,
+body.dark .dashboard-page .violation-map-size-btn:hover,
+body.dark .violation-full-map-close:hover,
+body.dark .dashboard-report-send-btn:hover,
+body.dark .dashboard-report-download-btn:hover,
+body.dark .dashboard-send-cancel-btn:hover,
+body.dark .dashboard-send-confirm-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  border-color: #f87171;
+  color: #ffffff;
+}
+
+body.dark .dashboard-page .dash-generate-report-btn:active,
+body.dark .dashboard-page .violation-map-size-btn:active,
+body.dark .violation-full-map-close:active,
+body.dark .dashboard-report-send-btn:active,
+body.dark .dashboard-report-download-btn:active,
+body.dark .dashboard-send-cancel-btn:active,
+body.dark .dashboard-send-confirm-btn:active {
+  background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
 }
