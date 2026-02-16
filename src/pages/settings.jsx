@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../components/sidebar";
-import LogoutModal from "../components/logoutmodal";
+import LogoutModal from "../components/logoutModal";
 import "../styles/global.css";
 import "../styles/settings.css";
 

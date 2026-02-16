@@ -8,12 +8,12 @@ import { useEffect } from "react";
 import Login from "./pages/login";
 import Dashboard from "./pages/dashboard";
 import Riders from "./pages/riders";
-import Parcels from "./pages/Parcels";
-import Settings from "./pages/Settings";
+import Parcels from "./pages/parcels";
+import Settings from "./pages/settings";
 import Profile from "./pages/profile";
 
 // Components
-import LogoutModal from "./components/logoutmodal";
+import LogoutModal from "./components/logoutModal";
 import PageSpinner from "./components/PageSpinner";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
