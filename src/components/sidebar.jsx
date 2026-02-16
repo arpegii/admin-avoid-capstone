@@ -14,18 +14,13 @@ import { supabaseClient } from "../App";
 export default function Sidebar() {
   const { user, openLogoutModal } = useAuth();
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 900 : false,
+  );
   const [isCollapsed, setIsCollapsed] = useState(true);
 
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Debug: Check if openLogoutModal exists
-  useEffect(() => {
-    console.log("=== SIDEBAR MOUNTED ===");
-    console.log("user:", user);
-    console.log("openLogoutModal:", openLogoutModal);
-    console.log("openLogoutModal type:", typeof openLogoutModal);
-  }, [user, openLogoutModal]);
 
   useEffect(() => {
     async function findAdminProfilePicturePath() {
@@ -109,6 +104,28 @@ export default function Sidebar() {
     };
   }, [user?.id, user?.email]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      const mobileViewport = window.innerWidth <= 900;
+      setIsMobile(mobileViewport);
+      if (mobileViewport) {
+        setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  const handleSidebarToggle = () => {
+    if (isMobile) return;
+    setIsCollapsed((prev) => !prev);
+  };
+
   const getInitials = () => {
     if (profilePictureUrl) return "";
     if (!user?.email) return "A";
@@ -127,18 +144,8 @@ export default function Sidebar() {
     { label: "Parcel Management", href: "/parcels", icon: <FaBox /> },
   ];
 
-  // Define logout handler separately for debugging
   const handleLogoutClick = () => {
-    console.log("=== LOGOUT CLICKED ===");
-    console.log("openLogoutModal exists?", !!openLogoutModal);
-    console.log("Calling openLogoutModal...");
-    
-    if (openLogoutModal) {
-      openLogoutModal();
-      console.log("openLogoutModal called successfully");
-    } else {
-      console.error("openLogoutModal is undefined!");
-    }
+    openLogoutModal?.();
   };
 
   const userActions = [
@@ -157,7 +164,8 @@ export default function Sidebar() {
       <button
         type="button"
         className="sidebar-logo sidebar-logo-toggle rounded-2xl transition duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-        onClick={() => setIsCollapsed((prev) => !prev)}
+        onClick={handleSidebarToggle}
+        disabled={isMobile}
         aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         <img src="/images/logo.png" alt="Logo" />
@@ -224,16 +232,9 @@ export default function Sidebar() {
               } border border-transparent hover:border-white/20`}
               onClick={(e) => {
                 e.stopPropagation();
-                console.log("=== USER ACTION CLICKED ===");
-                console.log("Action label:", action.label);
-                console.log("Action onClick:", action.onClick);
-                console.log("Action href:", action.href);
-                
                 if (action.onClick) {
-                  console.log("Calling action.onClick()");
                   action.onClick();
                 } else if (action.href) {
-                  console.log("Navigating to:", action.href);
                   navigate(action.href);
                 }
               }}

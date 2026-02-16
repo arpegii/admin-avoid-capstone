@@ -72,7 +72,6 @@ export default function Riders() {
   const [fullWeatherForecast, setFullWeatherForecast] = useState([]);
   const [showFullWeatherPanel, setShowFullWeatherPanel] = useState(false);
   const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
-  const [queuedInfoRider, setQueuedInfoRider] = useState("");
 
   useEffect(() => {
     if (!showCreateSuccessModal) return undefined;
@@ -135,34 +134,45 @@ export default function Riders() {
   const fullMarkersRef = useRef([]);
   const fullWeatherOverlayRef = useRef(null);
   const fullFloodOverlayRef = useRef(null);
-  const popupHandlerMapRef = useRef(new Map());
-  const trackModalOpenRef = useRef(false);
   const hasAutoCenteredAllMapRef = useRef(false);
   const hasAutoCenteredFullMapRef = useRef(false);
+  const openInfoModalRef = useRef(null);
 
-  useEffect(() => {
-    trackModalOpenRef.current = trackModalOpen;
-  }, [trackModalOpen]);
-
-  useEffect(() => {
-    if (trackModalOpen || !queuedInfoRider) return;
-    const riderToOpen = queuedInfoRider;
-    setQueuedInfoRider("");
-    void openInfoModal(riderToOpen);
-  }, [trackModalOpen, queuedInfoRider]);
-
-  const openRiderInfoFromPopup = (riderName) => {
+  const openRiderInfoFromPopup = useCallback((riderName) => {
     const normalizedRiderName = String(riderName || "").trim();
     if (!normalizedRiderName) return;
 
-    if (trackModalOpenRef.current) {
-      setQueuedInfoRider(normalizedRiderName);
-      closeTrackModal();
-      return;
-    }
+    openInfoModalRef.current?.(normalizedRiderName);
+  }, []);
 
-    void openInfoModal(normalizedRiderName);
-  };
+  useEffect(() => {
+    const handlePopupInteraction = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const popupButton = target.closest(".rider-location-popup-btn");
+      const popupCard = target.closest(".rider-location-popup");
+      if (!popupButton && !popupCard) return;
+
+      event.preventDefault?.();
+      event.stopPropagation?.();
+
+      const riderNameFromButton = popupButton?.getAttribute("data-rider-name");
+      const riderNameFromCard = popupCard?.getAttribute("data-rider-name");
+      const riderName = (riderNameFromButton || riderNameFromCard || "").trim();
+      if (!riderName) return;
+
+      openRiderInfoFromPopup(riderName);
+    };
+
+    document.addEventListener("pointerup", handlePopupInteraction, true);
+    document.addEventListener("click", handlePopupInteraction, true);
+
+    return () => {
+      document.removeEventListener("pointerup", handlePopupInteraction, true);
+      document.removeEventListener("click", handlePopupInteraction, true);
+    };
+  }, [openRiderInfoFromPopup]);
 
   const fetchRiderLocations = useCallback(async () => {
     const { data, error } = await supabaseClient
@@ -287,47 +297,31 @@ export default function Riders() {
       if (!popupElement) return;
 
       const button = popupElement.querySelector(".rider-location-popup-btn");
-      if (!button) return;
+      const popupCard = popupElement.querySelector(".rider-location-popup");
+      if (!button && !popupCard) return;
 
       L.DomEvent.disableClickPropagation(popupElement);
       L.DomEvent.disableScrollPropagation(popupElement);
 
-      const clickHandler = (clickEvent) => {
-        L.DomEvent.stop(clickEvent);
+      const openFromPopup = (domEvent) => {
+        if (domEvent) {
+          domEvent.preventDefault?.();
+          domEvent.stopPropagation?.();
+        }
         const clickedRiderName =
           button?.getAttribute?.("data-rider-name") || riderName;
         openRiderInfoFromPopup(clickedRiderName);
       };
 
-      const popupId = event.popup?._leaflet_id;
-      if (!popupId) {
-        L.DomEvent.on(button, "click", clickHandler);
-        L.DomEvent.on(button, "touchend", clickHandler);
-        return;
+      if (button) {
+        button.onclick = openFromPopup;
+        button.ontouchend = openFromPopup;
+        button.onpointerup = openFromPopup;
       }
-
-      const previousHandler = popupHandlerMapRef.current.get(popupId);
-      if (previousHandler) {
-        L.DomEvent.off(button, "click", previousHandler);
-        L.DomEvent.off(button, "touchend", previousHandler);
+      if (popupCard) {
+        popupCard.onclick = openFromPopup;
+        popupCard.ontouchend = openFromPopup;
       }
-
-      L.DomEvent.on(button, "click", clickHandler);
-      L.DomEvent.on(button, "touchend", clickHandler);
-      popupHandlerMapRef.current.set(popupId, clickHandler);
-    });
-
-    marker.on("popupclose", (event) => {
-      const popupElement = event.popup?.getElement();
-      const button = popupElement?.querySelector?.(".rider-location-popup-btn");
-      const popupId = event.popup?._leaflet_id;
-      if (!button || !popupId) return;
-      const previousHandler = popupHandlerMapRef.current.get(popupId);
-      if (previousHandler) {
-        L.DomEvent.off(button, "click", previousHandler);
-        L.DomEvent.off(button, "touchend", previousHandler);
-      }
-      popupHandlerMapRef.current.delete(popupId);
     });
   };
 
@@ -895,8 +889,6 @@ export default function Riders() {
         return;
       }
 
-      console.log("Rider data:", riderData);
-      console.log("Rider UUID:", riderData.user_id);
 
       // Step 2: Fetch parcels using the rider's UUID
       const { data: parcelsData, error: parcelsError } = await supabaseClient
@@ -923,7 +915,6 @@ export default function Riders() {
         setRiderViolationLogs(violationData || []);
       }
 
-      console.log("Parcels data:", parcelsData);
 
       // Step 3: Calculate parcel counts based on status
       const parcels = parcelsData || [];
@@ -940,13 +931,6 @@ export default function Riders() {
         (p) => p.status?.toLowerCase() === "cancelled",
       ).length;
 
-      console.log("Parcel counts:", {
-        delivered: deliveredParcels,
-        ongoing: ongoingParcels,
-        cancelled: cancelledParcels,
-        total: parcels.length,
-      });
-
       setSelectedRiderInfo({
         ...riderData,
         deliveredParcels,
@@ -961,6 +945,7 @@ export default function Riders() {
       setLoadingInfo(false);
     }
   };
+  openInfoModalRef.current = openInfoModal;
 
   const closeInfoModal = () => {
     setInfoModalOpen(false);

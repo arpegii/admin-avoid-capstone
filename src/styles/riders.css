@@ -381,7 +381,7 @@
   position: absolute;
   top: 14px;
   right: 14px;
-  z-index: 800;
+  z-index: 900;
   width: min(360px, calc(100% - 28px));
   border-radius: 14px;
   padding: 12px;
@@ -396,7 +396,7 @@
   position: absolute;
   top: 94px;
   left: 14px;
-  z-index: 810;
+  z-index: 980;
   width: 40px;
   height: 40px;
   border: none;
@@ -1661,6 +1661,29 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
+  .rider-map-stack .leaflet-control-zoom,
+  .rider-full-map-stack .leaflet-control-zoom,
+  .track-rider-map .leaflet-control-zoom {
+    display: none !important;
+  }
+
+  .riders-page {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .riders-content-shell {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .riders-split-layout {
+    height: auto;
+    min-height: auto;
+  }
+
   .rider-header-row {
     flex-direction: column;
     align-items: stretch;
@@ -1682,10 +1705,59 @@
     height: 260px;
   }
 
+  .rider-map-stack {
+    overflow: hidden;
+    border-radius: 12px;
+  }
+
   .weather-forecast-card {
-    position: static;
-    width: 100%;
-    margin-bottom: 10px;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    left: auto;
+    width: min(220px, calc(100% - 56px));
+    max-width: calc(100% - 56px);
+    margin: 0;
+    padding: 10px;
+    border-radius: 12px;
+    max-height: calc(100% - 16px);
+    overflow: auto;
+  }
+
+  .weather-panel-toggle-btn {
+    top: 8px;
+    left: 8px;
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+    z-index: 1000;
+  }
+
+  .weather-now {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .weather-now-main strong {
+    font-size: 14px;
+  }
+
+  .weather-temp-block span {
+    font-size: 22px;
+  }
+
+  .weather-metrics {
+    gap: 6px;
+  }
+
+  .weather-metrics span {
+    font-size: 10px;
+  }
+
+  .weather-forecast-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .rider-map-header-top {
@@ -1751,12 +1823,29 @@
 
   .rider-full-map-header {
     flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .rider-full-map-controls {
-    order: 3;
+    order: 2;
     width: 100%;
     justify-content: flex-start;
+    position: static;
+    top: auto;
+    left: auto;
+    transform: none;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .rider-full-map-close {
+    order: 3;
+    position: static;
+    top: auto;
+    right: auto;
+    transform: none;
   }
 
   .track-rider-map {
@@ -1817,6 +1906,28 @@
   .track-rider-map {
     min-height: 220px;
     height: clamp(220px, 44vh, 320px);
+  }
+
+  .weather-forecast-card {
+    top: 6px;
+    right: 6px;
+    left: auto;
+    width: min(190px, calc(100% - 52px));
+    max-width: calc(100% - 52px);
+    padding: 8px;
+    max-height: calc(100% - 12px);
+  }
+
+  .weather-forecast-row {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-panel-toggle-btn {
+    top: 6px;
+    left: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
 }
 

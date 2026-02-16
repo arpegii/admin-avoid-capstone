@@ -15,6 +15,7 @@ import Profile from "./pages/profile";
 // Components
 import LogoutModal from "./components/logoutModal";
 import PageSpinner from "./components/PageSpinner";
+import "./styles/mobile.css";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;

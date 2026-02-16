@@ -1,0 +1,187 @@
+/* Global responsive overrides for smartphone layouts */
+
+/* Prevent horizontal clipping and allow native page scroll on mobile */
+@media (max-width: 900px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-container {
+    flex-direction: row;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Sidebar stays visible as a retracted left rail */
+  .sidebar,
+  .sidebar.collapsed {
+    width: 72px !important;
+    min-width: 72px;
+    max-width: 72px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 10px 6px;
+    position: relative;
+    top: auto;
+    z-index: 20;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-logo,
+  .sidebar.collapsed .sidebar-logo {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 12px;
+    flex: 0 0 auto;
+  }
+
+  .nav-menu,
+  .sidebar.collapsed .nav-menu {
+    width: 100%;
+    flex: 0 0 auto;
+    min-width: auto;
+    display: block;
+    gap: 0;
+    padding: 0 4px;
+    overflow: visible;
+  }
+
+  .nav-item,
+  .sidebar.collapsed .nav-item,
+  .user-actions .nav-item {
+    margin: 0 0 6px;
+    padding: 10px 6px;
+    justify-content: center;
+    flex: 0 1 auto;
+    transform: none !important;
+  }
+
+  .nav-icon,
+  .sidebar.collapsed .nav-icon,
+  .sidebar.collapsed .user-actions .nav-icon {
+    margin-right: 0;
+  }
+
+  .nav-label,
+  .sidebar.collapsed .nav-label {
+    display: none !important;
+  }
+
+  .user-profile,
+  .sidebar.collapsed .user-profile {
+    margin-top: auto;
+    padding: 10px 4px 2px;
+    display: block;
+    align-items: stretch;
+    gap: 0;
+    flex: 1 1 auto;
+  }
+
+  .user-info,
+  .sidebar.collapsed .user-info {
+    margin: 0 0 8px;
+    padding: 8px 4px;
+    justify-content: center;
+  }
+
+  .user-avatar-wrapper,
+  .sidebar.collapsed .user-avatar-wrapper {
+    width: 34px;
+    height: 34px;
+  }
+
+  .user-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .user-details,
+  .avatar-pen {
+    display: none !important;
+  }
+
+  .user-actions {
+    display: block;
+    gap: 0;
+  }
+
+  .dashboard-page,
+  .parcels-page,
+  .riders-page,
+  .riders-content-shell,
+  .reports-page,
+  .settings-page,
+  .profile-main-content {
+    width: 100%;
+    min-width: 0;
+    height: 100% !important;
+    min-height: 0;
+    overflow: auto !important;
+  }
+
+  .dashboard-page,
+  .parcels-page,
+  .riders-content-shell,
+  .reports-page,
+  .settings-page,
+  .profile-main-content {
+    padding: 14px !important;
+  }
+
+  .profile-main-content {
+    display: flex;
+    flex-direction: column;
+    grid-template-rows: none;
+    gap: 12px;
+  }
+
+  .reports-layout {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .dashboard-page .dash-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "delivered"
+      "cancelled"
+      "growth"
+      "violation"
+      "topmonth"
+      "topyear"
+      "toprider";
+  }
+
+  .parcels-table-wrapper,
+  .riders-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .parcels-table,
+  .rider-table {
+    min-width: 680px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .nav-label {
+    font-size: 12px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+}

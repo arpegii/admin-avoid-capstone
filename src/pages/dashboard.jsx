@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
 import Chart from "chart.js/auto";
@@ -264,7 +264,7 @@ const Dashboard = () => {
     month: "long",
     year: "numeric",
   });
-  const buildViolationPopup = (location, level, incidents, _note, violationType) => `
+  const buildViolationPopup = useCallback((location, level, incidents, _note, violationType) => `
     <div class="violation-hotspot-popup-card">
       <div class="violation-hotspot-popup-top">
         <span class="violation-hotspot-dot ${level}"></span>
@@ -272,12 +272,12 @@ const Dashboard = () => {
       </div>
       <small style="color: #dc2626; font-weight: 700;">Violation: ${violationType || "Unknown violation"}</small>
     </div>
-  `;
+  `, []);
   const violationPointIndicators = useMemo(
     () => buildViolationPointIndicatorsFromLogs(violationLogs),
     [violationLogs],
   );
-  const renderViolationHotspots = (
+  const renderViolationHotspots = useCallback((
     map,
     points,
     layerGroupRef,
@@ -369,7 +369,7 @@ const Dashboard = () => {
     } else {
       map.setView([14.676, 121.0437], 13);
     }
-  };
+  }, [buildViolationPopup]);
 
   useEffect(() => {
     if (reportType === "parcels") setColumnsOptions(parcelColumns);
@@ -963,7 +963,7 @@ const Dashboard = () => {
       violationLeafletMapRef.current?.invalidateSize();
     }, 120);
 
-  }, [loading, violationPointIndicators]);
+  }, [loading, violationPointIndicators, renderViolationHotspots]);
 
   useEffect(() => {
     if (!violationMapModalOpen) {
@@ -1001,7 +1001,7 @@ const Dashboard = () => {
       violationFullLeafletMapRef.current?.invalidateSize();
     }, 120);
 
-  }, [violationMapModalOpen, violationPointIndicators]);
+  }, [violationMapModalOpen, violationPointIndicators, renderViolationHotspots]);
 
   useEffect(() => {
     return () => {

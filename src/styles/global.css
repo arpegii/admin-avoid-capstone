@@ -603,3 +603,70 @@ body.dark .page-spinner-wrap.fullscreen {
 .close-btn {
   display: none !important;
 }
+
+@media (max-width: 900px) {
+  .dashboard-container {
+    flex-direction: row;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .sidebar,
+  .sidebar.collapsed {
+    display: flex !important;
+    width: 72px !important;
+    min-width: 72px;
+    max-width: 72px;
+    position: relative;
+    top: auto;
+    z-index: 80;
+    padding: 10px 6px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-direction: column;
+  }
+
+  .sidebar-logo,
+  .sidebar.collapsed .sidebar-logo {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 12px;
+    flex: 0 0 auto;
+  }
+
+  .nav-menu,
+  .sidebar.collapsed .nav-menu {
+    display: block;
+    gap: 0;
+    padding: 0 4px;
+    margin: 0;
+    overflow: visible;
+  }
+
+  .nav-item,
+  .sidebar.collapsed .nav-item,
+  .user-actions .nav-item {
+    flex: 0 1 auto;
+    margin: 0 0 6px;
+    padding: 10px 6px;
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .nav-label {
+    display: none !important;
+  }
+
+  .user-profile,
+  .sidebar.collapsed .user-profile {
+    display: block;
+    align-items: stretch;
+    gap: 0;
+    margin-top: auto;
+    padding: 10px 4px 2px;
+  }
+
+  .user-details {
+    display: none;
+  }
+}
