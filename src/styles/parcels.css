@@ -561,7 +561,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  flex: 1;
   min-height: 0;
   text-align: center;
 }
@@ -582,8 +583,8 @@
 .parcel-track-map {
   width: 100%;
   flex: 1;
-  min-height: 320px;
-  height: clamp(320px, 62vh, 560px);
+  height: 100%;
+  min-height: 260px;
   border-radius: 12px;
   border: 2px solid #e5e7eb;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -592,6 +593,10 @@
 
 .parcel-track-map-wrap {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
 }
 
 .parcel-track-loading-overlay {
@@ -969,6 +974,16 @@
     max-width: 95%;
     max-height: 85vh;
   }
+  .parcel-track-body {
+    padding: 20px 16px;
+    gap: 12px;
+  }
+  .parcel-track-map-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+  }
   .parcels-modal-header {
     padding: 20px;
   }
@@ -979,7 +994,8 @@
     padding: 24px 20px;
   }
   .parcel-track-map {
-    height: 340px;
+    height: 100%;
+    min-height: 260px;
   }
   .parcel-view-grid {
     grid-template-columns: 1fr;
@@ -1006,6 +1022,10 @@
   .parcels-pagination span {
     font-size: 13px;
     min-width: 80px;
+  }
+  .parcel-track-map {
+    height: 100%;
+    min-height: 220px;
   }
 }
 
