@@ -1578,6 +1578,30 @@ export default function Riders() {
               ) : (
                 <div className="rider-info-shell">
                   <div className="rider-info-hero">
+                    <span
+                      className={`rider-streak-pill rider-streak-pill-corner ${(selectedRiderInfo?.metDailyQuotaToday || isVandreiCuplaPreview) ? "is-met" : "is-miss"}`}
+                    >
+                      <span className="rider-streak-icon" aria-hidden="true">
+                        <svg viewBox="0 0 16 16" fill="none" role="presentation">
+                          <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
+                          <path
+                            d="M5.1 8.25 7 10.15l3.9-4.1"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>
+                        {(() => {
+                          const quotaMetDays = isVandreiCuplaPreview
+                            ? Math.max(1, selectedRiderInfo?.quotaStreakDays ?? 0)
+                            : (selectedRiderInfo?.quotaStreakDays ?? 0);
+                          return `Quota Met: ${quotaMetDays} Day${quotaMetDays === 1 ? "" : "s"}`;
+                        })()}
+                      </span>
+                    </span>
                     <div className="rider-info-profile">
                       {selectedRiderInfo?.profile_url ? (
                         <button
@@ -1635,18 +1659,6 @@ export default function Riders() {
                               </span>
                             );
                           })()}
-                          <span
-                            className={`rider-streak-pill ${(selectedRiderInfo?.metDailyQuotaToday || isVandreiCuplaPreview) ? "is-met" : "is-miss"}`}
-                          >
-                            <span className="rider-streak-icon" aria-hidden="true">
-                              🔥
-                            </span>
-                            <span>
-                              {isVandreiCuplaPreview
-                                ? Math.max(1, selectedRiderInfo?.quotaStreakDays ?? 0)
-                                : (selectedRiderInfo?.quotaStreakDays ?? 0)} day streak
-                            </span>
-                          </span>
                           <button
                             type="button"
                             className="rider-performance-btn"

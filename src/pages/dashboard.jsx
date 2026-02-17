@@ -435,10 +435,10 @@ const ModernSelect = ({
     <div
       ref={rootRef}
       className={`modern-select ${open ? "is-open" : ""} ${className}`.trim()}
-      id={id}
     >
       <button
         type="button"
+        id={id}
         className={`modern-select-trigger ${triggerClassName}`.trim()}
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="listbox"
@@ -506,6 +506,7 @@ const Dashboard = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [violationLogs, setViolationLogs] = useState([]);
   const [violationLogsError, setViolationLogsError] = useState("");
+  const yearFilterRef = useRef(null);
   const growthChartRef = useRef(null);
   const chartInstanceRef = useRef(null);
   const hasLoadedAnalyticsRef = useRef(false);
@@ -593,6 +594,22 @@ const Dashboard = () => {
     ],
     [],
   );
+  const handleYearFilterPillClick = useCallback((event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (
+      target.closest(".modern-select-trigger") ||
+      target.closest(".modern-select-menu") ||
+      target.closest(".modern-select-option")
+    ) {
+      return;
+    }
+    const trigger = yearFilterRef.current?.querySelector(".modern-select-trigger");
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.focus();
+      trigger.click();
+    }
+  }, []);
   const renderViolationHotspots = useCallback((
     map,
     points,
@@ -1569,13 +1586,17 @@ const Dashboard = () => {
               <div className="dash-header-actions">
                 <button
                   type="button"
-                  className="dash-generate-report-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110"
+                  className="dash-generate-report-btn"
                   onClick={() => setReportModalOpen(true)}
                 >
                   Generate Report
                 </button>
-                <div className="dash-year-filter">
-                  <label htmlFor="dashboard-year-filter">Year</label>
+                <div
+                  className="dash-year-filter"
+                  ref={yearFilterRef}
+                  onClick={handleYearFilterPillClick}
+                >
+                  <span className="dash-year-filter-label">Year</span>
                   <ModernSelect
                     id="dashboard-year-filter"
                     className="dash-year-modern-select"

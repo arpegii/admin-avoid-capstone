@@ -13,6 +13,8 @@
   --dash-accent: #ef4444;
   --dash-success: #16a34a;
   --dash-danger: #dc2626;
+  --dash-header-pill-height: 38px;
+  --dash-header-pill-width: 170px;
 }
 
 .dashboard-page {
@@ -27,7 +29,7 @@
     radial-gradient(700px 380px at 5% 115%, var(--dash-bg-3), transparent 55%),
     linear-gradient(160deg, var(--page-bg-soft) 0%, var(--dash-bg-1) 80%);
   color: var(--dash-text);
-  overflow-y: auto;
+  overflow-y: hidden;
   isolation: isolate;
 }
 
@@ -78,9 +80,15 @@
 }
 
 .dashboard-page .dash-generate-report-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--dash-header-pill-height);
+  min-width: var(--dash-header-pill-width);
   border: none;
   border-radius: 999px;
-  padding: 0.5rem 0.95rem;
+  padding: 0 0.95rem;
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -106,7 +114,13 @@
 }
 
 .dashboard-page .date-range {
-  padding: 0.45rem 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--dash-header-pill-height);
+  min-width: var(--dash-header-pill-width);
+  padding: 0 0.92rem;
   border-radius: 999px;
   border: 1px solid rgba(239, 68, 68, 0.34);
   background: rgba(239, 68, 68, 0.1);
@@ -121,13 +135,18 @@
 .dashboard-page .dash-year-filter {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  height: var(--dash-header-pill-height);
+  min-width: var(--dash-header-pill-width);
   gap: 0.45rem;
-  border: 1px solid rgba(239, 68, 68, 0.24);
-  background: linear-gradient(180deg, #ffffff 0%, #fff5f5 100%);
+  cursor: pointer;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: linear-gradient(180deg, #ffffff 0%, #fff7f7 100%);
   border-radius: 999px;
-  padding: 0.28rem 0.5rem 0.28rem 0.62rem;
+  padding: 0 0.62rem;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 7px 16px rgba(185, 28, 28, 0.08);
   transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   animation: dashboardSelectEnter 0.34s ease both;
@@ -136,25 +155,25 @@
 
 .dashboard-page .dash-year-filter:hover {
   transform: translateY(-1px);
-  border-color: rgba(239, 68, 68, 0.45);
+  border-color: rgba(239, 68, 68, 0.48);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 10px 20px rgba(185, 28, 28, 0.12);
+    0 10px 20px rgba(185, 28, 28, 0.13);
 }
 
 .dashboard-page .dash-year-filter:focus-within {
-  border-color: rgba(239, 68, 68, 0.62);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 0 0 3px rgba(239, 68, 68, 0.14),
-    0 12px 22px rgba(185, 28, 28, 0.14);
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
   animation: dashboardSelectOpenPop 0.22s ease;
 }
 
-.dashboard-page .dash-year-filter label {
-  font-size: 0.72rem;
+.dashboard-page .dash-year-filter .dash-year-filter-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  line-height: 1;
   text-transform: uppercase;
   color: #7f1d1d;
 }
@@ -253,14 +272,17 @@
 }
 
 .dashboard-page .dash-year-modern-select {
-  min-width: 122px;
+  min-width: 0;
+  width: 100%;
 }
 
 .dashboard-page .dash-year-modern-trigger {
   color: #7f1d1d;
   font-size: 0.82rem;
   font-weight: 800;
-  min-height: 32px;
+  min-height: 0;
+  height: 100%;
+  line-height: 1;
   padding: 0;
 }
 
@@ -1468,6 +1490,7 @@
     padding: 1rem;
     height: auto;
     min-height: 100vh;
+    overflow-y: auto;
   }
 
   .dashboard-page .dash-header {
@@ -1647,22 +1670,20 @@ body.dark .dashboard-page .date-range {
 }
 
 body.dark .dashboard-page .dash-year-filter {
-  background: linear-gradient(160deg, #1e293b 0%, #111827 100%);
-  border-color: var(--dm-border);
+  background: linear-gradient(160deg, #1f2937 0%, #0f172a 100%);
+  border-color: #475569;
   box-shadow:
     inset 0 1px 0 rgba(148, 163, 184, 0.2),
     0 8px 16px rgba(2, 6, 23, 0.35);
+  color-scheme: dark;
 }
 
 body.dark .dashboard-page .dash-year-filter:focus-within {
-  border-color: #f87171;
-  box-shadow:
-    inset 0 1px 0 rgba(148, 163, 184, 0.2),
-    0 0 0 3px rgba(248, 113, 113, 0.22),
-    0 12px 22px rgba(2, 6, 23, 0.45);
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
-body.dark .dashboard-page .dash-year-filter label,
+body.dark .dashboard-page .dash-year-filter .dash-year-filter-label,
 body.dark .dashboard-page .dash-year-modern-trigger {
   color: var(--dm-text);
 }

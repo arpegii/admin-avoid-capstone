@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useEffect } from "react";
 
@@ -166,6 +167,7 @@ function AppContent() {
     <>
       <GlobalLogoutModal />
       <AppRoutes />
+      <Analytics />
     </>
   );
 }
