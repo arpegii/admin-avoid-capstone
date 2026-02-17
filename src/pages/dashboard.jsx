@@ -1234,6 +1234,38 @@ const Dashboard = () => {
   };
 
   const buildCsvContent = (selectedReportType, selectedColumn, data) => {
+    const isLikelyIdLike = (columnKey = "") =>
+      columnKey === "parcel_id" ||
+      columnKey === "recipient_phone" ||
+      /(^id$|_id$|phone)/i.test(columnKey);
+
+    const formatCsvCellValue = (value, columnKey = "") => {
+      if (value === null || value === undefined) return "";
+      const raw = String(value).trim();
+      if (!raw) return "";
+
+      if (columnKey === "created_at" || columnKey === "date") {
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toLocaleString("en-US", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          });
+        }
+      }
+
+      // Keep large numeric strings text-like in Excel (avoid scientific notation).
+      if (isLikelyIdLike(columnKey)) return `\t${raw}`;
+      return raw;
+    };
+
+    const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
     const effectiveColumn =
       selectedReportType === "parcels" ? selectedColumn : "All";
     let csv = "";
@@ -1256,11 +1288,11 @@ const Dashboard = () => {
                     "created_at",
                   ]
                 : ["parcel_id", effectiveColumn];
-        csv += cols.join(",") + "\n";
+        csv += cols.map(humanizeLabel).join(",") + "\n";
         section.data.forEach((row) => {
           csv +=
             cols
-              .map((c) => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`)
+              .map((c) => csvEscape(formatCsvCellValue(row[c], c)))
               .join(",") + "\n";
         });
       });
@@ -1281,11 +1313,11 @@ const Dashboard = () => {
                   "created_at",
                 ]
           : [effectiveColumn];
-      csv += reportCols.join(",") + "\n";
+      csv += reportCols.map(humanizeLabel).join(",") + "\n";
       data.forEach((row) => {
         csv +=
           reportCols
-            .map((c) => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`)
+            .map((c) => csvEscape(formatCsvCellValue(row[c], c)))
             .join(",") + "\n";
       });
     }
@@ -1329,7 +1361,7 @@ const Dashboard = () => {
     );
     const csv = buildCsvContent(selectedReportType, selectedColumn, data);
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
