@@ -1098,6 +1098,66 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rider-streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+  border: 1px solid transparent;
+}
+
+.rider-streak-pill .rider-streak-icon {
+  line-height: 1;
+  font-size: 12px;
+}
+
+.rider-streak-pill.is-met {
+  background: rgba(249, 115, 22, 0.16);
+  color: #9a3412;
+  border-color: rgba(234, 88, 12, 0.35);
+}
+
+.rider-streak-pill.is-met .rider-streak-icon {
+  animation: riderFireFlicker 1.1s ease-in-out infinite;
+  transform-origin: center bottom;
+  display: inline-block;
+  filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.45));
+}
+
+.rider-streak-pill.is-miss {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.35);
+}
+
+@keyframes riderFireFlicker {
+  0% {
+    transform: translateY(0) scale(1) rotate(-3deg);
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.35));
+  }
+  25% {
+    transform: translateY(-1px) scale(1.08) rotate(2deg);
+    filter: drop-shadow(0 0 5px rgba(251, 146, 60, 0.55));
+  }
+  50% {
+    transform: translateY(0) scale(0.96) rotate(-2deg);
+    filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.42));
+  }
+  75% {
+    transform: translateY(-1px) scale(1.06) rotate(3deg);
+    filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.58));
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(-3deg);
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.35));
+  }
 }
 
 .rider-performance-btn {
@@ -1226,37 +1286,59 @@
 }
 
 .rider-performance-body {
-  padding: 18px;
+  padding: 20px;
+  background:
+    radial-gradient(320px 180px at 8% 0%, rgba(239, 68, 68, 0.08), transparent 65%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.rider-performance-modal .riders-modal-header {
+  background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+}
+
+.rider-performance-modal .riders-modal-header h2 {
+  font-size: 30px;
+  font-size: clamp(1.25rem, 2.1vw, 1.8rem);
+  letter-spacing: -0.4px;
 }
 
 .rider-performance-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1.15fr 1fr;
+  grid-template-areas:
+    "quota delivered"
+    "quota ongoing"
+    "quota cancelled";
+  gap: 14px;
 }
 
 .rider-performance-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid #dbe4f0;
-  border-radius: 12px;
-  padding: 12px 14px;
+  position: relative;
+  background: linear-gradient(165deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 16px;
+  padding: 14px 16px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .rider-performance-card span {
   color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.55px;
 }
 
 .rider-performance-card strong {
   color: #7f1d1d;
-  font-size: 22px;
-  font-weight: 800;
+  font-size: clamp(1.9rem, 3.2vw, 2.35rem);
+  font-weight: 900;
   letter-spacing: -0.2px;
+  line-height: 1;
 }
 
 .rider-performance-delivered strong {
@@ -1272,34 +1354,53 @@
 }
 
 .rider-performance-quota {
+  grid-area: quota;
   align-items: center;
   text-align: center;
+  align-content: center;
+  min-height: 266px;
+  overflow: hidden;
+}
+
+.rider-performance-delivered {
+  grid-area: delivered;
+}
+
+.rider-performance-ongoing {
+  grid-area: ongoing;
+}
+
+.rider-performance-cancelled {
+  grid-area: cancelled;
 }
 
 .rider-performance-ring-wrap {
   position: relative;
-  width: 98px;
-  height: 98px;
-  margin: 2px auto 0;
+  width: 142px;
+  height: 142px;
+  margin: 6px auto 4px;
 }
 
 .rider-performance-ring {
-  width: 98px;
-  height: 98px;
+  width: 142px;
+  height: 142px;
 }
 
 .rider-performance-ring-bg {
-  stroke: #e2e8f0;
-  stroke-width: 9;
+  stroke: #d6dee8;
+  stroke-width: 7;
   fill: none;
+  opacity: 0.95;
 }
 
 .rider-performance-ring-fg {
-  stroke: #dc2626;
-  stroke-width: 9;
+  stroke: #ef4444;
+  stroke-width: 7;
   fill: none;
   stroke-linecap: round;
-  transition: stroke-dasharray 0.4s ease;
+  transition: stroke-dasharray 0.45s ease;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
 }
 
 .rider-performance-ring-label {
@@ -1307,13 +1408,17 @@
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 34px;
+  font-weight: 900;
+  color: #b91c1c;
+  text-shadow: 0 4px 16px rgba(185, 28, 28, 0.18);
 }
 
 .rider-performance-ring-note {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.1px;
 }
 
 .rider-info-grid {
@@ -1878,6 +1983,11 @@
 
   .rider-performance-grid {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "quota"
+      "delivered"
+      "ongoing"
+      "cancelled";
   }
 
   .rider-performance-modal {
@@ -2088,6 +2198,18 @@ body.dark .rider-status-pill.is-default {
   border-color: rgba(148, 163, 184, 0.45);
 }
 
+body.dark .rider-streak-pill.is-met {
+  background: rgba(249, 115, 22, 0.24);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
+body.dark .rider-streak-pill.is-miss {
+  background: rgba(100, 116, 139, 0.26);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
 body.dark .rider-performance-btn {
   background: rgba(15, 23, 42, 0.45);
   color: #fecaca;
@@ -2142,8 +2264,11 @@ body.dark .rider-violations-list::-webkit-scrollbar-thumb {
 }
 
 body.dark .rider-performance-card {
-  background: rgba(15, 23, 42, 0.6);
-  border-color: var(--dm-border);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.92) 0%, rgba(2, 6, 23, 0.9) 100%);
+  border-color: rgba(71, 85, 105, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(148, 163, 184, 0.16),
+    0 14px 26px rgba(2, 6, 23, 0.5);
 }
 
 body.dark .rider-performance-card span {
@@ -2167,15 +2292,26 @@ body.dark .rider-performance-cancelled strong {
 }
 
 body.dark .rider-performance-ring-bg {
-  stroke: rgba(148, 163, 184, 0.35);
+  stroke: rgba(148, 163, 184, 0.28);
 }
 
 body.dark .rider-performance-ring-fg {
-  stroke: #f87171;
+  stroke: #fb7185;
 }
 
 body.dark .rider-performance-ring-note {
   color: var(--dm-muted-2);
+}
+
+body.dark .rider-performance-ring-label {
+  color: #fecdd3;
+  text-shadow: 0 6px 20px rgba(244, 63, 94, 0.28);
+}
+
+body.dark .rider-performance-body {
+  background:
+    radial-gradient(320px 180px at 8% 0%, rgba(244, 63, 94, 0.14), transparent 65%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
 }
 
 body.dark .rider-photo-preview {

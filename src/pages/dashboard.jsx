@@ -4,7 +4,14 @@ import { supabaseClient } from "../App";
 import Chart from "chart.js/auto";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FaDownload } from "react-icons/fa";
+import {
+  FaDownload,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaCalendarAlt,
+  FaChartLine,
+  FaMotorcycle,
+} from "react-icons/fa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
@@ -23,19 +30,58 @@ const humanizeLabel = (label) => {
     .join(" ");
 };
 
-const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+const normalizeStatus = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const isDeliveredStatus = (value) => {
+  const normalized = normalizeStatus(value);
+  return (
+    normalized === "successfully delivered" ||
+    normalized === "delivered" ||
+    normalized === "successful" ||
+    normalized === "success" ||
+    normalized === "completed"
+  );
+};
+
+const isCancelledStatus = (value) => {
+  const normalized = normalizeStatus(value);
+  return normalized === "cancelled" || normalized === "canceled";
+};
 
 const extractYearKey = (value) => {
-  if (!value) return null;
-  const text = String(value).trim();
+  if (value === null || value === undefined || value === "") return null;
 
-  // Prefer direct string extraction for ISO-like timestamps.
-  const directMatch = text.match(/^(\d{4})[-/]/);
-  if (directMatch) return directMatch[1];
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return String(value.getFullYear());
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const normalized = value < 1e12 ? value * 1000 : value;
+    const parsedNumberDate = new Date(normalized);
+    if (!Number.isNaN(parsedNumberDate.getTime())) {
+      return String(parsedNumberDate.getFullYear());
+    }
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  // ISO-like values: 2025-... or 2025/...
+  const leadingYearMatch = text.match(/^((?:19|20)\d{2})[-/]/);
+  if (leadingYearMatch) return leadingYearMatch[1];
+
+  // Non-ISO strings like 12/31/2025, Dec 31 2025, etc.
+  const anyYearMatch = text.match(/\b((?:19|20)\d{2})\b/);
+  if (anyYearMatch) return anyYearMatch[1];
 
   const parsed = new Date(text);
   if (!Number.isNaN(parsed.getTime())) {
-    return String(parsed.getUTCFullYear());
+    return String(parsed.getFullYear());
   }
 
   return null;
@@ -172,6 +218,52 @@ const violationColumns = [
   { value: "date", label: "Date" },
 ];
 
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const CIRCULAR_CHART_TYPES = new Set(["pie"]);
+const SUPABASE_PAGE_SIZE = 1000;
+const SUPABASE_MAX_PAGES = 25;
+
+const getYearDateRange = (yearValue) => {
+  const year = Number(yearValue);
+  if (!Number.isFinite(year)) return null;
+  return {
+    start: `${year}-01-01T00:00:00`,
+    endExclusive: `${year + 1}-01-01T00:00:00`,
+  };
+};
+
+const fetchAllPages = async (
+  buildQuery,
+  pageSize = SUPABASE_PAGE_SIZE,
+  maxPages = SUPABASE_MAX_PAGES,
+) => {
+  const rows = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await buildQuery().range(from, to);
+    if (error) throw error;
+    const chunk = data || [];
+    rows.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return rows;
+};
+
 const buildViolationPointIndicatorsFromLogs = (violationLogs = []) => {
   return (violationLogs || [])
     .map((log) => {
@@ -226,6 +318,132 @@ const loadImageAsDataUrl = (url) =>
     image.src = url;
   });
 
+const ModernSelect = ({
+  value,
+  onChange,
+  options = [],
+  placeholder = "Select",
+  className = "",
+  triggerClassName = "",
+  menuClassName = "",
+  id,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState("down");
+  const [menuMaxHeight, setMenuMaxHeight] = useState(260);
+  const rootRef = useRef(null);
+  const selectedOption = useMemo(
+    () => (options || []).find((option) => option.value === value),
+    [options, value],
+  );
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updateMenuPlacement = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      const rect = root.getBoundingClientRect();
+      const modalBody = root.closest(".dashboard-report-modal-body");
+      const bounds = modalBody
+        ? modalBody.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight };
+      const spaceBelow = bounds.bottom - rect.bottom - 10;
+      const spaceAbove = rect.top - bounds.top - 10;
+      const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+      const available = openUp ? spaceAbove : spaceBelow;
+      setMenuPlacement(openUp ? "up" : "down");
+      setMenuMaxHeight(Math.max(140, Math.min(320, Math.floor(available))));
+    };
+
+    updateMenuPlacement();
+    window.addEventListener("resize", updateMenuPlacement);
+    window.addEventListener("scroll", updateMenuPlacement, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuPlacement);
+      window.removeEventListener("scroll", updateMenuPlacement, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const modalBody = root?.closest?.(".dashboard-report-modal-body");
+    if (!modalBody) return undefined;
+
+    if (open) {
+      modalBody.classList.add("dashboard-dropdown-open");
+    } else {
+      modalBody.classList.remove("dashboard-dropdown-open");
+    }
+
+    return () => {
+      modalBody.classList.remove("dashboard-dropdown-open");
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className={`modern-select ${open ? "is-open" : ""} ${className}`.trim()}
+      id={id}
+    >
+      <button
+        type="button"
+        className={`modern-select-trigger ${triggerClassName}`.trim()}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span>{selectedOption?.label || placeholder}</span>
+        <span className="modern-select-caret" aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          className={`modern-select-menu ${menuPlacement === "up" ? "menu-up" : ""} ${menuClassName}`.trim()}
+          role="listbox"
+          style={{ maxHeight: `${menuMaxHeight}px` }}
+        >
+          {(options || []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`modern-select-option ${value === option.value ? "is-selected" : ""}`}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              role="option"
+              aria-selected={value === option.value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
     delivered: 0,
@@ -238,8 +456,14 @@ const Dashboard = () => {
     topRiderCount: 0,
     years: [],
     yearGrowth: [],
+    monthGrowth: Array(12).fill(0),
   });
   const [loading, setLoading] = useState(true);
+  const [availableYears, setAvailableYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState("All");
+  const [growthView, setGrowthView] = useState("month");
+  const [growthChartType, setGrowthChartType] = useState("line");
+  const [yearFilterReady, setYearFilterReady] = useState(false);
   const [violationMapModalOpen, setViolationMapModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState("");
@@ -254,6 +478,7 @@ const Dashboard = () => {
   const [violationLogsError, setViolationLogsError] = useState("");
   const growthChartRef = useRef(null);
   const chartInstanceRef = useRef(null);
+  const hasLoadedAnalyticsRef = useRef(false);
   const violationMapRef = useRef(null);
   const violationLeafletMapRef = useRef(null);
   const violationFullMapRef = useRef(null);
@@ -276,6 +501,67 @@ const Dashboard = () => {
   const violationPointIndicators = useMemo(
     () => buildViolationPointIndicatorsFromLogs(violationLogs),
     [violationLogs],
+  );
+  const growthChartSeries = useMemo(() => {
+    if (growthView === "month") {
+      return {
+        labels: MONTH_LABELS,
+        data: dashboardData.monthGrowth || Array(12).fill(0),
+        title: "Delivery Growth by Month",
+      };
+    }
+
+    return {
+      labels: dashboardData.years,
+      data: dashboardData.yearGrowth,
+      title: "Delivery Growth by Year",
+    };
+  }, [growthView, dashboardData.monthGrowth, dashboardData.years, dashboardData.yearGrowth]);
+
+  const hasGrowthData = useMemo(
+    () => (growthChartSeries.data || []).some((value) => Number(value) > 0),
+    [growthChartSeries.data],
+  );
+
+  const currentYear = new Date().getFullYear();
+  const yearSelectOptions = useMemo(
+    () => [
+      { value: "All", label: "All Years" },
+      ...availableYears.map((year) => ({ value: year, label: year })),
+    ],
+    [availableYears],
+  );
+  const growthViewOptions = useMemo(
+    () => [
+      { value: "year", label: "By Year" },
+      { value: "month", label: "By Month" },
+    ],
+    [],
+  );
+  const growthTypeOptions = useMemo(
+    () => [
+      { value: "line", label: "Line Chart" },
+      { value: "bar", label: "Bar Chart" },
+      { value: "pie", label: "Pie Chart" },
+    ],
+    [],
+  );
+  const reportTypeOptions = useMemo(
+    () => [
+      { value: "", label: "-- Select Report Type --" },
+      { value: "parcels", label: "Parcels" },
+      { value: "riders", label: "Riders" },
+      { value: "violations", label: "Violations" },
+      { value: "overall", label: "Overall Reports" },
+    ],
+    [],
+  );
+  const formatOptions = useMemo(
+    () => [
+      { value: "pdf", label: "PDF" },
+      { value: "csv", label: "CSV" },
+    ],
+    [],
   );
   const renderViolationHotspots = useCallback((
     map,
@@ -380,62 +666,147 @@ const Dashboard = () => {
   }, [reportType]);
 
   useEffect(() => {
-    async function loadAnalytics() {
-      try {
-        // Fetch parcels plus assigned rider identity details.
-        const { data: parcels, error: parcelsError } = await supabaseClient
-          .from("parcels")
-          .select(
-            `
-            *,
-            assigned_rider:users!parcels_assigned_rider_id_fkey(
-              user_id,
-              username,
-              fname,
-              lname
-            )
-            `,
-          );
+    if (selectedYear !== "All") {
+      setGrowthView("month");
+    }
+  }, [selectedYear]);
 
-        if (parcelsError) {
-          console.error("Error fetching parcels:", parcelsError);
-          setLoading(false);
+  useEffect(() => {
+    async function loadAvailableYears() {
+      try {
+        const { data: oldestRows, error: oldestError } = await supabaseClient
+          .from("parcels")
+          .select("created_at")
+          .not("created_at", "is", null)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        const { data: newestRows, error: newestError } = await supabaseClient
+          .from("parcels")
+          .select("created_at")
+          .not("created_at", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (oldestError || newestError) {
+          console.error("Error loading year options:", oldestError || newestError);
+          setAvailableYears([]);
+          setSelectedYear("All");
           return;
         }
 
-        const { data: violations, error: violationsError } = await supabaseClient
-          .from("violation_logs")
-          .select("*")
-          .order("date", { ascending: false });
+        const oldestYear = Number(extractYearKey(oldestRows?.[0]?.created_at));
+        const newestYear = Number(extractYearKey(newestRows?.[0]?.created_at));
+        const minDataYear = Number.isFinite(oldestYear)
+          ? oldestYear
+          : currentYear;
+        const maxDataYear = Number.isFinite(newestYear)
+          ? newestYear
+          : currentYear;
+        const startYear = Math.min(minDataYear, maxDataYear, currentYear);
+        const endYear = Math.max(minDataYear, maxDataYear, currentYear);
+        const years = [];
+        for (let year = endYear; year >= startYear; year -= 1) {
+          years.push(String(year));
+        }
 
-        if (violationsError) {
+        setAvailableYears(years);
+        setSelectedYear("All");
+      } catch (error) {
+        console.error("Error building year options:", error);
+        setAvailableYears([]);
+        setSelectedYear("All");
+      } finally {
+        setYearFilterReady(true);
+      }
+    }
+
+    loadAvailableYears();
+  }, []);
+
+  useEffect(() => {
+    if (!yearFilterReady) return;
+
+    async function loadAnalytics() {
+      if (!hasLoadedAnalyticsRef.current) {
+        setLoading(true);
+      }
+      try {
+        const analyticsYears =
+          selectedYear === "All"
+            ? [...availableYears].reverse()
+            : [selectedYear];
+        const safeAnalyticsYears = analyticsYears.length
+          ? analyticsYears
+          : [String(currentYear)];
+
+        const allParcels = [];
+        for (const year of safeAnalyticsYears) {
+          const yearRange = getYearDateRange(year);
+          if (!yearRange) {
+            continue;
+          }
+
+          const yearParcels = await fetchAllPages(() =>
+            supabaseClient
+              .from("parcels")
+              .select(
+                `
+                *,
+                assigned_rider:users!parcels_assigned_rider_id_fkey(
+                  user_id,
+                  username,
+                  fname,
+                  lname
+                )
+                `,
+              )
+              .gte("created_at", yearRange.start)
+              .lt("created_at", yearRange.endExclusive),
+          );
+          allParcels.push(...yearParcels);
+        }
+
+        const allViolations = [];
+        try {
+          for (const year of safeAnalyticsYears) {
+            const yearRange = getYearDateRange(year);
+            if (!yearRange) continue;
+            const yearViolations = await fetchAllPages(() =>
+              supabaseClient
+                .from("violation_logs")
+                .select("*")
+                .gte("date", yearRange.start)
+                .lt("date", yearRange.endExclusive)
+                .order("date", { ascending: false }),
+            );
+            allViolations.push(...yearViolations);
+          }
+          allViolations.sort(
+            (a, b) => new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime(),
+          );
+          setViolationLogsError("");
+          setViolationLogs(allViolations);
+        } catch (violationsError) {
           const errorMessage =
             violationsError?.message || "Unknown violation_logs query error";
           console.error("Error fetching violation logs:", violationsError);
           setViolationLogsError(errorMessage);
           setViolationLogs([]);
-        } else {
-          setViolationLogsError("");
-          setViolationLogs(violations || []);
         }
 
-        if (!parcels) {
-          setLoading(false);
-          return;
-        }
+        const parcelsForSelectedYear = allParcels || [];
 
         // Count delivered parcels (status = "successfully delivered")
-        const delivered = parcels.filter(
-          (p) => normalizeStatus(p.status) === "successfully delivered",
-        ).length;
+        const delivered = parcelsForSelectedYear.filter((p) => isDeliveredStatus(p.status)).length;
 
         // Count cancelled parcels (status = "cancelled")
-        const cancelled = parcels.filter(
-          (p) => normalizeStatus(p.status) === "cancelled",
-        ).length;
+        const cancelled = parcelsForSelectedYear.filter((p) => isCancelledStatus(p.status)).length;
 
         const months = {};
-        const yearsCount = {};
+        const monthCounts = Array(12).fill(0);
+        const yearsCount = Object.fromEntries(
+          safeAnalyticsYears.map((year) => [year, 0]),
+        );
         const riderCountsById = {};
         const riderNameById = {};
         let topMonth = "";
@@ -446,8 +817,8 @@ const Dashboard = () => {
         let topRiderCount = 0;
 
         // Process delivered parcels for analytics.
-        parcels.forEach((p) => {
-          if (normalizeStatus(p.status) !== "successfully delivered") return;
+        parcelsForSelectedYear.forEach((p) => {
+          if (!isDeliveredStatus(p.status)) return;
 
           // Count deliveries by assigned rider ID regardless of created_at.
           const riderId = p.assigned_rider_id;
@@ -471,17 +842,22 @@ const Dashboard = () => {
           if (!yearStr) return;
 
           if (!Number.isNaN(date.getTime())) {
-            const monthStr = date.toLocaleString("default", {
+            const monthIndex = date.getMonth();
+            const monthStr = MONTH_LABELS[monthIndex] || date.toLocaleString("default", {
               month: "long",
             });
             months[monthStr] = (months[monthStr] || 0) + 1;
+            if (monthIndex >= 0 && monthIndex <= 11) {
+              monthCounts[monthIndex] = (monthCounts[monthIndex] || 0) + 1;
+            }
             if (months[monthStr] > topMonthCount) {
               topMonth = monthStr;
               topMonthCount = months[monthStr];
             }
           }
 
-          yearsCount[yearStr] = (yearsCount[yearStr] || 0) + 1;
+          if (!yearsCount[yearStr]) yearsCount[yearStr] = 0;
+          yearsCount[yearStr] += 1;
           if (yearsCount[yearStr] > topYearCount) {
             topYear = yearStr;
             topYearCount = yearsCount[yearStr];
@@ -489,10 +865,15 @@ const Dashboard = () => {
         });
 
         // Sort years chronologically and prepare growth data
-        const sortedYears = Object.keys(yearsCount).sort(
-          (a, b) => Number(a) - Number(b),
-        );
-        const yearGrowthData = sortedYears.map((y) => yearsCount[y]);
+        const sortedYears = Object.keys(yearsCount).sort((a, b) => Number(a) - Number(b));
+        const chartYears =
+          selectedYear === "All"
+            ? sortedYears
+            : [selectedYear];
+        const yearGrowthData =
+          selectedYear === "All"
+            ? chartYears.map((y) => yearsCount[y] || 0)
+            : [yearsCount[selectedYear] || 0];
 
         setDashboardData({
           delivered: delivered || 0,
@@ -505,18 +886,20 @@ const Dashboard = () => {
             (topRiderId && (riderNameById[topRiderId] || String(topRiderId))) ||
             "--",
           topRiderCount: topRiderCount || 0,
-          years: sortedYears,
+          years: chartYears,
           yearGrowth: yearGrowthData,
+          monthGrowth: monthCounts,
         });
       } catch (err) {
         console.error("Error loading analytics:", err);
       } finally {
         setLoading(false);
+        hasLoadedAnalyticsRef.current = true;
       }
     }
 
     loadAnalytics();
-  }, []);
+  }, [selectedYear, yearFilterReady, availableYears]);
 
   const fetchReportData = async (
     selectedReportType,
@@ -540,7 +923,8 @@ const Dashboard = () => {
           )
         `,
         )
-        .order("parcel_id", { ascending: true });
+        .order("parcel_id", { ascending: true })
+        .range(0, 5000);
       if (selectedStartDate) query = query.gte("created_at", selectedStartDate);
       if (selectedEndDate)
         query = query.lte("created_at", `${selectedEndDate}T23:59:59`);
@@ -595,7 +979,8 @@ const Dashboard = () => {
           )
         `,
         )
-        .order("parcel_id", { ascending: true });
+        .order("parcel_id", { ascending: true })
+        .range(0, 5000);
       let riderQuery = supabaseClient
         .from("users")
         .select("*")
@@ -879,23 +1264,49 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!growthChartRef.current || !dashboardData.years.length) return;
+    if (!growthChartRef.current || !growthChartSeries.labels.length) return;
     if (chartInstanceRef.current) chartInstanceRef.current.destroy();
 
+    const isCircularChart = CIRCULAR_CHART_TYPES.has(growthChartType);
+    const palette = [
+      "#ef4444",
+      "#f97316",
+      "#f59e0b",
+      "#84cc16",
+      "#22c55e",
+      "#14b8a6",
+      "#06b6d4",
+      "#0ea5e9",
+      "#3b82f6",
+      "#6366f1",
+      "#8b5cf6",
+      "#ec4899",
+    ];
+    const chartColors = growthChartSeries.labels.map(
+      (_, index) => palette[index % palette.length],
+    );
+
     chartInstanceRef.current = new Chart(growthChartRef.current, {
-      type: "line",
+      type: growthChartType,
       data: {
-        labels: dashboardData.years,
+        labels: growthChartSeries.labels,
         datasets: [
           {
-            data: dashboardData.yearGrowth,
-            borderColor: "#ef4444",
-            backgroundColor: "rgba(239, 68, 68, 0.16)",
-            fill: true,
-            tension: 0.35,
-            pointRadius: 2.6,
-            pointHoverRadius: 4,
+            label: "Deliveries",
+            data: growthChartSeries.data,
+            borderColor: isCircularChart ? chartColors : "#ef4444",
+            backgroundColor: isCircularChart
+              ? chartColors
+              : growthChartType === "bar"
+                ? "rgba(239, 68, 68, 0.72)"
+                : "rgba(239, 68, 68, 0.16)",
+            fill: growthChartType === "line",
+            tension: growthChartType === "line" ? 0.35 : 0,
+            pointRadius: growthChartType === "line" ? 2.6 : 0,
+            pointHoverRadius: growthChartType === "line" ? 4 : 0,
             pointBackgroundColor: "#ef4444",
+            borderWidth: growthChartType === "bar" ? 1 : 2,
+            borderRadius: growthChartType === "bar" ? 8 : 0,
           },
         ],
       },
@@ -911,29 +1322,63 @@ const Dashboard = () => {
           },
         },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: isCircularChart,
+            position: isCircularChart ? "right" : "bottom",
+            align: "center",
+            maxWidth: isCircularChart ? 220 : undefined,
+            labels: {
+              boxWidth: isCircularChart ? 10 : 12,
+              boxHeight: isCircularChart ? 10 : 12,
+              usePointStyle: true,
+              pointStyle: "circle",
+              padding: isCircularChart ? 10 : 8,
+              font: {
+                size: isCircularChart ? 11 : 12,
+                weight: isCircularChart ? "600" : "700",
+              },
+              filter: (legendItem, chartData) => {
+                if (!isCircularChart) return true;
+                const rawValue = chartData?.datasets?.[0]?.data?.[legendItem.index];
+                return Number(rawValue) > 0;
+              },
+            },
+          },
           tooltip: {
             displayColors: false,
             callbacks: {
-              label: (context) => `📦 Deliveries: ${context.parsed.y ?? 0}`,
+              label: (context) => {
+                const parsed = context?.parsed;
+                const value =
+                  typeof parsed === "number"
+                    ? parsed
+                    : typeof parsed?.y === "number"
+                      ? parsed.y
+                      : typeof context?.raw === "number"
+                        ? context.raw
+                        : 0;
+                return `📦 Deliveries: ${value}`;
+              },
             },
           },
         },
-        scales: {
-          x: { grid: { display: false } },
-          y: {
-            beginAtZero: true,
-            grid: {
-              color: "rgba(148, 163, 184, 0.2)",
+        scales: isCircularChart
+          ? undefined
+          : {
+              x: { grid: { display: false } },
+              y: {
+                beginAtZero: true,
+                grid: {
+                  color: "rgba(148, 163, 184, 0.2)",
+                },
+                ticks: {
+                  precision: 0,
+                },
+              },
             },
-            ticks: {
-              precision: 0,
-            },
-          },
-        },
       },
     });
-  }, [dashboardData.years, dashboardData.yearGrowth]);
+  }, [growthChartSeries.labels, growthChartSeries.data, growthChartType]);
 
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
@@ -1039,29 +1484,74 @@ const Dashboard = () => {
                 >
                   Generate Report
                 </button>
+                <div className="dash-year-filter">
+                  <label htmlFor="dashboard-year-filter">Year</label>
+                  <ModernSelect
+                    id="dashboard-year-filter"
+                    className="dash-year-modern-select"
+                    triggerClassName="dash-year-modern-trigger"
+                    menuClassName="dash-modern-menu"
+                    value={selectedYear}
+                    options={yearSelectOptions}
+                    onChange={(nextValue) => {
+                      setSelectedYear(nextValue);
+                      setGrowthView("month");
+                    }}
+                  />
+                </div>
                 <span className="date-range">{todayLabel}</span>
               </div>
             </div>
 
             <div className="dash-grid two-rows">
-              <div className="dash-card top-card metric-card delivered-card border border-emerald-200/60">
-                <div className="metric-pill success">Delivered</div>
-                <div className="card-value delivered">
-                  {dashboardData.delivered}
+              <div className="dash-card top-card metric-card kpi-card delivered-card border border-emerald-200/60">
+                <div className="kpi-icon delivered" aria-hidden="true">
+                  <FaCheckCircle />
+                </div>
+                <div className="kpi-copy">
+                  <div className="kpi-title">Delivered</div>
+                  <div className="kpi-value">{dashboardData.delivered}</div>
+                  <div className="kpi-meta">Completed parcels</div>
                 </div>
               </div>
 
-              <div className="dash-card top-card metric-card cancelled-card border border-rose-200/70">
-                <div className="metric-pill warning">Cancelled</div>
-                <div className="card-value delayed">
-                  {dashboardData.cancelled}
+              <div className="dash-card top-card metric-card kpi-card cancelled-card border border-rose-200/70">
+                <div className="kpi-icon cancelled" aria-hidden="true">
+                  <FaTimesCircle />
+                </div>
+                <div className="kpi-copy">
+                  <div className="kpi-title">Cancelled</div>
+                  <div className="kpi-value">{dashboardData.cancelled}</div>
+                  <div className="kpi-meta">Cancelled parcels</div>
                 </div>
               </div>
 
               <div className="dash-card bottom-card growth rounded-2xl">
-                <div className="card-label">Delivery Growth by Year</div>
+                <div className="growth-card-header">
+                  <div className="card-label">{growthChartSeries.title}</div>
+                  <div className="growth-controls">
+                    {selectedYear === "All" && (
+                      <ModernSelect
+                        className="growth-view-select-shell"
+                        triggerClassName="growth-view-select"
+                        menuClassName="dash-modern-menu"
+                        value={growthView}
+                        options={growthViewOptions}
+                        onChange={(nextValue) => setGrowthView(nextValue)}
+                      />
+                    )}
+                    <ModernSelect
+                      className="growth-view-select-shell"
+                      triggerClassName="growth-view-select"
+                      menuClassName="dash-modern-menu"
+                      value={growthChartType}
+                      options={growthTypeOptions}
+                      onChange={(nextValue) => setGrowthChartType(nextValue)}
+                    />
+                  </div>
+                </div>
                 <div className="growth-canvas-shell">
-                  {dashboardData.years.length > 0 ? (
+                  {hasGrowthData ? (
                     <canvas ref={growthChartRef}></canvas>
                   ) : (
                     <div className="growth-empty">No delivery data yet</div>
@@ -1069,33 +1559,36 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="dash-card bottom-card performance-highlight-standalone top-month-card rounded-2xl">
-                <div className="performance-highlight-label">Top Month</div>
-                <div className="performance-highlight-value">
-                  {dashboardData.topMonth}
+              <div className="dash-card bottom-card kpi-card compact-kpi top-month-card rounded-2xl">
+                <div className="kpi-icon month" aria-hidden="true">
+                  <FaCalendarAlt />
                 </div>
-                <div className="performance-highlight-meta">
-                  {dashboardData.topMonthCount} deliveries
-                </div>
-              </div>
-
-              <div className="dash-card bottom-card performance-highlight-standalone top-year-card rounded-2xl">
-                <div className="performance-highlight-label">Top Year</div>
-                <div className="performance-highlight-value">
-                  {dashboardData.topYear}
-                </div>
-                <div className="performance-highlight-meta">
-                  {dashboardData.topYearCount} deliveries
+                <div className="kpi-copy">
+                  <div className="kpi-title">Top Month</div>
+                  <div className="kpi-value">{dashboardData.topMonth}</div>
+                  <div className="kpi-meta">{dashboardData.topMonthCount} deliveries</div>
                 </div>
               </div>
 
-              <div className="dash-card bottom-card performance-highlight-standalone top-rider-card rounded-2xl">
-                <div className="performance-highlight-label">Top Rider</div>
-                <div className="performance-highlight-value">
-                  {dashboardData.topRider || "--"}
+              <div className="dash-card bottom-card kpi-card compact-kpi top-year-card rounded-2xl">
+                <div className="kpi-icon year" aria-hidden="true">
+                  <FaChartLine />
                 </div>
-                <div className="performance-highlight-meta">
-                  {dashboardData.topRiderCount} deliveries
+                <div className="kpi-copy">
+                  <div className="kpi-title">Top Year</div>
+                  <div className="kpi-value">{dashboardData.topYear}</div>
+                  <div className="kpi-meta">{dashboardData.topYearCount} deliveries</div>
+                </div>
+              </div>
+
+              <div className="dash-card bottom-card kpi-card compact-kpi top-rider-card rounded-2xl">
+                <div className="kpi-icon rider" aria-hidden="true">
+                  <FaMotorcycle />
+                </div>
+                <div className="kpi-copy">
+                  <div className="kpi-title">Top Rider</div>
+                  <div className="kpi-value">{dashboardData.topRider || "--"}</div>
+                  <div className="kpi-meta">{dashboardData.topRiderCount} deliveries</div>
                 </div>
               </div>
 
@@ -1198,43 +1691,40 @@ const Dashboard = () => {
 
                   <div className="dashboard-report-field full">
                     <label>Report Type</label>
-                    <select
+                    <ModernSelect
+                      className="dashboard-form-select-shell"
+                      triggerClassName="dashboard-form-select-trigger"
+                      menuClassName="dash-modern-menu"
                       value={reportType}
-                      onChange={(e) => setReportType(e.target.value)}
-                    >
-                      <option value="">-- Select Report Type --</option>
-                      <option value="parcels">Parcels</option>
-                      <option value="riders">Riders</option>
-                      <option value="violations">Violations</option>
-                      <option value="overall">Overall Reports</option>
-                    </select>
+                      options={reportTypeOptions}
+                      onChange={(nextValue) => setReportType(nextValue)}
+                    />
                   </div>
 
                   <div className="dashboard-report-meta">
                     {reportType === "parcels" && (
                       <div className="dashboard-report-field">
                         <label>Column</label>
-                        <select
+                        <ModernSelect
+                          className="dashboard-form-select-shell"
+                          triggerClassName="dashboard-form-select-trigger"
+                          menuClassName="dash-modern-menu"
                           value={column}
-                          onChange={(e) => setColumn(e.target.value)}
-                        >
-                          {columnsOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                          options={columnsOptions}
+                          onChange={(nextValue) => setColumn(nextValue)}
+                        />
                       </div>
                     )}
                     <div className="dashboard-report-field">
                       <label>Format</label>
-                      <select
+                      <ModernSelect
+                        className="dashboard-form-select-shell"
+                        triggerClassName="dashboard-form-select-trigger"
+                        menuClassName="dash-modern-menu"
                         value={format}
-                        onChange={(e) => setFormat(e.target.value)}
-                      >
-                        <option value="pdf">PDF</option>
-                        <option value="csv">CSV</option>
-                      </select>
+                        options={formatOptions}
+                        onChange={(nextValue) => setFormat(nextValue)}
+                      />
                     </div>
                   </div>
                 </div>

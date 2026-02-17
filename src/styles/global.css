@@ -13,7 +13,10 @@ html, body {
 }
 
 :root {
-  --surface-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  --surface-shadow:
+    0 3px 8px rgba(15, 23, 42, 0.08),
+    0 16px 30px rgba(15, 23, 42, 0.12),
+    0 28px 46px rgba(15, 23, 42, 0.08);
   --page-bg-soft: #f3f5f8;
 }
 
@@ -29,12 +32,18 @@ html, body {
 .dashboard-page .dash-card,
 .parcels-filter-section,
 .parcels-table-wrapper,
+.view-parcel-modal,
+.parcel-track-modal,
 .reports-card.reports-card-modern,
 .rider-map-card,
 .riders-table-wrapper,
+.riders-content-shell,
+.riders-modal-content,
+.riders-success-modal,
 .settings-container,
 .profile-header-card,
-.profile-info-card {
+.profile-info-card,
+.dashboard-modal-content {
   box-shadow: var(--surface-shadow) !important;
 }
 

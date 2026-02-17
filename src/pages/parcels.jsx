@@ -63,6 +63,75 @@ const getAttemptStatusClass = (value) => {
   return "is-default";
 };
 
+const ModernSelect = ({
+  value,
+  onChange,
+  options = [],
+  className = "",
+  triggerClassName = "",
+  menuClassName = "",
+}) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selectedOption = useMemo(
+    () => (options || []).find((option) => option.value === value),
+    [options, value],
+  );
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  return (
+    <div ref={rootRef} className={`parcel-modern-select ${open ? "is-open" : ""} ${className}`.trim()}>
+      <button
+        type="button"
+        className={`parcel-modern-select-trigger ${triggerClassName}`.trim()}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span>{selectedOption?.label || "-"}</span>
+        <span className="parcel-modern-select-caret" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className={`parcel-modern-select-menu ${menuClassName}`.trim()} role="listbox">
+          {(options || []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`parcel-modern-select-option ${value === option.value ? "is-selected" : ""}`}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              role="option"
+              aria-selected={value === option.value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Parcel = () => {
   const [parcels, setParcels] = useState([]);
   const [parcelPage, setParcelPage] = useState(1);
@@ -76,6 +145,22 @@ const Parcel = () => {
   const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [trackingParcel, setTrackingParcel] = useState(null);
   const [loadingTrackMap, setLoadingTrackMap] = useState(false);
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All" },
+      { value: "Successfully Delivered", label: "Successfully Delivered" },
+      { value: "On-going", label: "On-going" },
+      { value: "Cancelled", label: "Cancelled" },
+    ],
+    [],
+  );
+  const sortOptions = useMemo(
+    () => [
+      { value: "parcel_id-asc", label: "Parcel ID (Ascending)" },
+      { value: "parcel_id-desc", label: "Parcel ID (Descending)" },
+    ],
+    [],
+  );
 
   const trackMapRef = useRef(null);
   const trackLeafletMapRef = useRef(null);
@@ -342,38 +427,34 @@ const Parcel = () => {
                 <strong>Filter by Status:</strong>
               </label>
               <div className="parcel-filter-select-wrap">
-                <select
-                  className="parcel-filter-select"
+                <ModernSelect
+                  className="parcel-filter-modern-shell"
+                  triggerClassName="parcel-filter-modern-trigger"
+                  menuClassName="parcel-filter-modern-menu"
                   value={statusFilter}
-                  onChange={(e) => {
+                  options={statusFilterOptions}
+                  onChange={(nextValue) => {
                     setParcelPage(1);
-                    setStatusFilter(e.target.value);
+                    setStatusFilter(nextValue);
                   }}
-                >
-                  <option value="All">All</option>
-                  <option value="Successfully Delivered">
-                    Successfully Delivered
-                  </option>
-                  <option value="On-going">On-going</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
+                />
               </div>
 
               <label>
                 <strong>Sort by:</strong>
               </label>
               <div className="parcel-filter-select-wrap">
-                <select
-                  className="parcel-filter-select"
+                <ModernSelect
+                  className="parcel-filter-modern-shell"
+                  triggerClassName="parcel-filter-modern-trigger"
+                  menuClassName="parcel-filter-modern-menu"
                   value={sortBy}
-                  onChange={(e) => {
+                  options={sortOptions}
+                  onChange={(nextValue) => {
                     setParcelPage(1);
-                    setSortBy(e.target.value);
+                    setSortBy(nextValue);
                   }}
-                >
-                  <option value="parcel_id-asc">Parcel ID (Ascending)</option>
-                  <option value="parcel_id-desc">Parcel ID (Descending)</option>
-                </select>
+                />
               </div>
             </div>
 

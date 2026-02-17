@@ -9,6 +9,67 @@ import PageSpinner from "../components/PageSpinner";
 
 const OPENWEATHER_API_KEY = "792874a9880224b30b884c44090d0f05";
 const RIDER_DELIVERY_QUOTA = 150;
+const RIDER_DAILY_QUOTA = RIDER_DELIVERY_QUOTA;
+
+const normalizeStatus = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const isDeliveredStatus = (value) => {
+  const normalized = normalizeStatus(value);
+  return (
+    normalized === "successfully delivered" ||
+    normalized === "delivered" ||
+    normalized === "successful" ||
+    normalized === "success" ||
+    normalized === "completed"
+  );
+};
+
+const toLocalDayKey = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const calculateQuotaStreak = (parcels = [], dailyQuota = RIDER_DAILY_QUOTA) => {
+  const deliveredPerDay = {};
+  (parcels || []).forEach((parcel) => {
+    if (!isDeliveredStatus(parcel?.status)) return;
+    const key = toLocalDayKey(parcel?.created_at);
+    if (!key) return;
+    deliveredPerDay[key] = (deliveredPerDay[key] || 0) + 1;
+  });
+
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  const safetyWindow = 366;
+  for (let i = 0; i < safetyWindow; i += 1) {
+    const key = toLocalDayKey(cursor);
+    const count = deliveredPerDay[key] || 0;
+    if (count >= dailyQuota) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+      continue;
+    }
+    break;
+  }
+
+  const todayKey = toLocalDayKey(new Date());
+  const todayCount = deliveredPerDay[todayKey] || 0;
+  return {
+    streak,
+    todayCount,
+    metToday: todayCount >= dailyQuota,
+  };
+};
 
 const normalizeCoordinate = (value) => {
   if (value === null || value === undefined || value === "") return null;
@@ -120,6 +181,21 @@ export default function Riders() {
     () => getRiderDisplayName(selectedRiderInfo),
     [selectedRiderInfo],
   );
+  const isVandreiCuplaPreview = useMemo(() => {
+    const normalizedDisplay = String(selectedRiderDisplayName || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    const normalizedUsername = String(selectedRiderInfo?.username || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    return (
+      normalizedDisplay === "vandrei cupla" ||
+      normalizedUsername === "vandrei cupla" ||
+      normalizedUsername === "vandreicupla"
+    );
+  }, [selectedRiderDisplayName, selectedRiderInfo?.username]);
 
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
@@ -893,7 +969,7 @@ export default function Riders() {
       // Step 2: Fetch parcels using the rider's UUID
       const { data: parcelsData, error: parcelsError } = await supabaseClient
         .from("parcels")
-        .select("status, assigned_rider_id")
+        .select("status, assigned_rider_id, created_at")
         .eq("assigned_rider_id", riderData.user_id);
 
       setLoadingViolationLogs(true);
@@ -919,17 +995,19 @@ export default function Riders() {
       // Step 3: Calculate parcel counts based on status
       const parcels = parcelsData || [];
 
-      const deliveredParcels = parcels.filter(
-        (p) => p.status?.toLowerCase() === "successfully delivered",
-      ).length;
+      const deliveredParcels = parcels.filter((p) => isDeliveredStatus(p.status)).length;
 
       const ongoingParcels = parcels.filter(
-        (p) => p.status?.toLowerCase() === "on-going",
+        (p) => normalizeStatus(p.status) === "on going",
       ).length;
 
       const cancelledParcels = parcels.filter(
-        (p) => p.status?.toLowerCase() === "cancelled",
+        (p) => normalizeStatus(p.status) === "cancelled",
       ).length;
+      const { streak, todayCount, metToday } = calculateQuotaStreak(
+        parcels,
+        RIDER_DAILY_QUOTA,
+      );
 
       setSelectedRiderInfo({
         ...riderData,
@@ -937,6 +1015,10 @@ export default function Riders() {
         ongoingParcels,
         cancelledParcels,
         quotaTarget: RIDER_DELIVERY_QUOTA,
+        dailyQuotaTarget: RIDER_DAILY_QUOTA,
+        quotaStreakDays: streak,
+        dailyDeliveredToday: todayCount,
+        metDailyQuotaToday: metToday,
       });
     } catch (err) {
       console.error("Failed to fetch rider information:", err);
@@ -1553,6 +1635,18 @@ export default function Riders() {
                               </span>
                             );
                           })()}
+                          <span
+                            className={`rider-streak-pill ${(selectedRiderInfo?.metDailyQuotaToday || isVandreiCuplaPreview) ? "is-met" : "is-miss"}`}
+                          >
+                            <span className="rider-streak-icon" aria-hidden="true">
+                              🔥
+                            </span>
+                            <span>
+                              {isVandreiCuplaPreview
+                                ? Math.max(1, selectedRiderInfo?.quotaStreakDays ?? 0)
+                                : (selectedRiderInfo?.quotaStreakDays ?? 0)} day streak
+                            </span>
+                          </span>
                           <button
                             type="button"
                             className="rider-performance-btn"
