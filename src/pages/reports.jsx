@@ -17,6 +17,36 @@ const humanizeLabel = (label) => {
     .join(" ");
 };
 
+const formatPdfDate = (value) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+const toTitleCase = (value) =>
+  String(value)
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatPdfCellValue = (value, columnKey = "") => {
+  if (value === null || value === undefined || value === "") return "-";
+  if (columnKey === "created_at" || columnKey === "date") return formatPdfDate(value);
+
+  const raw = String(value).trim();
+  if (!raw) return "-";
+  if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw;
+  if (/phone|_id$|^id$/i.test(columnKey)) return raw;
+  return toTitleCase(raw);
+};
+
 const VIOLATION_PREVIEW_TEMPLATE = [
   {
     violation_type: "Overspeeding",
@@ -213,46 +243,58 @@ const Reports = () => {
     const { data, columns } = await fetchReportData(reportType, startDate, endDate, column);
     const doc = new jsPDF("landscape");
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const headerHeight = 35;
 
-    // Header background
+    // Keep red header for white logo visibility
     doc.setFillColor(163, 0, 0);
     doc.rect(0, 0, pageWidth, headerHeight, "F");
+    doc.setDrawColor(170, 170, 170);
+    doc.setLineWidth(0.3);
+    doc.line(10, headerHeight + 1, pageWidth - 10, headerHeight + 1);
 
     // Logo
     const logo = new Image();
     logo.src = "/images/logo.png";
 
     function finalizePDF() {
-      doc.setFontSize(12);
+      doc.setTextColor(33, 37, 41);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text(`${humanizeLabel(reportType)} Report`, 14, headerHeight + 10);
 
-      // Side by side text under the logo
-      const infoTexts = [
-        `Report Type: ${humanizeLabel(reportType)}`,
-        `Start: ${startDate || "-"}`,
-        `End: ${endDate || "-"}`,
-        `Column: ${humanizeLabel(column)}`
+      const generatedAt = new Date().toLocaleString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      const metaRows = [
+        ["Report Type", humanizeLabel(reportType)],
+        ["Date Range", `${formatPdfDate(startDate)} to ${formatPdfDate(endDate)}`],
+        ["Column Scope", humanizeLabel(column)],
+        ["Generated", generatedAt],
       ];
 
-      // Calculate total width of all texts including spacing
-      const spacing = 20;
-      let totalWidth = infoTexts.reduce((sum, text) => sum + doc.getTextWidth(text), 0);
-      totalWidth += spacing * (infoTexts.length - 1);
-
-      // Starting X to center all texts
-      let startX = (pageWidth - totalWidth) / 2;
-      const infoY = headerHeight + 12;
-
-      infoTexts.forEach((text) => {
-        doc.text(text, startX, infoY);
-        startX += doc.getTextWidth(text) + spacing;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      let infoY = headerHeight + 18;
+      metaRows.forEach(([label, value]) => {
+        doc.setFont("helvetica", "bold");
+        doc.text(`${label}:`, 14, infoY);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, 48, infoY);
+        infoY += 6;
       });
 
       // Generate table content
       if (reportType === "overall") {
-        let yOffset = infoY + 10;
+        let yOffset = infoY + 4;
         data.forEach(section => {
-          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(11.5);
+          doc.setTextColor(17, 24, 39);
           doc.text(section.section, 10, yOffset);
           const head = section.section === "Riders"
             ? ["Username", "Email", "Status", "Created At"]
@@ -260,18 +302,87 @@ const Reports = () => {
               ? ["Rider", "Violation Type", "Location", "Severity", "Created At"]
               : ["Parcel ID", "Recipient Name", "Phone", "Address", "Rider", "Status", "Created At"];
           const body = section.data.map(row => section.section === "Riders"
-            ? [row.username, row.email, row.status, row.created_at]
+            ? [
+              formatPdfCellValue(row.username, "username"),
+              formatPdfCellValue(row.email, "email"),
+              formatPdfCellValue(row.status, "status"),
+              formatPdfCellValue(row.created_at, "created_at"),
+            ]
             : section.section === "Violations"
-              ? [row.rider_name, row.violation_type, row.location, row.severity, row.created_at]
-              : [row.parcel_id, row.recipient_name, row.recipient_phone, row.address, row.assigned_rider, row.status, row.created_at]
+              ? [
+                formatPdfCellValue(row.rider_name, "rider_name"),
+                formatPdfCellValue(row.violation_type, "violation_type"),
+                formatPdfCellValue(row.location, "location"),
+                formatPdfCellValue(row.severity, "severity"),
+                formatPdfCellValue(row.created_at, "created_at"),
+              ]
+              : [
+                formatPdfCellValue(row.parcel_id, "parcel_id"),
+                formatPdfCellValue(row.recipient_name, "recipient_name"),
+                formatPdfCellValue(row.recipient_phone, "recipient_phone"),
+                formatPdfCellValue(row.address, "address"),
+                formatPdfCellValue(row.assigned_rider, "assigned_rider"),
+                formatPdfCellValue(row.status, "status"),
+                formatPdfCellValue(row.created_at, "created_at"),
+              ]
           );
-          autoTable(doc, { startY: yOffset + 4, head: [head], body, styles: { fontSize: 9 } });
+          autoTable(doc, {
+            startY: yOffset + 4,
+            margin: { left: 10, right: 10 },
+            head: [head],
+            body,
+            theme: "grid",
+            styles: {
+              font: "helvetica",
+              fontSize: 8.8,
+              textColor: [31, 41, 55],
+              lineColor: [208, 213, 221],
+              lineWidth: 0.2,
+              cellPadding: 2.6,
+              overflow: "linebreak",
+            },
+            headStyles: {
+              fillColor: [243, 244, 246],
+              textColor: [17, 24, 39],
+              fontStyle: "bold",
+              halign: "left",
+            },
+            alternateRowStyles: { fillColor: [252, 252, 252] },
+          });
           yOffset = doc.lastAutoTable.finalY + 10;
+          if (yOffset > pageHeight - 18) yOffset = doc.lastAutoTable.finalY + 8;
         });
       } else {
         const head = columns.map(humanizeLabel);
-        const body = data.map(row => columns.map(c => row[c] || "-"));
-        autoTable(doc, { startY: infoY + 10, head: [head], body, styles: { fontSize: 9 } });
+        const body = data.map((row) =>
+          columns.map((c) => {
+            const value = row[c];
+            return formatPdfCellValue(value, c);
+          }),
+        );
+        autoTable(doc, {
+          startY: infoY + 4,
+          margin: { left: 10, right: 10 },
+          head: [head],
+          body,
+          theme: "grid",
+          styles: {
+            font: "helvetica",
+            fontSize: 8.8,
+            textColor: [31, 41, 55],
+            lineColor: [208, 213, 221],
+            lineWidth: 0.2,
+            cellPadding: 2.6,
+            overflow: "linebreak",
+          },
+          headStyles: {
+            fillColor: [243, 244, 246],
+            textColor: [17, 24, 39],
+            fontStyle: "bold",
+            halign: "left",
+          },
+          alternateRowStyles: { fillColor: [252, 252, 252] },
+        });
       }
 
       doc.save(`${reportType}_report.pdf`);

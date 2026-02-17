@@ -30,6 +30,36 @@ const humanizeLabel = (label) => {
     .join(" ");
 };
 
+const formatPdfDate = (value) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+const toTitleCase = (value) =>
+  String(value)
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatPdfCellValue = (value, columnKey = "") => {
+  if (value === null || value === undefined || value === "") return "-";
+  if (columnKey === "created_at" || columnKey === "date") return formatPdfDate(value);
+
+  const raw = String(value).trim();
+  if (!raw) return "-";
+  if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw;
+  if (/phone|_id$|^id$/i.test(columnKey)) return raw;
+  return toTitleCase(raw);
+};
+
 const normalizeStatus = (value) =>
   String(value || "")
     .trim()
@@ -1034,10 +1064,15 @@ const Dashboard = () => {
   ) => {
     const doc = new jsPDF("landscape");
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const headerHeight = 35;
 
+    // Keep red header so white logo remains visible.
     doc.setFillColor(163, 0, 0);
     doc.rect(0, 0, pageWidth, headerHeight, "F");
+    doc.setDrawColor(170, 170, 170);
+    doc.setLineWidth(0.3);
+    doc.line(10, headerHeight + 1, pageWidth - 10, headerHeight + 1);
     doc.setTextColor(255, 255, 255);
     try {
       const logoDataUrl = await loadImageAsDataUrl("/images/logo.png");
@@ -1045,35 +1080,41 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Failed to add logo to PDF header:", error);
     }
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(33, 37, 41);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text(`${humanizeLabel(selectedReportType)} Report`, 14, headerHeight + 10);
 
-    doc.setFontSize(12);
-    const infoTexts = [
-      `Report Type: ${humanizeLabel(selectedReportType)}`,
-      `Start: ${selectedStartDate || "-"}`,
-      `End: ${selectedEndDate || "-"}`,
+    const generatedAt = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const metaRows = [
+      ["Report Type", humanizeLabel(selectedReportType)],
+      ["Date Range", `${formatPdfDate(selectedStartDate)} to ${formatPdfDate(selectedEndDate)}`],
+      ["Column Scope", selectedReportType === "parcels" ? humanizeLabel(selectedColumn) : "All"],
+      ["Generated", generatedAt],
     ];
-    if (selectedReportType === "parcels") {
-      infoTexts.push(`Column: ${humanizeLabel(selectedColumn)}`);
-    }
-    const spacing = 20;
-    let totalWidth = infoTexts.reduce(
-      (sum, text) => sum + doc.getTextWidth(text),
-      0,
-    );
-    totalWidth += spacing * (infoTexts.length - 1);
-    let startX = (pageWidth - totalWidth) / 2;
-    const infoY = headerHeight + 12;
-
-    infoTexts.forEach((text) => {
-      doc.text(text, startX, infoY);
-      startX += doc.getTextWidth(text) + spacing;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    let infoY = headerHeight + 18;
+    metaRows.forEach(([label, value]) => {
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, 14, infoY);
+      doc.setFont("helvetica", "normal");
+      doc.text(value, 48, infoY);
+      infoY += 6;
     });
 
     if (selectedReportType === "overall") {
-      let yOffset = infoY + 10;
+      let yOffset = infoY + 4;
       data.forEach((section) => {
-        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11.5);
+        doc.setTextColor(17, 24, 39);
         doc.text(section.section, 10, yOffset);
         const head =
           section.section === "Riders"
@@ -1091,35 +1132,84 @@ const Dashboard = () => {
                 ];
         const body = section.data.map((row) =>
           section.section === "Riders"
-            ? [row.username, row.email, row.status, row.created_at]
+            ? [
+                formatPdfCellValue(row.username, "username"),
+                formatPdfCellValue(row.email, "email"),
+                formatPdfCellValue(row.status, "status"),
+                formatPdfCellValue(row.created_at, "created_at"),
+              ]
             : section.section === "Violations"
-              ? [row.name, row.violation, row.date]
+              ? [
+                  formatPdfCellValue(row.name, "name"),
+                  formatPdfCellValue(row.violation, "violation"),
+                  formatPdfCellValue(row.date, "date"),
+                ]
               : [
-                  row.parcel_id,
-                  row.recipient_name,
-                  row.recipient_phone,
-                  row.address,
-                  row.assigned_rider,
-                  row.status,
-                  row.created_at,
+                  formatPdfCellValue(row.parcel_id, "parcel_id"),
+                  formatPdfCellValue(row.recipient_name, "recipient_name"),
+                  formatPdfCellValue(row.recipient_phone, "recipient_phone"),
+                  formatPdfCellValue(row.address, "address"),
+                  formatPdfCellValue(row.assigned_rider, "assigned_rider"),
+                  formatPdfCellValue(row.status, "status"),
+                  formatPdfCellValue(row.created_at, "created_at"),
                 ],
         );
         autoTable(doc, {
           startY: yOffset + 4,
+          margin: { left: 10, right: 10 },
           head: [head],
           body,
-          styles: { fontSize: 9 },
+          theme: "grid",
+          styles: {
+            font: "helvetica",
+            fontSize: 8.8,
+            textColor: [31, 41, 55],
+            lineColor: [208, 213, 221],
+            lineWidth: 0.2,
+            cellPadding: 2.6,
+            overflow: "linebreak",
+          },
+          headStyles: {
+            fillColor: [243, 244, 246],
+            textColor: [17, 24, 39],
+            fontStyle: "bold",
+            halign: "left",
+          },
+          alternateRowStyles: { fillColor: [252, 252, 252] },
         });
         yOffset = doc.lastAutoTable.finalY + 10;
+        if (yOffset > pageHeight - 18) yOffset = doc.lastAutoTable.finalY + 8;
       });
     } else {
       const head = columns.map(humanizeLabel);
-      const body = data.map((row) => columns.map((c) => row[c] || "-"));
+      const body = data.map((row) =>
+        columns.map((c) => {
+          const value = row[c];
+          return formatPdfCellValue(value, c);
+        }),
+      );
       autoTable(doc, {
-        startY: infoY + 10,
+        startY: infoY + 4,
+        margin: { left: 10, right: 10 },
         head: [head],
         body,
-        styles: { fontSize: 9 },
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 8.8,
+          textColor: [31, 41, 55],
+          lineColor: [208, 213, 221],
+          lineWidth: 0.2,
+          cellPadding: 2.6,
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [243, 244, 246],
+          textColor: [17, 24, 39],
+          fontStyle: "bold",
+          halign: "left",
+        },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
       });
     }
 
