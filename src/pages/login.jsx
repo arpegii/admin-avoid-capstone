@@ -10,6 +10,7 @@ export default function Login({ setOtpVerified }) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +21,11 @@ export default function Login({ setOtpVerified }) {
     type: "success",
     message: "",
   });
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMessage, setForgotMessage] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
   const otpInputRefs = useRef([]);
   const lastAutoSubmittedOtpRef = useRef("");
 
@@ -221,6 +227,52 @@ export default function Login({ setOtpVerified }) {
     }, 0);
   };
 
+  const openForgotModal = () => {
+    setForgotEmail(normalizedEmail || "");
+    setForgotError("");
+    setForgotMessage("");
+    setForgotModalOpen(true);
+  };
+
+  const closeForgotModal = () => {
+    if (forgotLoading) return;
+    setForgotModalOpen(false);
+    setForgotError("");
+    setForgotMessage("");
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotMessage("");
+
+    const targetEmail = forgotEmail.trim().toLowerCase();
+    if (!targetEmail) {
+      setForgotError("Please enter your email address.");
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(
+        targetEmail,
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        },
+      );
+      if (resetError) {
+        setForgotError(resetError.message || "Failed to send reset email.");
+        return;
+      }
+      setForgotMessage("Password reset link sent. Check your email inbox.");
+    } catch (err) {
+      console.error(err);
+      setForgotError("Failed to send reset email. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!showOtpInput) return;
     if (otpCode.length !== 6) return;
@@ -317,7 +369,7 @@ export default function Login({ setOtpVerified }) {
 
                 <div className="form-group">
                   <label>Password</label>
-                  <div className="input-wrapper">
+                  <div className="input-wrapper has-toggle">
                     <svg
                       className="input-icon"
                       viewBox="0 0 24 24"
@@ -331,16 +383,46 @@ export default function Login({ setOtpVerified }) {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                     <input
-                      type="password"
+                      type={showLoginPassword ? "text" : "password"}
                       className="form-input rounded-xl border border-white/30 bg-white/95 focus:ring-4 focus:ring-white/25"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
+                    <button
+                      type="button"
+                      className="password-toggle icon-toggle"
+                      onClick={() => setShowLoginPassword((prev) => !prev)}
+                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    >
+                      {showLoginPassword ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-5.05 0-9.27-3.11-11-8 1-2.84 2.94-5.06 5.38-6.36" />
+                          <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c5.05 0 9.27 3.11 11 8a11.05 11.05 0 0 1-4.07 5.04" />
+                          <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                          <path d="m1 1 22 22" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
 
+                <div className="login-inline-actions">
+                  <button
+                    type="button"
+                    className="otp-link-btn font-semibold text-white transition hover:text-red-100"
+                    onClick={openForgotModal}
+                    disabled={isLoading}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 {error && <div className="login-error">{error}</div>}
 
                 <button
@@ -472,6 +554,74 @@ export default function Login({ setOtpVerified }) {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forgot password modal */}
+      {forgotModalOpen && (
+        <div
+          className="otp-result-overlay bg-slate-950/60 backdrop-blur-sm"
+          onClick={closeForgotModal}
+        >
+          <div
+            className="forgot-modal rounded-2xl border border-slate-200 shadow-2xl dark:border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="otp-result-header">
+              <h3>Reset Password</h3>
+            </div>
+            <form className="forgot-modal-body" onSubmit={handleForgotPassword}>
+              <div className="form-group">
+                <label>Email Address</label>
+                <div className="input-wrapper">
+                  <svg
+                    className="input-icon forgot-input-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <input
+                    type="email"
+                    className="form-input forgot-input rounded-xl border border-slate-300 bg-white focus:ring-4 focus:ring-red-100"
+                    placeholder="Enter your email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {forgotError && <div className="login-error">{forgotError}</div>}
+              {forgotMessage && <div className="login-success">{forgotMessage}</div>}
+
+              <div className="forgot-modal-actions">
+                <button
+                  type="button"
+                  className="forgot-cancel-btn"
+                  onClick={closeForgotModal}
+                  disabled={forgotLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={`forgot-submit-btn ${forgotLoading ? "loading" : ""}`}
+                  disabled={forgotLoading}
+                >
+                  <span className="forgot-submit-content">
+                    {forgotLoading && <span className="forgot-submit-spinner" aria-hidden="true" />}
+                    {forgotLoading ? "Sending..." : "Send Reset Link"}
+                  </span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

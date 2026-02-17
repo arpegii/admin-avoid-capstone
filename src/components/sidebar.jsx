@@ -14,6 +14,7 @@ import { supabaseClient } from "../App";
 export default function Sidebar() {
   const { user, openLogoutModal } = useAuth();
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= 900 : false,
   );
@@ -23,7 +24,7 @@ export default function Sidebar() {
   const location = useLocation();
 
   useEffect(() => {
-    async function findAdminProfilePicturePath() {
+    async function findAdminProfileData() {
       const candidates = [
         { column: "id", value: user?.id },
         { column: "email", value: user?.email },
@@ -32,7 +33,7 @@ export default function Sidebar() {
       for (const candidate of candidates) {
         const { data, error } = await supabaseClient
           .from("admin_profile")
-          .select("profile_picture")
+          .select("*")
           .eq(candidate.column, candidate.value)
           .limit(1);
 
@@ -46,20 +47,26 @@ export default function Sidebar() {
         }
 
         if (Array.isArray(data) && data.length > 0) {
-          return data[0]?.profile_picture || "";
+          return data[0] || null;
         }
       }
 
-      return "";
+      return null;
     }
 
     async function loadProfilePicture() {
       if (!user?.id && !user?.email) {
         setProfilePictureUrl("");
+        setDisplayName("");
         return;
       }
 
-      const rawValue = await findAdminProfilePicturePath();
+      const profileData = await findAdminProfileData();
+      const firstName = String(profileData?.first_name || "").trim();
+      const lastName = String(profileData?.last_name || "").trim();
+      setDisplayName([firstName, lastName].filter(Boolean).join(" "));
+
+      const rawValue = profileData?.profile_picture || "";
       if (!rawValue) {
         setProfilePictureUrl("");
         return;
@@ -128,10 +135,11 @@ export default function Sidebar() {
 
   const getInitials = () => {
     if (profilePictureUrl) return "";
-    if (!user?.email) return "A";
-    const parts = user.email.split(/[@._-]/).filter(Boolean);
+    const source = (displayName || user?.email || "").trim();
+    if (!source) return "A";
+    const parts = source.split(/[\s@._-]/).filter(Boolean);
     return (
-      parts.length >= 2 ? parts[0][0] + parts[1][0] : user.email[0]
+      parts.length >= 2 ? parts[0][0] + parts[1][0] : source[0]
     ).toUpperCase();
   };
 
@@ -217,7 +225,7 @@ export default function Sidebar() {
           </div>
 
           <div className="user-details">
-            <div className="user-name">{user?.email || "Administrator"}</div>
+            <div className="user-name">{displayName || user?.email || "Administrator"}</div>
             <div className="user-role">Administrator</div>
           </div>
         </div>

@@ -3,7 +3,8 @@
   flex: 1;
   padding: 18px 24px;
   background-color: var(--page-bg-soft);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   height: 100vh;
   width: 100%;
   max-width: none;
@@ -161,6 +162,27 @@
   height: 14px;
 }
 
+.btn-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -206,6 +228,18 @@
 .info-input:focus {
   border-color: #ff0000;
   box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1);
+}
+
+.info-input.invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.info-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+  font-weight: 600;
 }
 
 .profile-success-modal {
@@ -407,9 +441,29 @@ body.dark .info-input {
   color: #f8fafc;
 }
 
+body.dark .info-input.invalid {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+}
+
+body.dark .info-error {
+  color: #fca5a5;
+}
+
 body.dark .info-field {
   background: #111c2e;
   box-shadow: inset 0 0 0 1px #334155;
+}
+
+body.dark .btn-cancel {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.dark .btn-cancel:hover {
+  background: #1e293b;
+  border-color: #475569;
 }
 
 body.dark .profile-success-modal {

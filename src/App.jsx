@@ -11,6 +11,7 @@ import Riders from "./pages/riders";
 import Parcels from "./pages/parcels";
 import Settings from "./pages/settings";
 import Profile from "./pages/profile";
+import ResetPassword from "./pages/resetPassword";
 
 // Components
 import LogoutModal from "./components/logoutModal";
@@ -64,6 +65,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Login setOtpVerified={setOtpVerified} />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/riders" element={<ProtectedRoute><Riders /></ProtectedRoute>} />
       <Route path="/parcels" element={<ProtectedRoute><Parcels /></ProtectedRoute>} />
@@ -154,6 +156,7 @@ function AppContent() {
       "/parcels": "Parcels",
       "/settings": "Settings",
       "/profile": "Profile",
+      "/reset-password": "Reset Password",
     };
 
     document.title = pageTitles[location.pathname] || "Login";
