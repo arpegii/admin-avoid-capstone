@@ -11,6 +11,11 @@ import "../styles/reports.css";
 const humanizeLabel = (label) => {
   if (!label) return "";
   if (label === "All") return "All";
+  if (label === "fname") return "First Name";
+  if (label === "mname") return "Middle Name";
+  if (label === "lname") return "Last Name";
+  if (label === "doj") return "Date of Join";
+  if (label === "pnumber") return "Phone Number";
   return label
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -38,7 +43,9 @@ const toTitleCase = (value) =>
 
 const formatPdfCellValue = (value, columnKey = "") => {
   if (value === null || value === undefined || value === "") return "-";
-  if (columnKey === "created_at" || columnKey === "date") return formatPdfDate(value);
+  if (columnKey === "created_at" || columnKey === "date" || columnKey === "doj") {
+    return formatPdfDate(value);
+  }
 
   const raw = String(value).trim();
   if (!raw) return "-";
@@ -98,6 +105,27 @@ const filterViolationsByDate = (items, startDate, endDate) =>
     return afterStart && beforeEnd;
   });
 
+const SUPABASE_PAGE_SIZE = 1000;
+const SUPABASE_MAX_PAGES = 25;
+
+const fetchAllPages = async (
+  buildQuery,
+  pageSize = SUPABASE_PAGE_SIZE,
+  maxPages = SUPABASE_MAX_PAGES,
+) => {
+  const rows = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await buildQuery().range(from, to);
+    if (error) throw error;
+    const chunk = data || [];
+    rows.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return rows;
+};
+
 // ================= COMPONENT =================
 const Reports = () => {
   const [reportType, setReportType] = useState("");
@@ -124,9 +152,14 @@ const Reports = () => {
 
   const riderColumns = [
     { value: "All", label: "All" },
+    { value: "username", label: "Username" },
     { value: "email", label: "Email" },
-    { value: "status", label: "Status" },
-    { value: "created_at", label: "Created at" },
+    { value: "fname", label: "First name" },
+    { value: "mname", label: "Middle name" },
+    { value: "lname", label: "Last name" },
+    { value: "gender", label: "Gender" },
+    { value: "doj", label: "Date of join" },
+    { value: "pnumber", label: "Phone number" },
   ];
 
   const violationColumns = [
@@ -187,19 +220,20 @@ const Reports = () => {
     let columns = [];
 
     if (reportType === "parcels") {
-      let query = supabaseClient
-        .from("parcels")
-        .select("*")
-        .order("parcel_id", { ascending: true });
-      if (startDate) query = query.gte("created_at", startDate);
-      if (endDate) query = query.lte("created_at", `${endDate}T23:59:59`);
-      const { data: parcels, error } = await query;
-      if (error) throw error;
+      const parcels = await fetchAllPages(() => {
+        let query = supabaseClient
+          .from("parcels")
+          .select("*")
+          .order("parcel_id", { ascending: true });
+        if (startDate) query = query.gte("created_at", startDate);
+        if (endDate) query = query.lte("created_at", `${endDate}T23:59:59`);
+        return query;
+      });
       data = parcels;
       columns =
         column === "All"
-          ? ["recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
-          : [column];
+          ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
+          : ["parcel_id", column];
 
     } else if (reportType === "riders") {
       const { data: riders, error } = await supabaseClient
@@ -208,7 +242,9 @@ const Reports = () => {
         .order("username", { ascending: true });
       if (error) throw error;
       data = riders;
-      columns = column === "All" ? ["email", "status", "created_at"] : [column];
+      columns = column === "All"
+        ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
+        : [column];
 
     } else if (reportType === "violations") {
       data = filterViolationsByDate(violationPreview, startDate, endDate);
@@ -218,18 +254,23 @@ const Reports = () => {
           : [column];
 
     } else if (reportType === "overall") {
-      let parcelQuery = supabaseClient.from("parcels").select("*").order("parcel_id", { ascending: true });
+      const parcelQueryBuilder = () => {
+        let query = supabaseClient
+          .from("parcels")
+          .select("*")
+          .order("parcel_id", { ascending: true });
+        if (startDate) query = query.gte("created_at", startDate);
+        if (endDate) query = query.lte("created_at", `${endDate}T23:59:59`);
+        return query;
+      };
       let riderQuery = supabaseClient.from("users").select("*").order("username", { ascending: true });
-      if (startDate) parcelQuery = parcelQuery.gte("created_at", startDate);
-      if (endDate) parcelQuery = parcelQuery.lte("created_at", `${endDate}T23:59:59`);
 
-      const [parcelsRes, ridersRes] = await Promise.all([parcelQuery, riderQuery]);
-      if (parcelsRes.error) throw parcelsRes.error;
+      const [parcels, ridersRes] = await Promise.all([fetchAllPages(parcelQueryBuilder), riderQuery]);
       if (ridersRes.error) throw ridersRes.error;
 
       data = [
         { section: "Riders", data: ridersRes.data },
-        { section: "Parcels", data: parcelsRes.data },
+        { section: "Parcels", data: parcels },
         { section: "Violations", data: filterViolationsByDate(violationPreview, startDate, endDate) },
       ];
       columns = null;
@@ -297,7 +338,7 @@ const Reports = () => {
           doc.setTextColor(17, 24, 39);
           doc.text(section.section, 10, yOffset);
           const head = section.section === "Riders"
-            ? ["Username", "Email", "Status", "Created At"]
+            ? ["Username", "Email", "First Name", "Middle Name", "Last Name", "Gender", "Date of Join", "Phone Number"]
             : section.section === "Violations"
               ? ["Rider", "Violation Type", "Location", "Severity", "Created At"]
               : ["Parcel ID", "Recipient Name", "Phone", "Address", "Rider", "Status", "Created At"];
@@ -305,8 +346,12 @@ const Reports = () => {
             ? [
               formatPdfCellValue(row.username, "username"),
               formatPdfCellValue(row.email, "email"),
-              formatPdfCellValue(row.status, "status"),
-              formatPdfCellValue(row.created_at, "created_at"),
+              formatPdfCellValue(row.fname, "fname"),
+              formatPdfCellValue(row.mname, "mname"),
+              formatPdfCellValue(row.lname, "lname"),
+              formatPdfCellValue(row.gender, "gender"),
+              formatPdfCellValue(row.doj, "doj"),
+              formatPdfCellValue(row.pnumber, "pnumber"),
             ]
             : section.section === "Violations"
               ? [
@@ -408,7 +453,7 @@ const Reports = () => {
       data.forEach(section => {
         csv += `\n## ${section.section}\n`;
         const cols = section.section === "Riders"
-          ? ["username", "email", "status", "created_at"]
+          ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
           : section.section === "Violations"
             ? ["rider_name", "violation_type", "location", "severity", "created_at"]
           : column === "All"
@@ -422,11 +467,13 @@ const Reports = () => {
     } else {
       const reportCols = column === "All"
         ? reportType === "riders"
-          ? ["username", "email", "status", "created_at"]
+          ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
           : reportType === "violations"
             ? ["rider_name", "violation_type", "location", "severity", "created_at"]
           : ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
-        : [column];
+        : reportType === "parcels"
+          ? ["parcel_id", column]
+          : [column];
       csv += reportCols.join(",") + "\n";
       data.forEach(row => {
         csv += reportCols.map(c => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`).join(",") + "\n";
@@ -445,7 +492,7 @@ const Reports = () => {
 
   // ================= GENERATE BUTTON =================
   const handleGenerateReport = async () => {
-    const needsDate = reportType !== "riders";
+    const needsDate = reportType === "parcels" || reportType === "overall";
     if (!reportType || !column || !format || (needsDate && (!startDate || !endDate))) {
       showValidationModal();
       return;
@@ -462,6 +509,8 @@ const Reports = () => {
       setIsGenerating(false);
     }
   };
+
+  const reportNeedsDate = reportType === "parcels" || reportType === "overall";
 
   // ================= RENDER =================
   return (
@@ -528,7 +577,7 @@ const Reports = () => {
             <div className="reports-header"><h1 className="reports-page-title">Generate Reports</h1></div>
             <div className="reports-form">
             <div className="reports-form-row full">
-              <label>Report Type</label>
+              <label>Report Type *</label>
               <select id="reportType" value={reportType} onChange={e => setReportType(e.target.value)}>
                 <option value="">-- Select Report Type --</option>
                 <option value="parcels">Parcels</option>
@@ -538,21 +587,21 @@ const Reports = () => {
               </select>
             </div>
 
-            {reportType !== "riders" && (
+            {reportNeedsDate && (
               <>
                 <div className="reports-form-row">
-                  <label>Start Date</label>
+                  <label>Start Date *</label>
                   <input type="date" id="startDate" value={startDate} onChange={e => setStartDate(e.target.value)} />
                 </div>
                 <div className="reports-form-row">
-                  <label>End Date</label>
+                  <label>End Date *</label>
                   <input type="date" id="endDate" value={endDate} onChange={e => setEndDate(e.target.value)} />
                 </div>
               </>
             )}
 
             <div className="reports-form-row">
-              <label>Column</label>
+              <label>Column *</label>
               <select id="column" value={column} onChange={e => setColumn(e.target.value)}>
                 {columnsOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -561,7 +610,7 @@ const Reports = () => {
             </div>
 
             <div className="reports-form-row">
-              <label>Format</label>
+              <label>Format *</label>
               <select id="reportFormat" value={format} onChange={e => setFormat(e.target.value)}>
                 <option value="pdf">PDF</option>
                 <option value="csv">CSV</option>

@@ -24,6 +24,11 @@ import PageSpinner from "../components/PageSpinner";
 const humanizeLabel = (label) => {
   if (!label) return "";
   if (label === "All") return "All";
+  if (label === "fname") return "First Name";
+  if (label === "mname") return "Middle Name";
+  if (label === "lname") return "Last Name";
+  if (label === "doj") return "Date of Join";
+  if (label === "pnumber") return "Phone Number";
   return label
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -51,7 +56,9 @@ const toTitleCase = (value) =>
 
 const formatPdfCellValue = (value, columnKey = "") => {
   if (value === null || value === undefined || value === "") return "-";
-  if (columnKey === "created_at" || columnKey === "date") return formatPdfDate(value);
+  if (columnKey === "created_at" || columnKey === "date" || columnKey === "doj") {
+    return formatPdfDate(value);
+  }
 
   const raw = String(value).trim();
   if (!raw) return "-";
@@ -236,9 +243,14 @@ const parcelColumns = [
 
 const riderColumns = [
   { value: "All", label: "All" },
+  { value: "username", label: "Username" },
   { value: "email", label: "Email" },
-  { value: "status", label: "Status" },
-  { value: "created_at", label: "Created at" },
+  { value: "fname", label: "First name" },
+  { value: "mname", label: "Middle name" },
+  { value: "lname", label: "Last name" },
+  { value: "gender", label: "Gender" },
+  { value: "doj", label: "Date of join" },
+  { value: "pnumber", label: "Phone number" },
 ];
 
 const violationColumns = [
@@ -958,29 +970,30 @@ const Dashboard = () => {
     let columns = [];
 
     if (selectedReportType === "parcels") {
-      let query = supabaseClient
-        .from("parcels")
-        .select(
-          `
-          *,
-          assigned_rider:users!parcels_assigned_rider_id_fkey(
-            fname,
-            lname,
-            username
+      const parcels = await fetchAllPages(() => {
+        let query = supabaseClient
+          .from("parcels")
+          .select(
+            `
+            *,
+            assigned_rider:users!parcels_assigned_rider_id_fkey(
+              fname,
+              lname,
+              username
+            )
+          `,
           )
-        `,
-        )
-        .order("parcel_id", { ascending: true })
-        .range(0, 5000);
-      if (selectedStartDate) query = query.gte("created_at", selectedStartDate);
-      if (selectedEndDate)
-        query = query.lte("created_at", `${selectedEndDate}T23:59:59`);
-      const { data: parcels, error } = await query;
-      if (error) throw error;
+          .order("parcel_id", { ascending: true });
+        if (selectedStartDate) query = query.gte("created_at", selectedStartDate);
+        if (selectedEndDate)
+          query = query.lte("created_at", `${selectedEndDate}T23:59:59`);
+        return query;
+      });
       data = normalizeParcelsForReport(parcels);
       columns =
         selectedColumn === "All"
           ? [
+              "parcel_id",
               "recipient_name",
               "recipient_phone",
               "address",
@@ -988,7 +1001,7 @@ const Dashboard = () => {
               "status",
               "created_at",
             ]
-          : [selectedColumn];
+          : ["parcel_id", selectedColumn];
     } else if (selectedReportType === "riders") {
       let query = supabaseClient
         .from("users")
@@ -1000,7 +1013,16 @@ const Dashboard = () => {
       const { data: riders, error } = await query;
       if (error) throw error;
       data = riders;
-      columns = ["email", "status", "created_at"];
+      columns = [
+        "username",
+        "email",
+        "fname",
+        "mname",
+        "lname",
+        "gender",
+        "doj",
+        "pnumber",
+      ];
     } else if (selectedReportType === "violations") {
       let query = supabaseClient
         .from("violation_logs")
@@ -1014,20 +1036,26 @@ const Dashboard = () => {
       data = violations || [];
       columns = ["name", "violation", "date"];
     } else if (selectedReportType === "overall") {
-      let parcelQuery = supabaseClient
-        .from("parcels")
-        .select(
-          `
-          *,
-          assigned_rider:users!parcels_assigned_rider_id_fkey(
-            fname,
-            lname,
-            username
+      const parcelQueryBuilder = () => {
+        let query = supabaseClient
+          .from("parcels")
+          .select(
+            `
+            *,
+            assigned_rider:users!parcels_assigned_rider_id_fkey(
+              fname,
+              lname,
+              username
+            )
+          `,
           )
-        `,
-        )
-        .order("parcel_id", { ascending: true })
-        .range(0, 5000);
+          .order("parcel_id", { ascending: true });
+        if (selectedStartDate)
+          query = query.gte("created_at", selectedStartDate);
+        if (selectedEndDate)
+          query = query.lte("created_at", `${selectedEndDate}T23:59:59`);
+        return query;
+      };
       let riderQuery = supabaseClient
         .from("users")
         .select("*")
@@ -1037,29 +1065,21 @@ const Dashboard = () => {
         .select("violation, name, date")
         .order("date", { ascending: false });
       if (selectedStartDate)
-        parcelQuery = parcelQuery.gte("created_at", selectedStartDate);
-      if (selectedEndDate)
-        parcelQuery = parcelQuery.lte(
-          "created_at",
-          `${selectedEndDate}T23:59:59`,
-        );
-      if (selectedStartDate)
         violationQuery = violationQuery.gte("date", selectedStartDate);
       if (selectedEndDate)
         violationQuery = violationQuery.lte("date", `${selectedEndDate}T23:59:59`);
 
-      const [parcelsRes, ridersRes, violationsRes] = await Promise.all([
-        parcelQuery,
+      const [parcels, ridersRes, violationsRes] = await Promise.all([
+        fetchAllPages(parcelQueryBuilder),
         riderQuery,
         violationQuery,
       ]);
-      if (parcelsRes.error) throw parcelsRes.error;
       if (ridersRes.error) throw ridersRes.error;
       if (violationsRes.error) throw violationsRes.error;
 
       data = [
         { section: "Riders", data: ridersRes.data },
-        { section: "Parcels", data: normalizeParcelsForReport(parcelsRes.data) },
+        { section: "Parcels", data: normalizeParcelsForReport(parcels) },
         {
           section: "Violations",
           data: violationsRes.data || [],
@@ -1135,7 +1155,16 @@ const Dashboard = () => {
         doc.text(section.section, 10, yOffset);
         const head =
           section.section === "Riders"
-            ? ["Username", "Email", "Status", "Created At"]
+            ? [
+                "Username",
+                "Email",
+                "First Name",
+                "Middle Name",
+                "Last Name",
+                "Gender",
+                "Date of Join",
+                "Phone Number",
+              ]
             : section.section === "Violations"
               ? ["Name", "Violation", "Date"]
               : [
@@ -1152,8 +1181,12 @@ const Dashboard = () => {
             ? [
                 formatPdfCellValue(row.username, "username"),
                 formatPdfCellValue(row.email, "email"),
-                formatPdfCellValue(row.status, "status"),
-                formatPdfCellValue(row.created_at, "created_at"),
+                formatPdfCellValue(row.fname, "fname"),
+                formatPdfCellValue(row.mname, "mname"),
+                formatPdfCellValue(row.lname, "lname"),
+                formatPdfCellValue(row.gender, "gender"),
+                formatPdfCellValue(row.doj, "doj"),
+                formatPdfCellValue(row.pnumber, "pnumber"),
               ]
             : section.section === "Violations"
               ? [
@@ -1274,7 +1307,16 @@ const Dashboard = () => {
         csv += `\n## ${section.section}\n`;
         const cols =
           section.section === "Riders"
-            ? ["username", "email", "status", "created_at"]
+            ? [
+                "username",
+                "email",
+                "fname",
+                "mname",
+                "lname",
+                "gender",
+                "doj",
+                "pnumber",
+              ]
             : section.section === "Violations"
               ? ["name", "violation", "date"]
               : effectiveColumn === "All"
@@ -1300,7 +1342,16 @@ const Dashboard = () => {
       const reportCols =
         effectiveColumn === "All"
           ? selectedReportType === "riders"
-            ? ["username", "email", "status", "created_at"]
+            ? [
+                "username",
+                "email",
+                "fname",
+                "mname",
+                "lname",
+                "gender",
+                "doj",
+                "pnumber",
+              ]
             : selectedReportType === "violations"
               ? ["name", "violation", "date"]
               : [
@@ -1373,12 +1424,12 @@ const Dashboard = () => {
 
   const validateReportInput = () => {
     const needsColumn = reportType === "parcels";
+    const needsDate = reportType === "parcels" || reportType === "overall";
     if (
       !reportType ||
       (needsColumn && !column) ||
       !format ||
-      !startDate ||
-      !endDate
+      (needsDate && (!startDate || !endDate))
     ) {
       setShowReportValidation(true);
       return false;
@@ -1602,6 +1653,8 @@ const Dashboard = () => {
     };
   }, []);
 
+  const reportNeedsDate = reportType === "parcels" || reportType === "overall";
+
   return (
     <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       <Sidebar />
@@ -1815,7 +1868,7 @@ const Dashboard = () => {
                 <div className="dashboard-report-main">
                   <div className="dashboard-report-date-header">
                     <div className="dashboard-report-field">
-                      <label>Start Date</label>
+                      <label>Start Date{reportNeedsDate ? " *" : ""}</label>
                       <input
                         type="date"
                         value={startDate}
@@ -1823,7 +1876,7 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="dashboard-report-field">
-                      <label>End Date</label>
+                      <label>End Date{reportNeedsDate ? " *" : ""}</label>
                       <input
                         type="date"
                         value={endDate}
@@ -1833,7 +1886,7 @@ const Dashboard = () => {
                   </div>
 
                   <div className="dashboard-report-field full">
-                    <label>Report Type</label>
+                    <label>Report Type *</label>
                     <ModernSelect
                       className="dashboard-form-select-shell"
                       triggerClassName="dashboard-form-select-trigger"
@@ -1847,7 +1900,7 @@ const Dashboard = () => {
                   <div className="dashboard-report-meta">
                     {reportType === "parcels" && (
                       <div className="dashboard-report-field">
-                        <label>Column</label>
+                        <label>Column *</label>
                         <ModernSelect
                           className="dashboard-form-select-shell"
                           triggerClassName="dashboard-form-select-trigger"
@@ -1859,7 +1912,7 @@ const Dashboard = () => {
                       </div>
                     )}
                     <div className="dashboard-report-field">
-                      <label>Format</label>
+                      <label>Format *</label>
                       <ModernSelect
                         className="dashboard-form-select-shell"
                         triggerClassName="dashboard-form-select-trigger"
