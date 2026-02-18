@@ -24,6 +24,11 @@ import PageSpinner from "../components/PageSpinner";
 const humanizeLabel = (label) => {
   if (!label) return "";
   if (label === "All") return "All";
+  if (label === "delivery_attempt") return "Delivery Attempt";
+  if (label === "attempt1_status") return "Attempt 1 Status";
+  if (label === "attempt1_date") return "Attempt 1 Date";
+  if (label === "attempt2_status") return "Attempt 2 Status";
+  if (label === "attempt2_date") return "Attempt 2 Date";
   if (label === "fname") return "First Name";
   if (label === "mname") return "Middle Name";
   if (label === "lname") return "Last Name";
@@ -56,7 +61,12 @@ const toTitleCase = (value) =>
 
 const formatPdfCellValue = (value, columnKey = "") => {
   if (value === null || value === undefined || value === "") return "-";
-  if (columnKey === "created_at" || columnKey === "date" || columnKey === "doj") {
+  if (
+    columnKey === "created_at" ||
+    columnKey === "date" ||
+    columnKey === "doj" ||
+    /_date$/i.test(columnKey)
+  ) {
     return formatPdfDate(value);
   }
 
@@ -238,7 +248,15 @@ const parcelColumns = [
   { value: "address", label: "Address" },
   { value: "assigned_rider", label: "Assigned rider" },
   { value: "status", label: "Status" },
+  { value: "delivery_attempt", label: "Delivery Attempt" },
   { value: "created_at", label: "Created at" },
+];
+
+const DELIVERY_ATTEMPT_COLUMNS = [
+  "attempt1_status",
+  "attempt1_date",
+  "attempt2_status",
+  "attempt2_date",
 ];
 
 const riderColumns = [
@@ -999,9 +1017,12 @@ const Dashboard = () => {
               "address",
               "assigned_rider",
               "status",
+              ...DELIVERY_ATTEMPT_COLUMNS,
               "created_at",
             ]
-          : ["parcel_id", selectedColumn];
+          : selectedColumn === "delivery_attempt"
+            ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+            : ["parcel_id", selectedColumn];
     } else if (selectedReportType === "riders") {
       let query = supabaseClient
         .from("users")
@@ -1174,6 +1195,10 @@ const Dashboard = () => {
                   "Address",
                   "Rider",
                   "Status",
+                  "Attempt 1 Status",
+                  "Attempt 1 Date",
+                  "Attempt 2 Status",
+                  "Attempt 2 Date",
                   "Created At",
                 ];
         const body = section.data.map((row) =>
@@ -1201,6 +1226,10 @@ const Dashboard = () => {
                   formatPdfCellValue(row.address, "address"),
                   formatPdfCellValue(row.assigned_rider, "assigned_rider"),
                   formatPdfCellValue(row.status, "status"),
+                  formatPdfCellValue(row.attempt1_status, "attempt1_status"),
+                  formatPdfCellValue(row.attempt1_date, "attempt1_date"),
+                  formatPdfCellValue(row.attempt2_status, "attempt2_status"),
+                  formatPdfCellValue(row.attempt2_date, "attempt2_date"),
                   formatPdfCellValue(row.created_at, "created_at"),
                 ],
         );
@@ -1277,7 +1306,11 @@ const Dashboard = () => {
       const raw = String(value).trim();
       if (!raw) return "";
 
-      if (columnKey === "created_at" || columnKey === "date") {
+      if (
+        columnKey === "created_at" ||
+        columnKey === "date" ||
+        /_date$/i.test(columnKey)
+      ) {
         const parsed = new Date(raw);
         if (!Number.isNaN(parsed.getTime())) {
           return parsed.toLocaleString("en-US", {
@@ -1327,9 +1360,12 @@ const Dashboard = () => {
                     "address",
                     "assigned_rider",
                     "status",
+                    ...DELIVERY_ATTEMPT_COLUMNS,
                     "created_at",
                   ]
-                : ["parcel_id", effectiveColumn];
+                : effectiveColumn === "delivery_attempt"
+                  ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+                  : ["parcel_id", effectiveColumn];
         csv += cols.map(humanizeLabel).join(",") + "\n";
         section.data.forEach((row) => {
           csv +=
@@ -1361,9 +1397,14 @@ const Dashboard = () => {
                   "address",
                   "assigned_rider",
                   "status",
+                  ...DELIVERY_ATTEMPT_COLUMNS,
                   "created_at",
                 ]
-          : [effectiveColumn];
+          : selectedReportType === "parcels"
+            ? effectiveColumn === "delivery_attempt"
+              ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+              : ["parcel_id", effectiveColumn]
+            : [effectiveColumn];
       csv += reportCols.map(humanizeLabel).join(",") + "\n";
       data.forEach((row) => {
         csv +=

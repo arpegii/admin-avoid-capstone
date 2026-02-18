@@ -11,6 +11,11 @@ import "../styles/reports.css";
 const humanizeLabel = (label) => {
   if (!label) return "";
   if (label === "All") return "All";
+  if (label === "delivery_attempt") return "Delivery Attempt";
+  if (label === "attempt1_status") return "Attempt 1 Status";
+  if (label === "attempt1_date") return "Attempt 1 Date";
+  if (label === "attempt2_status") return "Attempt 2 Status";
+  if (label === "attempt2_date") return "Attempt 2 Date";
   if (label === "fname") return "First Name";
   if (label === "mname") return "Middle Name";
   if (label === "lname") return "Last Name";
@@ -43,7 +48,12 @@ const toTitleCase = (value) =>
 
 const formatPdfCellValue = (value, columnKey = "") => {
   if (value === null || value === undefined || value === "") return "-";
-  if (columnKey === "created_at" || columnKey === "date" || columnKey === "doj") {
+  if (
+    columnKey === "created_at" ||
+    columnKey === "date" ||
+    columnKey === "doj" ||
+    /_date$/i.test(columnKey)
+  ) {
     return formatPdfDate(value);
   }
 
@@ -126,6 +136,13 @@ const fetchAllPages = async (
   return rows;
 };
 
+const DELIVERY_ATTEMPT_COLUMNS = [
+  "attempt1_status",
+  "attempt1_date",
+  "attempt2_status",
+  "attempt2_date",
+];
+
 // ================= COMPONENT =================
 const Reports = () => {
   const [reportType, setReportType] = useState("");
@@ -147,6 +164,7 @@ const Reports = () => {
     { value: "address", label: "Address" },
     { value: "assigned_rider", label: "Assigned rider" },
     { value: "status", label: "Status" },
+    { value: "delivery_attempt", label: "Delivery Attempt" },
     { value: "created_at", label: "Created at" },
   ];
 
@@ -232,8 +250,19 @@ const Reports = () => {
       data = parcels;
       columns =
         column === "All"
-          ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
-          : ["parcel_id", column];
+          ? [
+              "parcel_id",
+              "recipient_name",
+              "recipient_phone",
+              "address",
+              "assigned_rider",
+              "status",
+              ...DELIVERY_ATTEMPT_COLUMNS,
+              "created_at",
+            ]
+          : column === "delivery_attempt"
+            ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+            : ["parcel_id", column];
 
     } else if (reportType === "riders") {
       const { data: riders, error } = await supabaseClient
@@ -341,7 +370,7 @@ const Reports = () => {
             ? ["Username", "Email", "First Name", "Middle Name", "Last Name", "Gender", "Date of Join", "Phone Number"]
             : section.section === "Violations"
               ? ["Rider", "Violation Type", "Location", "Severity", "Created At"]
-              : ["Parcel ID", "Recipient Name", "Phone", "Address", "Rider", "Status", "Created At"];
+              : ["Parcel ID", "Recipient Name", "Phone", "Address", "Rider", "Status", "Attempt 1 Status", "Attempt 1 Date", "Attempt 2 Status", "Attempt 2 Date", "Created At"];
           const body = section.data.map(row => section.section === "Riders"
             ? [
               formatPdfCellValue(row.username, "username"),
@@ -368,6 +397,10 @@ const Reports = () => {
                 formatPdfCellValue(row.address, "address"),
                 formatPdfCellValue(row.assigned_rider, "assigned_rider"),
                 formatPdfCellValue(row.status, "status"),
+                formatPdfCellValue(row.attempt1_status, "attempt1_status"),
+                formatPdfCellValue(row.attempt1_date, "attempt1_date"),
+                formatPdfCellValue(row.attempt2_status, "attempt2_status"),
+                formatPdfCellValue(row.attempt2_date, "attempt2_date"),
                 formatPdfCellValue(row.created_at, "created_at"),
               ]
           );
@@ -457,8 +490,10 @@ const Reports = () => {
           : section.section === "Violations"
             ? ["rider_name", "violation_type", "location", "severity", "created_at"]
           : column === "All"
-            ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
-            : ["parcel_id", column];
+            ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"]
+            : column === "delivery_attempt"
+              ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+              : ["parcel_id", column];
         csv += cols.join(",") + "\n";
         section.data.forEach(row => {
           csv += cols.map(c => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`).join(",") + "\n";
@@ -470,9 +505,11 @@ const Reports = () => {
           ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
           : reportType === "violations"
             ? ["rider_name", "violation_type", "location", "severity", "created_at"]
-          : ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", "created_at"]
+          : ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"]
         : reportType === "parcels"
-          ? ["parcel_id", column]
+          ? column === "delivery_attempt"
+            ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+            : ["parcel_id", column]
           : [column];
       csv += reportCols.join(",") + "\n";
       data.forEach(row => {
