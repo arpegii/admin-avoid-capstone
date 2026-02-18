@@ -1,16 +1,84 @@
-# React + Vite
+# Capstone Admin Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Admin web application for managing riders, parcels, violations, analytics, and report generation.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React + Vite
+- Supabase (`@supabase/supabase-js`)
+- Chart.js, Leaflet
+- Vercel deployment + Vercel Analytics
 
-## React Compiler
+## Prerequisites
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js 18+ (Node 20 recommended)
+- npm 9+
+- Supabase project with required tables
 
-## Expanding the ESLint configuration
+## Environment Variables
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Create a `.env` file in the project root:
+
+```bash
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+For Vercel, add the same variables in Project Settings -> Environment Variables.
+
+## Local Setup
+
+```bash
+npm install
+npm run dev
+```
+
+Default dev URL: `http://localhost:5173`
+
+## Commands
+
+```bash
+npm run dev        # local development
+npm run lint       # eslint checks
+npm run test       # watch mode tests (vitest)
+npm run test:run   # single run tests
+npm run build      # production build
+npm run preview    # preview production build
+```
+
+## Automated Tests
+
+Current automated tests include:
+
+- `src/components/PageSpinner.test.jsx`
+- `src/hooks/useDarkMode.test.jsx`
+
+Run all tests:
+
+```bash
+npm run test:run
+```
+
+## Deployment (Vercel)
+
+1. Push to GitHub.
+2. Connect the repository to Vercel.
+3. Set environment variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Deploy.
+
+Routing is configured for SPA refresh support in `vercel.json` via rewrite to `index.html`.
+
+## Demo Fallback Plan
+
+If live internet is unstable:
+
+1. Run local app: `npm run dev`
+2. Use prepared demo accounts and preloaded data
+3. Keep screenshots / exported reports ready for backup evidence
+
+## Notes
+
+- Vercel Hobby has deployment limits per day. Avoid unnecessary pushes during defense day.
+- Vercel Analytics is integrated through `@vercel/analytics`.

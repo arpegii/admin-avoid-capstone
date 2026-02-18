@@ -768,7 +768,7 @@ const Dashboard = () => {
     }
 
     loadAvailableYears();
-  }, []);
+  }, [currentYear]);
 
   useEffect(() => {
     if (!yearFilterReady) return;
@@ -946,7 +946,7 @@ const Dashboard = () => {
     }
 
     loadAnalytics();
-  }, [selectedYear, yearFilterReady, availableYears]);
+  }, [selectedYear, yearFilterReady, availableYears, currentYear]);
 
   const fetchReportData = async (
     selectedReportType,
