@@ -1830,11 +1830,11 @@ const Dashboard = () => {
 
       {violationMapModalOpen && (
         <div
-          className="dashboard-modal-overlay bg-slate-950/60 backdrop-blur-sm"
+          className="dashboard-modal-overlay violation-fullscreen-overlay bg-slate-950/60 backdrop-blur-sm"
           onClick={() => setViolationMapModalOpen(false)}
         >
           <div
-            className="dashboard-modal-content violation-full-map-modal ui-modal-panel rounded-2xl"
+            className="dashboard-modal-content violation-full-map-modal violation-fullscreen-map"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="violation-full-map-header">

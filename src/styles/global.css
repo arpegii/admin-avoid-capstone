@@ -66,6 +66,61 @@ html, body {
   border-radius: 4px;
 }
 
+/* Shared Leaflet zoom controls across all maps */
+.leaflet-top.leaflet-left {
+  top: auto;
+  bottom: 44px;
+  left: auto;
+  right: 14px;
+}
+
+.leaflet-control-zoom {
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.26);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+}
+
+.leaflet-control-zoom a {
+  width: 36px;
+  height: 36px;
+  line-height: 34px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom-color: rgba(148, 163, 184, 0.38);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(248, 113, 113, 0.16);
+  color: #991b1b;
+}
+
+.leaflet-control-zoom a:last-child {
+  border-bottom: none;
+}
+
+body.dark .leaflet-control-zoom {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.5);
+}
+
+body.dark .leaflet-control-zoom a {
+  color: #f8fafc;
+  border-bottom-color: rgba(71, 85, 105, 0.55);
+}
+
+body.dark .leaflet-control-zoom a:hover {
+  background: rgba(127, 29, 29, 0.42);
+  color: #fecaca;
+}
+
 /* ================= SIDEBAR ================= */
 .sidebar {
   width: 280px;

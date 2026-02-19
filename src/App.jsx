@@ -69,6 +69,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/riders" element={<ProtectedRoute><Riders /></ProtectedRoute>} />
+      <Route path="/maps" element={<ProtectedRoute><Riders /></ProtectedRoute>} />
       <Route path="/parcels" element={<ProtectedRoute><Parcels /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -154,6 +155,7 @@ function AppContent() {
       "/": "Login",
       "/dashboard": "Dashboard",
       "/riders": "Riders",
+      "/maps": "Maps",
       "/parcels": "Parcels",
       "/settings": "Settings",
       "/profile": "Profile",
