@@ -1,0 +1,1388 @@
+1
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch
+John Paul R. Baxter, Hazel Ann P. Caronan, Vandrei C. Cupla, and Jhon Lloyd B. Suarez
+College of Computer Studies, Technological Institute of the Philippines - Quezon City
+IT 304 - Capstone Project 1
+Dr. Karen Joyce S. Ison
+October 2025
+
+-- 1 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	2
+Table of Contents
+Chapter 1 	7
+Introduction 	7
+Background of the Study 	8
+Project Objectives 	10
+Significance of the Study 	10
+Scope of the Study 	12
+Delimitation 	14
+Chapter 2 	15
+Theoretical Framework 	15
+Review of Related Literature 	15
+Conceptual Framework 	20
+System Architecture 	22
+Definition of Terms 	24
+Chapter 3 	27
+Project Design 	27
+Design Trade Off 	28
+Design Prototype 	34
+Design Discussion 	35
+Project Development 	36
+Testing and Operating Procedures 	38
+
+-- 2 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	3
+Project Evaluation 	40
+Work Plan 	42
+Potential for Commercialization 	42
+Market Model 	44
+Measurable Benefits 	45
+Three-Year Roadmap 	46
+Go-To-Market Strategy 	48
+Business Model 	49
+References
+List of Figures
+Figure 1. Conceptual Framework of AVOID 	16
+Figure 2. System Architecture of AVOID 	17
+Figure 3. Steps in Creating Data Models 	27
+Figure 4. UI of the Splashscreen of the App 	28
+Figure 5. UI of the History Page of the App 	29
+Figure 6. UI of the Verification Page of the App 	30
+Figure 7. UI of the Home Page of the App 	31
+Figure 8. UI of the Home Page of the App 	32
+Figure 9. UI of the Alert Notifications 	33
+Figure 10. UI of the Map Types of the App 	34
+
+-- 3 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	4
+Figure 11. UI of the Heat Maps of the App 	35
+Figure 12. UI of the Educational Content of the App 	36
+Figure 13. UI of the Home Page of the App 	37
+Figure 14. UI of the Home Page of the App 	38
+Figure 15. Rapid Application Development (RAD) Model. 	40
+Figure 16. ISO/IEC 25010 	46
+Figure 17. Market Model 	49
+Figure 18. The Business Model of AVOID 	55
+List of Tables
+Table 1. Design Constraints of AVOID 	22
+Table 2. Summary of Design Trade-Offs for AVOID 	23
+Table 3. Work Plan for AVOID 	46
+Table 4. Three-Year Product Roadmap 	51
+Table 5. Go-To-Market Strategy 	51
+
+-- 4 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	5
+Chapter 1
+Introduction
+The importance of motorcycle-based delivery services within the logistics sector of the
+Philippine industry is evident because it faces no substitute as the logistics solution can be said to
+be the most flexible and economical when it comes to last-mile delivery in traffic and the
+high-density urban settings of the Philippines. Their size, along with their agility, allows riders to
+avoid the bottlenecks that usually stop the work of larger vehicles, so these vehicles are crucial in
+response to the increasing role of e-commerce and on-demand delivery. But with this increment
+in motorcycle delivery, there are big challenges in terms of operation. Riders are often exposed
+to an unstable traffic flow, closure of roads, weather related damages e.g. flooding, which hinder
+the routes and consequently result in high delays. Besides impacting customer satisfaction, these
+problems cause inefficiency as well as enhance higher costs to be incurred by the logistics firms.
+Besides, managers do not usually have tools that provide real-time information on exactly where
+riders are, at what stage of delivery delays or other issues, so they cannot make informed
+decisions and guarantee timely delivery of orders. Unless there is intelligent route design and
+tracking, real-time tracking and open reporting channels, the delivery process will continue being
+reactive and susceptible to preventable breakdowns.
+In order to meet these urgent needs, the capstone project suggests the creation of an
+Android-based all-purpose mobile and web application AVOID: Advanced Vehicle
+Optimization and Intelligent Dispatch optimized to be used in a delivery business. The mobile
+application will provide the riders with real-time navigation with weather responsive, and
+traffic-aware rerouting on the A algorithm, flood-prone areas mapping, dynamic multi
+destination planning that re-sequences stops by closest location to save time. Audio alerts will
+
+-- 5 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	6
+keep the riders up to date with directions to follow and other traffic conditions and any possible
+dangers. In the meantime, the dashboard of the web interface will supply managers with
+real-time tracking of in-transit deliveries in form of GPS coordinates, a log of delivery histories,
+profiles of riders with performance rating to manage incentive plans, and extensive statistics on
+delivery schedules and areas of regular delays. AVOID offers multi-factor authentication,
+role-based access to administration capabilities, heatmaps of violations, and exportable reports,
+among other possibilities trying to change the nature of delivery management to a more proactive
+one, rather than trying to solve problems and investigate incidents all the time. The system aims
+to enhance logistics services with a guarantee of delivering reliability in urban areas in the
+Philippines by empowering riders and administrators with real-time information and creative
+capabilities to track on-time delivery success as well as efficiency.
+Background of the Study
+Motorcycle has emerged as a mainstream mode of transport in the Philippines with more
+than 7.8 million registered motor cycles and tricycles in the year 2023 alone (Statista, 2024).
+They are so popular thanks mostly to their low prices, fuel consumption, and ease of
+maneuvering in congested city roads in the country. Such strengths have positioned motorcycles
+as the mainstay of city of last mile deliveries and logistical activities in cities such as Metro
+Manila and Antipolo. Growth in delivery services involving motorcycles has been on a faster
+pace as of late due to the multiplication of motorcycle taxi services like Angkas, JoyRide, and
+Move It since 2016 (Rosales, 2024). This growth has led to an even more competitive
+environment within the sphere of logistics, with the prompt and flawless delivery of parcels often
+being the key to meeting the expectations of the customers and remaining profitable in the work
+of the company in question.
+
+-- 6 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	7
+Nevertheless, in addition to the factors contributing to the appealing nature of
+motorcycles as a means of logistics, speed, maneuverability, and densely-metered urban traffic,
+these operational issues also create major impediments. Delivery riders are also faced with much
+fluctuating traffic, small or busy roads, and limited routes which may consequently result in
+delayed delivery, and late customer time windows. Planning the routes is further complicated by
+external environmental conditions like unpredictable weather, urban floods when it is pouring
+heavily, etc. that can cause the need to go through unexpected detours or halt (Topnatch
+Logistics, 2023). These concerns have first-hand effects on service reliability provided by
+logistics companies, as well as leading to escalating costs due to time loss associated with it, fuel
+costs and graver effects that happen to the reputability of logistics companies. The failure in
+timely and quality last-mile delivery will leave an ever-spreading impact in the supply chain and
+undercut the effectiveness of overall logistics and customer confidence.
+In addition to the traffic and environmental barriers, there is another issue ensuring the
+successful real-time control and supervision of the delivery riders. Most logistics processes do
+not have a single system that can track the location of the riders in real-time, document the
+current delivery status, and assess the frequent reasons why it is delayed. In the absence of an
+accurate picture of live rider data, dispatch and supervisor teams find it hard to manage their
+fleets, reposition tasks on a real-time basis, and proactively catch up with route upheaval.
+Existing solutions can exist, but despite the basic GPS tracking or navigation they are not able to
+implement the significant features on the logistics side e.g. weather-based rerouting, multiple
+stop deliveries optimization, or integration with the warehouse dispatch. Consequently, logistics
+companies, notably the smaller ones, often use manual techniques of coordination or disjointed
+tools that are ineffective to implement as the demand rises.
+
+-- 7 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	8
+This research proposes to develop AVOID: Advanced Vehicle Optimization and
+Intelligent Dispatch, which is a mobile and web-based system to support motorcycle delivery
+operation in the Philippines. The android mobile will have real-time navigation using the GPS
+and smart rerouting by use of A* algorithm which makes it give dynamic rerouting based on the
+traffic and the flood-prone regions. It will have flood display maps, stop-delivery route planning,
+and auto re-sequencing (destination order-based on proximity) as well as voice-based alerts to
+guide the users to follow the direct routes through a dense urban set up. How to ride safely and
+road rules will also be integrated in the educative contents which will be supporting rider
+readiness. The web-admin dashboard will enable the logistics managers to view an overview of
+the location of the riders in realtime, as well as log of deliveries made, violation notification and
+delivery status which can be either in delivered, delayed or in transit status, and perform
+analytics in heatmap view and reports. AVOID will allow the logistics operators to anticipate and
+control the delivery process, minimize delays, and spend less time attracting riders to adhere to
+safe and efficient routes and eventually deliver superior customer experience with multi-factor
+authentication, role-based access control, and robust reporting functions.
+Project Objectives
+The primary objective of this project is to design and implement AVOID: Advanced
+Vehicle Optimization and Intelligent Dispatch, an Android-based mobile and web application
+that assists motorcycle riders in following traffic regulations through real-time alerts and
+provides administrators with tools to monitor rider behavior and delivery performance.
+Specifically, the study aims to:
+● To design a mobile app with real-time GPS navigation, A route planning, and multi-stop
+delivery, accounting for traffic and flood-prone areas.
+
+-- 8 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	9
+● To enable rerouting to provide safer delivery routes in weather-conscious, flood-avoidant
+routes is made possible.
+● To give clear voice instructions and warnings in the matters of prohibitions of the road
+like no overtaking places and one-way directions.
+● To contain educational information about safe driving and road-specific rules of driving
+delivery.
+● To develop a secure web dashboard to track the real time location of the vehicle, create
+logs of trips, track the delivery status, and monitor the performance.
+● To adopt the multi-factor authentication and role-based access to the system security.
+● Evaluate the overall system based on ISO 25010 software quality standards: Functional
+Suitability, Performance Efficiency,Compatibility, Usability, Reliability, Maintainability,
+and Portability.
+Significance of the Study
+The proposed AVOID (Advanced Vehicle Optimization and Intelligent Dispatch) project
+holds substantial importance by providing a practical and real-time intervention to mitigate
+traffic violations committed by motorcycle operators through mobile alert functionalities.
+Motorcycle Riders: Riders are anticipated to experience enhanced road safety and
+cultivate heightened situational awareness. Provision of real-time warnings in relation to traffic
+signs and speed limits, as well as the contemporary road regulations, will enable them to avoid
+the occurrence of violations that are not intended, thus leading to a decrease in the number of
+accidents occurring and enhancing a safer commuting process.
+Logistics Companies and Delivery Operations: AVOID aids effective route scheduling
+and checks on delays in delivery and driver patterns. This may result in better reliability of the
+
+-- 9 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	10
+deliveries, transparency of operations, and, possibly, an incentive program available to
+high-performing riders.
+Traffic Authorities and Policy Makers: The information based on the collected data
+(e.g., app logs, certain areas with committing violations) and the success of any real-time alerting
+tools could help develop traffic control, city planning, and a more specific campaign/public
+safety intervention to be created to control road behavior better and decrease congestion.
+ICT Sector and Developers: The project can be of immense value to the ICT
+community as it shows how real-time location monitoring, a dynamic route planning with A*
+algorithm, flooding-prone areas visualization, and multi-factor authorization could be combined
+together in a single application. The design and approach can be used by ICT professionals and
+researchers to develop more superior, user-oriented, as well as responsive transport and logistics
+management systems.
+Scope of the Study
+The AVOID app will be designed in Flutter framework, which specifically supports
+devices based on the Android operating system. The admin dashboard will be a web-based
+system utilizing modern browsers.
+Key Functionalities of the Mobile Application include:
+● Real-Time GPS Navigation and Route Optimization
+○ Real time GPS navigation, along with A* algorithm route optimization which will
+make the assurance that the shortest path will be given.
+○ Delivery routing support multiple stops and flexible dynamic reordering of stops
+depending upon their proximity to each other.
+○ Weather-based rerouting of the predicted visualization of flood-prone areas.
+
+-- 10 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	11
+○ Option for riders to enable flood avoidance re-routing.
+● Flood-Prone Area Visualization
+Integration with location-based APIs to display high-risk flood zones on the navigation
+map, allowing riders to make safer routing decisions.
+● Pop-Up Alerts with Voice Commands
+The app will provide real-time alerts regarding:
+○ Speed limits
+○ Safety zones
+○ Pedestrian areas
+○ Dataset mapping of officially marked no-overtaking zones and one-way streets to
+enable highly specific, context-aware rider warnings.
+● Trip Logging Monitoring:
+○ Logging of delivery status.
+○ Synchronizes data with the backend on the admin dashboard.
+● Traffic Rules and Penalties Page
+A dedicated section providing educational content, including:
+○ Common road signs and their meanings
+○ Corresponding penalties for violations
+○ Voice-based reminders for enhanced rider awareness
+● User Account Functions
+○ Multi-Factor Authentication (MFA)
+○ Account registration, and login
+
+-- 11 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	12
+Key functionalities of the Admin Dashboard include:
+● Rider and User Management
+○ View and manage rider profiles, delivery status, and violation records
+○ View real time the rider’s location on the map
+○ CRUD operations for user and admin accounts
+○ Role-based access (e.g., Analyst, Supervisor, Read-Only).
+● Delivery Monitoring:
+○ Delivery trip logs and status (delivered, delayed, in transit)
+● Violation and Delivery Analytics
+○ Exportable reports in CSV/PDF formats
+○ Violation heatmaps and delivery delay tracking
+○ Rider performance scores (min. 70, max. 100) used to support incentive
+distribution
+● Incentive Tracker
+○ Displays the frequency of riders scoring above 90 to help determine eligibility for
+rewards
+A logistics warehouse in Antipolo will be involved along with the study and it will also
+specifically focus on the delivery routes in Brgy. Mayamot, Cupang and Mambugan.
+Delimitation
+The application is limited to the following functions:
+● The Android app will be designed exclusively to work with Android handsets and will
+not work with either iOS-based or other operating systems.
+
+-- 12 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	13
+● The system is set to guide the riders and remind them of the traffic rules in real life, but
+does not identify and confirm the real traffic violations made by the rider.
+● It will contain only some traffic regulations (e.g. speed limits, zones of safety, zones of no
+overtaking, zones of pedestrians); the system does not contain the entire list of traffic
+regulations.
+● Weather-based rerouting and flood-prone area visualization depend on integration with
+external weather APIs and databases.
+● Real-time GPS tracking, traffic conditions, flood-prone areas visualization, and the
+synchronization of data with Supabase all need an active connection to the internet.
+● The application is not used to track the accuracy of driving, settle penalties, or confirm
+the compliance of the driver.
+● The system is designed for the riders in the J&T motorcycles. It has no association to the
+other types of delivery services (like Toktok) and cannot work on three-wheeled vehicles
+(like the Bajaj or other tricycles).
+● It is spatially constrained as the pilot implementation is in Brgy. Mayamot, Cupang, and
+Mambugan in Antipolo City, in partnership with a local warehouse logistics.
+● Delivery status and timeliness are the only two factors that are used to determine the
+scoring and rewarding system in the company.
+
+-- 13 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	14
+Chapter 2
+Theoretical Framework
+This chapter contains details on previous research that is related to the creation of
+AVOID: Real-time Road Rules Mobile Application Guide, which is aimed at helping J&T
+motorcycle riders. The project is conducted in the sphere of traffic safety, motorcycle rider
+behavior, the real-time location-based system, and the development of a mobile application. The
+notions help to achieve the objective of the study to enable safer driving by giving adequate road
+rule advice and warnings to motorcycle riders.
+Review of Related Literature
+Motorcycles have become one of the most widely used modes of transport in the
+Philippines, with more than 7.8 million units registered nationwide in 2023 (Balita, 2025). This
+widespread use extends beyond personal travel, with many logistics firms such as J&T Express
+depending on motorcycle riders for timely last-mile delivery services. While this has improved
+accessibility and delivery reach, it has also introduced a set of issues related to traffic law
+compliance, road safety, and delivery efficiency.
+
+-- 14 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	15
+Data from the Metropolitan Manila Development Authority (MMDA) revealed that
+motorcycle drivers are among the most frequent traffic violators. Out of the 20,656 recorded
+traffic offenses 4,527 or 21.92% of those involved, were motorcycle riders who were using the
+lanes that were not designated for motorcycles (Mendoza, 2023). Also, during a given period of
+enforcement, more than 20,000 traffic violations were documented with many of them being
+motorcycle riders abusing lanes that are not supposed to be used by them (Rosales, 2024). These
+violations may lead to parcel delays and an adverse effect on the customer satisfaction level,
+which is specifically relevant to such logistic businesses as J&T Express, which specialises in
+delivery parcels.
+
+-- 15 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	16
+A contributing factor to these problems is the lack of formal traffic education among
+riders. According to research by Villanueva et al. (2024), many Filipino motorcycle drivers learn
+road rules through informal methods or peer instruction rather than formal training. This
+incomplete knowledge base leads to frequent traffic violations, especially among younger and
+less experienced riders. Beltran et al. (2022) also observed that this demographic were the ones
+to struggle with understanding the basic traffic signs, leading to their chances of violations
+during delivery tasks to increase. Even with the introduction of programs like the No Contact
+Apprehension Program (NCAP), traffic violations remain high. In just one month following its
+reimplementation, over 24,000 traffic sign violations were recorded (Malonzo, 2025). The most
+common offenses were the violation of posted signs, mostly committed unknowingly due to a
+lack of rider awareness (Rosales, 2024). Reports have shown thousands of violations in the
+weeks following NCAP’s reinstatement, underscoring persistent noncompliance and a gap
+between regulation and actual rider behavior (Zurbano, 2025) These continued violations
+highlight the need for educational tools and a guidance system to support better compliance
+during deliveries.
+Weather conditions are another major challenge for motorcycle riders and the logistics
+area. Flooding, heavy rains, and typhoons usually disrupt the normal delivery routes, placing
+riders and their motorcycle at risk and delaying their parcel deliveries. Topnatch Logistics (2024)
+noted that unpredictable weather patterns consistently affect shipment reliability across the
+country. As a result, there has been a growing need for logistics tools that incorporate flood
+detection, dynamic navigation, and smarter route planning to prevent delays and ensure safety.
+
+-- 16 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	17
+In response to these problems, the researchers proposed the AVOID mobile application
+which is designed specifically to support logistics riders from J&T Express. The system offers
+real-time alerts tied to the rider’s current location, including information about speed regulations,
+one-way restrictions, areas that prohibit overtaking, and flood-prone areas. It also includes
+educational content on traffic signs and corresponding penalties to improve compliance and
+understanding among users. This design follows principles in human-computer interaction,
+which emphasize the effectiveness of delivering location-based feedback to shape user behavior
+(Galang et al., 2020).
+The reviewed studies clearly show that the delivery riders in logistics areas face a lot of
+different difficulties, ranging from bad road rule knowledge to weather disruptions that can cause
+them to have delays in delivery. AVOID is seeking to address these issues through a combination
+of real-time data, map visualization, and user education. Similar applications in other fields have
+already proved the impact of a system in improving decision-making and reducing human error.
+With these functions tailored specifically for J&T Motorcycle riders, AVOID presents a solution
+to support safer and more efficient delivery practices for J&T Express motorcycle riders.
+
+-- 17 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	18
+Conceptual Framework
+Figure 1
+Conceptual Framework of AVOID
+Figure 1 shows the inputs will include the knowledge of traffic rules and regulations in
+the Philippines (no-overtaking area, one-way area, and flood-prone streets), common patterns
+and violation behaviors of motorcycle riders in the J&T company, and technical requirements to
+implement the system including Flutter, APIs (Map and Weather), Visual Studio Code, and
+Supabase compatible Android systems with GPS and internet access.
+
+-- 18 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	19
+Its development is according to a Rapid Application Development (RAD) model, which
+entails four major steps, viz., Requirements Planning, User Design, System Construction, and
+Cutover (Transition to Use). In Requirements Planning, the delivery issues in reality like
+incorrect pins, prohibited areas and flooded areas are studied, and the experience of riders is
+collected. User Design envisaged easy destination pinning using the interface, computation of a
+shortest path, and real-time traffic warnings involving restricted areas as well as a switch
+allowing flood-based rerouting to be freely enabled or disabled. The admin dashboard would also
+be set to have live tracking of the GPS and delivery.
+The mobile app is developed in the Construction phase comprising integrated Map API,
+Weather API, where shortest-path calculation is made, and limited zone validation done along
+with riders alerting in real-time. Admin web dashboard is designed to show in real-time the
+locations of riders, past delivery records, and violation history including suspension
+management. In the Cutover stage, the system is piloted and implemented and feedback provided
+by users is taken to improve systems such as pin validation systems, restricted zone warning, and
+the ability to reroute.
+The AVOID system currently has as its final output a completed fully working mobile
+application of the J&T delivery riders with shortest path guidance, notifying of the traffic rules in
+real time, optionally performing flood aware rerouting, and providing rider feedback report.
+There is a live GPS tracking, violation tracking, and the delivery log activity that is administered
+through the admin web dashboard. On the whole, the project will provide safer activities of
+delivery work and minimize traffic violations and delays due to better routing and monitoring
+compliance.
+
+-- 19 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	20
+System Architecture
+Figure 2
+System Architecture of AVOID
+Figure 2 comprises three major components, namely, Presentation Tier, Logic Tier, and
+Data Tier. The Presentation Tier is the place where users and administrators communicate with
+the system. To users this is composed of the mobile application whereby the user can access the
+content which includes location tracking, and pop up alerts for warnings of violation on road
+rules. With the user-friendly interface, the riders will get real-time alerts using pop-up
+notifications with voice commands, flood-prone locations, and will be likely to use navigation
+functionalities. The dashboard (web) gives access to system data to the administrators so that the
+activities of users could be monitored, thus making the oversight and analysis really efficient.
+The Logic Tier does all processing and organization of applications features. This level does the
+real time GPS navigation, alert, and processing of data which runs the functionalities of the
+
+-- 20 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	21
+application. The APIs used in this layer are used as mediators between the presentation layer and
+the data layer. This level makes sure that users get information in time, functions of voice
+commands, observation of the behavior and location of a rider to enhance safety and traffic rules
+adherence.
+Data Tier is involved in the storage and retrieval of the data. It is blowing all the vital
+records, including location logs, road rules data, and alerts. The logic layer gets access to such
+information and transmits it back to the presentation layer which visualizes it and makes
+decisions. Also the data stored is fed to the admin dashboard, thus easy monitoring and reporting
+of the system is possible.
+Definition of Terms
+Android – A mobile system made by Google. It is mostly used on smartphones and tablets with
+touchscreens. The AVOID app is made only for Android.
+AVOID (Advanced Vehicle Optimization and Intelligent Dispatch) – The name of a mobile
+app to help J&T motorcycle riders.
+Conceptual Framework – A model or plan that shows main ideas and how they connect in
+research or system design.
+Data Tier – The part of the system that keeps and manages all data, like user activities, traffic
+rules, and alerts.
+Disregard of Traffic Signs (DTS) – A traffic violation when a driver does not follow traffic
+signs like stop signs or speed limits. This is common in Metro Manila.
+Flood-Prone Area Visualization – A map feature in the AVOID app that displays locations
+likely to experience flooding, helping riders reroute and avoid delays.
+Flutter – A free software tool by Google to build apps for Android and iOS using one code.
+
+-- 21 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	22
+GPS (Global Positioning System) – A satellite system that gives real-time location to devices,
+helping the app give alerts based on location.
+ISO/IEC 25010 – An international standard to check software quality, like functions, ease of
+use, and reliability.
+J&T Express – A major logistics and parcel delivery company in the Philippines that utilizes
+motorcycle riders for last-mile delivery services.
+Logic Tier – The middle part of the app that processes data and controls how information moves
+between user interface and data storage.
+Location-Based Alerts – Notifications that happen because of the user’s location to tell about
+traffic rules nearby.
+MMDA (Metropolitan Manila Development Authority) – The government agency that
+manages traffic and transport in Metro Manila.
+Mobile Application – Software made for use on smartphones or tablets.
+Motorcycle Taxi Services – Apps like Angkas and JoyRide that give motorcycle rides to
+commuters.
+Multi-Destination Route Optimization – A smart feature that automatically arranges delivery
+points from the nearest to the farthest, minimizing travel time.
+NCAP (No Contact Apprehension Program) – A program using cameras and automatic
+systems to catch traffic violators without police contact.
+Presentation Tier – The part of the app that the user sees and uses.
+Pop-Up Alerts with Voice Commands – Notifications that appear on-screen with
+accompanying voice prompts to inform riders of immediate traffic rules, such as no-overtaking
+zones or speed limits.
+
+-- 22 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	23
+RAD (Rapid Application Development) – A method for creating an application quickly and
+fixing it using feedback.
+Real-Time Alerts – Notification that alerts the users so that they can act quickly to violations or
+changes.
+Road Rules – The laws that everyone on the road needs to follow.
+Supabase – A free service that helps the app save data and manage user accounts.
+System Architecture – The big plan that shows how all parts of the software work together.
+Traffic Violations – Breaking road laws can result in fines or punishment.
+Three-Tier Architecture – A way to design an app by dividing it into three parts: user interface,
+logic, and data storage.
+User Interface (UI) – The part of the app where users see and use buttons and screens.
+Visual Notifications – Messages or icons that show on screen to warn or tell users.
+VS Code (Visual Studio Code) – A free program from Microsoft to write and fix app code.
+Chapter 3
+Research Methodology
+This project mainly aims to design and develop AVOID: an Android mobile application,
+which would give motorcyclists real-time location-based traffic law information and routes. The
+system will also facilitate road safety and compliance by the riders, especially those within the
+Philippines as the results can be obtained immediately via the app.
+Project Design
+The study uses a Developmental Research Design structure which the researcher shall
+attempt to design, construct and test AVOID, being a mobile Android application. This project is
+specifically designed to be implemented to J&T motorcycle delivery riders where they are given
+
+-- 23 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	24
+real-time and location-based advice on the set of chosen rules on traffic and optimized routes in
+order to make safer and more efficient deliveries in the pilot localities of Brgy. Mayamot,
+Cupang and Mambugan in Antipolo City.
+AVOID is to assist the riders by providing prompt instructions in a simple understandable
+way, in real-time, with regards to major traffic rules that are applicable to their route, i.e.,
+no-overtaking zones (e.g., bridges, curves), one-way streets, and pedestrian areas. The system is
+not about identifying and confirming real violations but precedently gives riders
+recommendations so that they do not make various mistakes. It is based on built-in GPS tracking
+and third-party APIs (maps and weather) to compute and display the most efficient route and
+ensure a route is not blocked.
+In addition to safety and efficiency, the optional flood-aware rerouting functionality is
+also incorporated in the app since it allows riders to decide that they do not wish to route to
+flood-prone areas, based on weather predictions and on local hazard information sets. The riders
+are also allowed to pin their delivery location where the system will automatically calculate the
+best route within the shortest time and in line with compliance. Voice messages and real-time
+warnings will be pop-up to warn of any restrictions or dangers ahead.
+More than just guiding the riders through, AVOID has the integrated feedback aspect that
+the riders can provide to report on wrong pins or confusing signages that will enable further
+enhancement on the accuracy of the route. Management has its own web-based admin dashboard
+that shows the real-time GPS position of active riders, previous delivery reports, and documented
+violation notifications that help J&T manage its operation.
+Some important user management functionality of the app are secure access, account
+management, password reset, and history page of the previous alerts received. This enables riders
+
+-- 24 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	25
+to review their delivery routes and warnings, supporting ongoing learning and improved
+compliance.
+Altogether, the project is restricted to the Android-based devices, targeting motor vehicle
+riders (not three-wheeled vehicles or other companies offers such as Toktok), and usable by J&T
+Express within the targeted pilot area. It focuses on on-road assistance and routing, not actual
+enforcement, determining of violations, or comprehensive evaluation of driving behavior,
+preferring to prevent delivery delays and increase the safety of riders through preemptive and
+convenient assistance.
+Design Trade Off
+Table 1
+Models 	Number of Trials
+(App Interaction)
+Loading Process
+Time (seconds)
+Response Time
+(seconds)
+Design 1 – Route
+Navigation + Speed Alert
+Trial 1 	0.791 	0.483
+Trial 2 	0.467
+Trial 3 	0.451
+Trial 4 	0.458
+Trial 5 	0.462
+
+-- 25 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	26
+Design 2 – Violation
+Detection + Voice Prompt
+Alert
+Trial 1 	0.803 	0.495
+Trial 2 	0.472
+Trial 3 	0.446
+Trial 4 	0.454
+Trial 5 	0.459
+Table 1 shows speed performance of the AVOID system is shown in Table 3. It shows
+how fast the app responds during use. The data presents the loading time and response time for
+two designs over five trials. Design 1 includes route navigation and overspeeding alerts, while
+Design 2 adds voice prompts and automatic violation detection. The results show that both
+designs work quickly—under one second—making the system efficient for real-time use. This
+helps users understand how well the app performs in helping riders follow traffic rules and
+improve road safety.
+Table 2
+Design Constraints of AVOID
+Category 	Constraints
+Platform Compatibility It can only be used in smartphones using the Android operating
+
+-- 26 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	27
+system (made on Flutter framework).
+Connectivity
+Requirement
+Needs active internet connection to communicate in real time
+location based notifications, as well as information coordination
+with Supabase.
+Core Functionality
+Scope
+Its basic use is to give users alerts and notes in real time based on
+the location in regards to traffic regulations and navigation systems.
+Rule Coverage 	Deals only with certain rules in the road (e.g. speed limit zone,
+single traffic, safety zones, flood-prone areas).
+Behavioral Impact 	Attempts to generate awareness and remind about it in a timely
+manner in the future; it fails to directly assume the ability to
+manipulate and measure actual driving behavior.
+Hardware Dependencies Needs Android Smartphone that has a GPS module and Internet
+Connectivity.
+Database Integration 	Uses Supabase to store and maintain historical alerts and
+application usage records.
+Table 2 shows the AVOID mobile application has the limitation in terms of platform
+(Android only), and it can only work with a running internet connection and Supabase data. It
+also does not enforce any road rule, but acts only as a location-based reminder of specified road
+rules, and its effects on behavior is restricted to that of awareness and informed decision making,
+as it is hardware dependent on a GPS activated Android smartphone.
+
+-- 27 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	28
+Table 3
+Summary of Design Trade-Offs for AVOID
+Component/Model 	Strengths/Uses 	Weakness/Constrain
+ts
+Performance
+Flutter (Frontend) 	Flutter speeds up the
+process of
+development, and it
+takes a single code
+base to do
+cross-platform
+development in
+Android, iOS, and the
+web in general.
+The performance of
+UI can vary with the
+platforms, and
+working with Dart
+can unnecessarily
+require developers to
+learn more languages.
+It is supposed to
+provide a stable and
+seamless UI/UX that
+would be appropriate
+both in the MVP and
+production versions.
+Supabase (Backend) Supabase offers
+real-time database
+functionality, user
+authentication, and
+activity logging,
+which go well with
+Flutter.
+It needs a stable
+internet connection to
+work without any
+trouble, and this can
+create an impact on
+the performance in
+low-connection
+regions.
+The system is
+supposed to be able
+to deal with data
+storing and tracking
+user performance
+effectively, and be
+very scalable towards
+growth.
+
+-- 28 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	29
+Component/Model 	Strengths/Uses 	Weakness/Constrain
+ts
+Performance
+Push Notification
+System
+Push notifications
+allow sending alerts
+regardless of whether
+the app is open or
+closed, which is why
+they are suitable
+when it is necessary
+to warn in
+emergencies
+involving road and
+traffic.
+Could also encounter
+some delays in
+delivery and proper
+approval within the
+mobile operating
+system.
+Works well in
+real-time notifications
+and warnings that do
+not require the user to
+launch the app.
+In-App Alerts 	In-app alerts are
+contextual and
+interactive
+notifications that the
+user can receive when
+they are using the
+application.
+Alerts appear only
+when the app is being
+used, and thus, it can
+lead to a lost update
+when the app is not at
+the forefront.
+Most useful for
+educational content
+and participation
+while the app is in
+use.
+GPS 	GPS has real-time 	Continuous GPS 	Accurate
+
+-- 29 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	30
+Component/Model 	Strengths/Uses 	Weakness/Constrain
+ts
+Performance
+location tracking to
+offer such traffic
+information that is
+area-specific
+according to the
+movement made by
+the user.
+usage may increase
+battery consumption
+and require user
+permission for
+location access.
+location-based
+notifications and the
+foundation of traffic
+management features
+in the app.
+Table 3 outlines the main components of the AVOID system: Flutter (frontend), Supabase
+(backend), push notifications, in-app alerts, and GPS tracking. Each element contributes to
+real-time traffic guidance and user interaction. Their strengths, limitations, and expected
+performance are summarized to show their roles in the system's design.
+Figure 3
+Steps in Creating Data Models
+
+-- 30 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	31
+Figure 3 shows initialization of user data is the initial step within the workflow of an
+AVOID system. After the installation of the application, users establish accounts by setting up
+accounts with details that contain username and password, device details, and preferences. Upon
+the user becoming active, the system will start capturing the real-time data of the user based on
+their location, and this is key when determining the current location of the rider. This information
+is then compared with pre-programmed rules or the road and alert areas in the database. In case
+of match detection, the system will issue contextual warnings like speed restrictions, roadside
+markers, or no passing zones, and these are sent out as a pop-up on the phone or as a program.
+Each of those events that cause the alerts to fire is stored in the Alert_History table to be
+tracked and evaluated. Such warnings are meant to alert the rider according to their current
+location and make sure that they remember the road requirements. In the meantime, there is a
+knowledge base of traffic rules in the application, with access to visual graphics of familiar
+traffic signs, their description, and respective penalties, which can be viewed and learnt by a user
+at their discretion. Each operation of the user in the app is stored in the Usage_Log, making it
+possible to trace a trend in user behaviour and system performance by developers and traffic
+authorities. This data model will assist to make sure that the AVOID system is not just an app
+that gives out alerts but also creates long-term awareness and compliance of motorcyclists.
+
+-- 31 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	32
+Design Prototype
+Figure 4
+UI of the Splashscreen of the App
+Figure 5
+UI of the RegisterPage of the App
+
+-- 32 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	33
+Figure 6
+UI of the Verification Page of the App
+Figure 7
+UI of the Home Page of the App
+Figure 8
+
+-- 33 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	34
+UI of the Navigation Page of the App
+Figure 9
+UI of the Alert Notification
+Figure 10
+
+-- 34 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	35
+UI of the Map Types of the App
+Figure 11
+UI of the Heat Maps of the App
+Figure 12
+
+-- 35 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	36
+UI of the Parcel Page of the App
+Figure 13
+UI of the Shortest Route of the App
+Figure 14
+
+-- 36 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	37
+UI of the Educational Content of the App
+Figure 15
+UI of the ViolationsPage of the App
+
+-- 37 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	38
+Figure 16
+UI of the Admin Dashboard
+Figure 17
+UI of the Track Rider Dashboard
+
+-- 38 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	39
+Figure 18
+UI of the Track Rider Map
+Design Discussion
+AVOID is an android application with its complementary web-based administrative tool,
+which was developed to enhance the safety and operating efficiency of J&T motorcycle delivery
+riders in the pilot districts of Brgy. Mayamot, Cupang and Mambugan in the city of Antipolo,
+Philippines. The app also offers real-time and place-based advice to guide the riders to avoid the
+usual road hazards and abide by the traffic regulations of their choice, including no-overtaking
+lanes on bridges and bends, one-way roads, and pedestrian zones. In contrast to such
+enforcement systems that only authenticate violations, AVOID is a proactive warning system
+which provides a preliminary warning to the riders thus averting violations. Its major mobile
+
+-- 39 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	40
+capacities are safe registration and log in, map pinning with shortest route routing, multiple map
+layers, including flood prone area graphic representation, and optional flood aware toggle
+rerouting of live weather conditions. The riders will also be have pop-up and audio alerts in real
+time that indicate upcoming restrictions or danger and also have the option of giving feedback on
+inaccurate pins or confusing signs to increase the accuracy of the system.
+The administrative dashboard is in aid of the operations of J&T to track active riders in
+real-time using the capabilities of GPS trackers, historical deliveries that contain logs and the
+routes of deliveries, as well as violation notifications that are issued by the system to review the
+operations. Admins are able to control the rider accounts, monitor the performance of the
+delivery, as well as suspend controls. Both mobile app and dashboard are highly usable and
+visually consistent so that riders and non-technical users could access it simply. Technically,
+AVOID uses GPS modules, mapping APIs and integration of weather APIs to achieve the
+functionality through the secure and scaling than Supabase data storage asset. AVOID will
+minimize potential delivery delays and opportunity to increase road safety of J&T motorcycle
+riders by providing convenient, accessible, and smart route support that is proactive and
+real-time as an alternative to punitive real-time monitoring.
+Project Development
+The figure shows the Rapid Application Development (RAD) model comprising four (4)
+major steps, namely Requirements Planning, User Design, Construction, and Cutover. All the
+stages play a crucial role in the evolution of the AVOID system, which is a mobile application
+that helps motorcyclists receive real-time traffic warnings and location-based assistance to help
+them travel more securely. The use of GPS technology and backend development with Supabase
+
+-- 40 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	41
+facilitates streamlined data management of the app. This is how each RAD step facilitates the
+development of the AVOID application (see Figure 17):
+Figure 15
+Rapid Application Development (RAD) Model
+Figure 15 shows Requirements Planning. This initial step aimed to determine the
+information on user needs that was collected and elicited in the context of designing the AVOID
+mobile application, which responds to current traffic situations and road regulations in real-time.
+Its main capabilities were identified, among which include real-time warnings of speed limits,
+directions to one-ways, and safety zones, depending on locations. Additional features such as
+multi-destination auto-reordering, flood-prone area visualization, and pop-up voice alerts for
+pedestrian zones and no-overtaking areas were also outlined. Feedback was also taken
+concerning user management features, and details on storing information and data in Supabase
+and usability, efficiency, and security demands. Multi-factor authentication was planned to
+ensure secure access for both riders and admins.
+User Design Phase. In this phase, prototypes were created for the AVOID mobile
+application's interface and alert presentation. The mobile application was developed through
+
+-- 41 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	42
+Flutter to offer an intuitive visual and in-app notification experience, real-time updates, and user
+control. User screens were designed to show flood visualizations, route optimization options, and
+traffic regulation reminders using HERE Maps and OSM API integrations. The two-way
+communication between the front-end of the application and the Supabase backend, including
+the location service, was both developed and optimized to guarantee the responsiveness and the
+reliability of the prompt alerts delivery. The inclusion of an educational content module covering
+all major road rules was refined during this stage. User feedback played a significant role in
+optimizing the interface and interaction flow of the app to be clear and effective for
+motorcyclists.
+Construction Phase. The AVOID application and its integrated system components were
+constructed and coded during this phase. The Android application was built using the Flutter
+framework and the Dart programming language. Logic was developed and adjusted to ensure
+accurate real-time location monitoring, precise rule identification, and timely alert triggering
+based on GPS data and integrated road rule information. Additional construction was made to
+integrate pop-up alerts with voice commands, support multi-destination routing, and connect
+incentive-based scoring features. The setup was secure, reliable, and resilient due to the
+comprehensive coding and testing of the system to support effective contextual reminders and
+user information using Supabase APIs.
+Cutover Phase. The last stage was testing and system deployment. The effectiveness of
+the AVOID application was confirmed by its field testing in the rush hour conditions, especially
+in the predetermined zones of Antipolo City, Rizal. Using feedback from test users, the accuracy
+in raising alerts, the user friendliness of the interface, and the user experience have been greatly
+enhanced. Again, before the preliminary deployment took place, final checks and adjustments
+
+-- 42 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	43
+were done on the system so that the evaluation phase could begin. AVOID system was developed
+by use of the RAD methodology, which is fast and user-centered. This enabled the group to
+prototype at a fast pace, solicit feedback, and test iteratively the elements of the mobile app and
+the back-end integration. The repetitive procedures also determined that the end product was not
+just reliable and helpful but also easy to incorporate by individuals into their riding schedules.
+The admin dashboard with rider monitoring, violation scoring, daily quota tracking, and
+CSV/PDF report generation was also finalized during this stage. To sum it up, the use of the
+RAD approach allowed us to create a more responsive and user-friendly mobile application,
+which better fits the current reality in terms of road safety within the circuits belonging to
+motorcyclists.
+Testing and Operating Procedures
+AVOID mobile application will be tested by selected J&T motorcycle riders, who
+regularly drive through different areas in Antipolo City. These testers are our partners and are
+chosen because they operate motorcycles daily and are often exposed to road signs, traffic rules,
+and unpredictable traffic conditions, making them ideal for evaluating our application's
+effectiveness and usability.
+For the testers to be able to operate the application, the testers will download the AVOID
+app onto their Android smartphones. The application will then run with real-time GPS tracking,
+providing location-based alerts on traffic signs, road rules, speed limits, and flood-prone areas.
+Testers will have access to the following features:
+● Real-time navigation with dynamic route adjustments
+● Notifications for traffic regulations
+● An informational section on road rules and penalties
+
+-- 43 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	44
+● User profiles with ride history logs
+● Map overlays highlighting areas susceptible to flooding
+● Pop-up voice alerts
+● Multi-destination route planning with automatic reordering
+Key areas of evaluation during testing:
+● System Speed: Timeliness and precision of alerts and map refreshes while riding
+● App Stability: Smooth operation across various Android models
+● Ease of Use: Rider familiarity with app navigation and functionality
+● Satisfaction Level: How beneficial and enjoyable the app is for users
+● Adaptability: How effectively the app responds to changing routes, traffic, and hazard
+zones.
+User input will guide enhancements to the app’s dependability, interface, bug fixes, and
+GPS alert efficiency. Regular updates will be rolled out throughout testing to maintain optimal
+performance during active rides.
+Project Evaluation
+The AVOID system was quantified based on ISO/IEC 25010 software quality model that
+has eight primary characteristics to determine qualities of software. Functional suitability,
+performance efficiency, usability, reliability, and maintainability are the most appropriate
+qualities in this project.
+The functional suitability is also very crucial because AVOID will have to correctly trace
+the real-time location of riders and provide them with alerts regarding existing traffic regulations
+on the go; that is, it needs to communicate on-time about one-way streets, no-overtaking zones,
+and pedestrian areas. The system needs to react immediately to the variation of the position and
+
+-- 44 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	45
+orientation of the riders and give them understandable and clear warnings, whether in form of
+pop-up notifications or voice messages. Other solutions, like planning shortest-route, the
+possibility to plan the route with potential re-route basing on the weather forecasts, and real-time
+hazard alerts are additional components that reinforce the functional objectives of the app.
+It is also necessary to have performance efficiency due to the necessity of working with
+the continuous GPS tracking, fast access to the rule information, but with the ability to remain
+responsive to the user within the restricted mobile signal range or with mobile device limitations.
+AVOID utilizes the services of HERE Maps, Overpass Turbo, and Supabase, which provide the
+opportunity to offer dynamic routing, a visual representation of areas at risk of floods, and
+smooth synchronization of data without delays, which requires regularization of the rider traffic
+safety.
+The particular focus into usability is due to the target audience of the app who is a
+motorcycle rider and therefore would require fast and unfettered and focused interaction. The
+interface is largely intuitive and clean, and the alerts are easy to read, allowing voice assistance
+to control the system hands-free and easy navigation and pin the destinations and review the
+routes. The application should be easy to run and the users with less technical expertise should
+learn little before they can operate it.
+Dependability is a critical element in ensuring proper and consistent performance despite
+the long deliveries and changing weather sets. AVOID will provide reliable real-time alerts to
+prevent crash or inaccuracy. Proper GPS mapping of the various types of roads in the city of
+Antipolo and flood-prone area transparencies, means that the system can be used even by riders
+in the real world as well as during extreme weather events.
+
+-- 45 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	46
+Sustainability of the project also focuses on maintainability. When AVOID is scaled up to
+cover an increased number of traffic regulations or even other platforms such as the iOS, the
+code base being written in a modular design philosophy based in Flutter and Supabase will
+ensure updates and allow addition of features easily in future. With this method, the extension of
+the system can be carried out to further the level of details in the dashboards created
+administratively and rule database, or tracking module of incentive without having to undertake a
+complete renewal.
+Although the issues of security and compatibility always matter, they are less relevant in
+this case. Performances in terms of security requirements are aimed at protecting basic user
+credentials through secure authentication processes. The compatibility is already limited to
+Android devices, as it fits the prospective users of J&T motorbike delivery riders in pilot regions.
+Finally, assessing AVOID in the bounds of ISO 25010 family of standards, the app can be
+noted as having the significant provision in terms of functionality, performance, usability,
+reliability, and maintainability. This helps it in achieving its mission to provide practical,
+real-time and easy-to-use support to J&T riders such that they avoid mishaps on the roads of the
+city of Antipolo and, in turn, help the company deliver goods efficiently and that riders are safe.
+
+-- 46 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	47
+Figure 16
+ISO/IEC 25010
+Work Plan
+Table 3
+Work Plan for AVOID
+Phases 	Activities 	Members
+June-July Schedule (2025)
+Wee
+k 1
+Wee
+k 2
+Wee
+k 3
+Wee
+k 4
+Wee
+k 5
+Wee
+k 6
+Project Topic
+Proposal
+Team
+Adviser Approval 	Team
+Project System 	Team
+
+-- 47 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	48
+Request
+Development of
+Cost Estimate and
+Feasibility Analysis
+Team
+Use Case Diagrams 	Team
+Process and Data
+Modeling
+Team
+System Architecture
+and UI Design
+Team
+Process and Data
+Modeling
+(Refinement)
+Team
+System Architecture
+and UI Design
+(Refinement)
+Team
+Building and
+Designing the
+System Model
+Team
+Legend:
+
+-- 48 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	49
+Done On-going To-do
+Potential for Commercialization
+The AVOID project was created to assist the rapidly growing population of motorcycle
+riders by offering a real-time guidance solution that enhances road safety, promotes compliance,
+and ultimately reduces traffic violations. With over 7.8 million registered motorcycles and
+tricycles in the Philippines (Balita, 2025), and the increasing prevalence of motorcycle taxi and
+delivery services such as J&T Express, it aims to significantly improve daily commuting and
+delivery safety. Some of the challenges which the application deals with include informal
+training of riders and the inability of riders to remember complicated traffic regulations amidst
+changing environments, hence providing early warnings and reminders.
+We are working with the J&T warehouse at Brgy. Mambugan, Antipolo City, Rizal, with
+delivery areas extending as far as Brgy. Cupang and Brgy. Mayamot, which offer an excellent
+test site in real-life situations. This will prove that the solution will work well in a region with
+high motorcycle traffic and complex road conditions.
+Although it has a high commercial value due to the tremendous market of the target
+audience, as it has been defined in TAM-SAM-SOM analysis, the primary objective of the
+project is to bring about an effective and affordable solution that could help the common Filipino
+motorcycle riders. The AVOID application is also scalable and can be customized to serve the
+whole J&T company. Commercialization may follow as a result of partnerships, licensing, or
+bulk deployment for fleet management. However, our team prioritizes functionality, accessibility,
+and social impact over immediate profit.
+
+-- 49 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	50
+Market Model
+Figure 9
+Market Model
+Measurable Benefits
+The AVOID mobile application, developed by Technological Institute of the Philippines –
+Quezon City, Bachelor of Science in Information Technology students, is designed to empower
+
+-- 50 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	51
+motorcycle riders across the Philippines by providing measurable advancements in road safety
+and compliance during dynamic traffic conditions.
+The system will be auto location-based alerting in real-time that will automatically
+provide vital reminders of traffic signs, speed limit conditions, and lane guidance with direct
+action to decrease unintended violations and anxiety in the rider. Such proactive performance
+capabilities aim at making the occurrence of traffic violations and the possibility of accidents
+rather unlikely.
+The addition of flood-prone area visualizations, voice-based alerts, and multi-destination
+route optimization also extends the benefit of the application by helping reduce delivery delays
+and detours. Riders will be better equipped to navigate difficult road conditions and remain
+compliant with traffic laws.
+The user feedback will be obtained through the information collected on forms of
+standardized surveys (e.g., System Usability Scale, Technology Acceptance Model) and through
+analyzing the application usage logs in the Supabase storage. The efficiency and timeliness of the
+location-based alerting systems, such as the specificity of identifying a traffic sign and rule
+enforcement, will be strictly tested using predetermined performance attributes by the
+documentation of the ISO/IEC 25010, Functionality, and Performance Efficiency attributes.
+These aspects of the AVOID app, as seen on the user side, including delivering alert
+information in real-time and handling user interaction, will be assessed through the rate of user
+acceptance and the level of overall user satisfaction, which correlates with the attribute of
+Usability as provided in ISO/IEC 25010. The decision to use the Flutter development framework
+would likely enhance efficiency in the project by facilitating a powerful application with optimal
+timeframes and code reusability.
+
+-- 51 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	52
+The fact that Supabase provides data handling functions with high reliability in the safe
+management of user and alert logs, together with the fact that there will be shorter development
+cycles due to the Rapid Application Development (RAD) model of development, will also be
+used to quantify the overall success of this project.
+Additionally, the app’s built-in scoring and delivery tracking system, including rider
+performance logs, daily quota completion, and incentive thresholds, will provide measurable
+indicators of behavior change and compliance improvement among J&T riders.
+Finally, AVOID will create itself as an effective and efficient solution to solving common
+motorcycle traffic law violations and towards the safety of the roads by the riders in the
+Philippines. This smartphone app aims to be a workable, effective solution to the problem of
+traversing complicated traffic situations with the motorcycle commuters of the Philippines as the
+main beneficiaries.
+Three-Year Product Roadmap
+Table 4
+Three-Year Product Roadmap
+Year 1 	Year 2 	Year 3
+Price 	Free 	Free on Google Play
+and App Store
+Free
+Performance Usable on Android
+devices
+Usable on Apple
+devices and launched
+on the App Store.
+Usable on all devices,
+future Android, iOS,
+and future mobile/OS
+versions
+
+-- 52 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	53
+App Features 	Develop MVP:
+real-time traffic
+alerts, basic UI,
+GPS-based location
+tracking.
+User testing on
+Android.
+Add features: alert
+history, voice alerts,
+educational traffic
+content, and user
+preferences. Optimize
+UI/UX.
+Add smart
+suggestions, offline
+support, and
+multilingual content.
+Enhance
+performance,
+security, and
+scalability.
+System &
+Deployment
+Set up Supabase
+backend, log data,
+and begin ISO/IEC
+evaluation
+(Functionality,
+Usability).
+Optimize data
+storage, expand
+testing, and conduct
+pilot release in
+selected regions.
+Nationwide release,
+ongoing support and
+updates.
+Final ISO/IEC
+evaluation
+(Maintainability,
+Portability).
+Go-To-Market Strategy
+Table 5
+Go-To-Market Strategy
+Offerings 	Customer 	Channels
+● Instantaneous,
+point-of location
+alerting on traffic laws
+● Key beneficiaries:
+Riders of motorcycles
+in the Philippines (the
+● Android app with
+Google Play Store to
+make it wide-reaching
+
+-- 53 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	54
+like speed limits, lane
+use and signages.
+● Promotes improved
+rider safety, fewer
+violations/fines, better
+awareness, and user
+management (e.g.,
+alert history, profiles).
+● Assists to anticipate
+roads risks in advance,
+improves the
+knowledge of the
+traffic rules as well as
+enhances safer
+commuting behavior.
+first area of action is
+J&T riders since an
+existing partnership
+formed).
+● Secondary users:
+Angkas, JoyRide,
+Move It riders and
+urban commuters
+using two-wheel
+vehicles.
+● Every user is at a
+great risk of road
+hazards and requires
+practical safety help in
+a real-time scenario.
+and accessible.
+● Antipolo (Warehouse,
+Barangays, Pilot
+testing, onboarding
+and feedback will be
+carried out in
+(Mambugan, Cupang
+and Mayamot)
+villages.
+● The outreach and
+future development of
+the organization
+through motorcycle
+riding community
+(online groups,
+associations) and
+social media
+campaigns.
+Business Model
+The Business Model Canvas of the AVOID project, as well as the given strategy of its
+implementation, fully reinforces its feasibility and desirability. The system can provide an
+apparatus of twofold value: by offering riders increased safety and decreased potential of traffic
+distraction caused by work-crippled turnarounds. One can easily visualize a flood-prone area or
+
+-- 54 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	55
+optimize the most efficient multi-stop route or get pop-up voice alerts, and these features are the
+most helpful in the unpredictable driving environment, so the platform is likely to become very
+popular among delivery riders working in a densely populated area or where weather conditions
+are likely to change.
+Strategic alliances The strategic alliances especially with the J&T warehouse in Brgy.
+Mambugan, Antipolo Cityenhance the AVOID deployment and make sure that there is constant
+feedback by the actual users. Such partnerships make it possible to make successive upgrades
+and customized features, which suit ground realities.
+Its business model lays its focus on the stable service and thoughtless user experience.
+The core costs will be spent on the app development, backend infrastructure on Supabase and
+future marketing plans. The key actions are the updating of Android application created in
+Flutter, keeping the information about traffic rules actual, as well as providing user support and
+synchronicity of the data.
+The most significant resources are our specially designed traffic regulation database,
+routing and location algorithms, team of dedicated developers, and Supabase backend system.
+The value proposition of the system, which focuses on the increased level of safety, reduced
+number of violations and peace of mind, is up to the mark with the target users of the system.
+Despite the availability of core features without a fee, the riders are likely to use the app because
+of the objective benefits of undertaking it. The bottom line is that AVOID is a potential, scalable,
+and effective proposal to combat road safety and delivery efficiency by the riders of motorbikes
+in the Philippines.
+
+-- 55 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	56
+Figure 18
+Business Model
+
+-- 56 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	57
+References
+ABS-CBN News. (2025, May 26). Hundreds of violations on first day of no-contact
+apprehension's return.
+https://www.abs-cbn.com/news/nation/2025/5/26/hundreds-of-violations-on-first-day-of-
+ncap-implementation-1735
+Beltran, A. D., & Lamberte, M. P. (2008). Logit model of motorcycle accidents in the Philippines
+considering personal and environmental factors. ResearchGate.
+https://www.researchgate.net/publication/248707368
+Boiser, R. (2023, March 27). 20,000 motorists pulled over for using motorcycle lane.
+Inquirer.net.
+https://newsinfo.inquirer.net/1748483/20000-motorists-pulled-over-for-using-motorcycle-
+lane
+Daria, D. R., Janiola, R. S., & Medina, R. P. (2020). Understanding of traffic signs by drivers in
+the city of Manila, Philippines. Heliyon, 6(9), e04924.
+https://www.sciencedirect.com/science/article/pii/S2352146520306001
+Lucman, M. A. A., Alcaraz, M. C., & Mercado, F. B. (2022). Traffic sign comprehension among
+Filipino drivers and nondrivers in Metro Manila. Applied Sciences, 12(16), 8337.
+https://www.mdpi.com/2076-3417/12/16/8337
+Malaya Business Insight. (2025). MMDA: Traffic violations up since NCAP suspension.
+https://malaya.com.ph/news/mmda-traffic-violations-up-since-ncap-suspension/
+MotoPinas. (2023, April 14). MMDA reveals top 20 most common traffic violations by
+motorists.
+
+-- 57 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	58
+https://www.motopinas.com/motorcycle-news/mmda-reveals-top-20-most-common-traffi
+c-violations-by-motorists.html
+Rosales, B. (2023, August 16). MMDA reveals top 20 most common traffic violations by
+motorists. MotoPinas.
+https://www.motopinas.com/motorcycle-news/mmda-reveals-top-20-most-common-traffi
+c-violations-by-motorists.html
+Rosales, E. (2024, June 19). Motorcycles in NCR quadruple in 10 years. The Philippine Star.
+https://www.philstar.com/business/2024/06/19/2363793/motorcycles-ncr-quadruple-10-y
+ears
+StatCounter. (2024). Mobile operating system market share Philippines.
+https://gs.statcounter.com/os-market-share/mobile/philippines
+Statista. (2024). Number of registered private motorcycles and tricycles in the Philippines from
+2014 to 2023.
+https://www.statista.com/statistics/708054/number-of-registered-private-motorcycles-and
+-tricycles-in-the-philippines
+Topnatch Logistics. (2023). Overcoming domestic and international shipping challenges.
+https://topnatch.com.ph/philippines-logistics-overcoming-domestic-and-international-shi
+pping-challenges/
+Villanueva, C., & Adriano, A. (2024). Insights into motorcycle riders' training behaviors and
+road safety practices: A survey study among motorcycle enthusiasts. ResearchGate.
+https://www.researchgate.net/publication/384117784
+Wikipedia. (2025, April 26). Transportation in the Philippines. Retrieved June 25, 2025, from
+https://en.wikipedia.org/wiki/Transportation_in_the_Philippines
+
+-- 58 of 59 --
+
+AVOID: Advanced Vehicle Optimization and Intelligent Dispatch 	59
+World Population Review. (2024). Antipolo population 2024.
+https://worldpopulationreview.com/cities/philippines/antipolo
+Zurbano, J. E. (2024, July 4). MMDA flags over 154,000 motorcycle riders for various
+violations. Manila Standard. https://manilastandard.net/news/314539561
+
+-- 59 of 59 --
+

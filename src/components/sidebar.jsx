@@ -167,7 +167,7 @@ export default function Sidebar() {
 
   return (
     <div
-      className={`sidebar ${isCollapsed ? "collapsed" : ""} bg-gradient-to-b from-red-600 via-red-700 to-red-900 shadow-2xl`}
+      className={`sidebar ${isCollapsed ? "collapsed" : ""} shadow-2xl`}
     >
       <button
         type="button"
@@ -184,7 +184,7 @@ export default function Sidebar() {
         {menuItems.map((item) => (
           <li
             key={item.href}
-            className={`nav-item ${isActive(item.href) ? "active" : ""} border border-transparent backdrop-blur-sm hover:border-white/20`}
+            className={`nav-item ${isActive(item.href) ? "active" : ""} border border-transparent backdrop-blur-sm`}
             onClick={() => navigate(item.href)}
           >
             <span className="nav-icon">{item.icon}</span>
@@ -196,7 +196,7 @@ export default function Sidebar() {
       {/* Logged-in User */}
       <div className="user-profile">
         <div
-          className={`user-info ${isActive("/profile") ? "active" : ""} border border-transparent hover:border-white/25`}
+          className={`user-info ${isActive("/profile") ? "active" : ""} border border-transparent`}
           onClick={() => navigate("/profile")}
         >
           <div className="user-avatar-wrapper">
@@ -237,7 +237,7 @@ export default function Sidebar() {
               key={idx}
               className={`nav-item user-action-item ${
                 action.label === "Settings" && isSettingsPage ? "active" : ""
-              } border border-transparent hover:border-white/20`}
+              } border border-transparent`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (action.onClick) {

@@ -742,9 +742,9 @@ export default function Profile() {
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar />
 
-      <div className="profile-main-content bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="profile-main-content ui-page-shell p-6">
         {/* Profile Header Card */}
-        <div className="profile-header-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
+        <div className="profile-header-card ui-card-surface">
           <div className="profile-header-content">
             <div
               className="profile-avatar-large"
@@ -792,12 +792,12 @@ export default function Profile() {
         </div>
 
         {/* Personal Information Card */}
-        <div className="profile-info-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
+        <div className="profile-info-card ui-card-surface">
           <div className="card-header">
             <h3 className="card-title">Personal Information</h3>
             {!editingPersonal ? (
               <button
-                className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
+                className="btn-edit ui-btn-primary"
                 onClick={startEditPersonal}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -810,7 +810,7 @@ export default function Profile() {
               <div className="inline-flex items-center gap-2">
                 <button
                   type="button"
-                  className="btn-cancel"
+                  className="btn-cancel ui-btn-secondary"
                   onClick={cancelEditPersonal}
                 >
                   Cancel
@@ -818,7 +818,7 @@ export default function Profile() {
                 {personalHasChanges && (
                   <button
                     type="button"
-                    className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
+                    className="btn-edit ui-btn-primary"
                     onClick={handleSavePersonal}
                   >
                     Save
@@ -914,12 +914,12 @@ export default function Profile() {
         </div>
 
         {/* Address Card */}
-        <div className="profile-info-card rounded-2xl bg-white/95 shadow-2xl shadow-slate-900/10 dark:bg-slate-900/90 dark:shadow-black/35">
+        <div className="profile-info-card ui-card-surface">
           <div className="card-header">
             <h3 className="card-title">Address</h3>
             {!editingAddress ? (
               <button
-                className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
+                className="btn-edit ui-btn-primary"
                 onClick={startEditAddress}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -932,7 +932,7 @@ export default function Profile() {
               <div className="inline-flex items-center gap-2">
                 <button
                   type="button"
-                  className="btn-cancel"
+                  className="btn-cancel ui-btn-secondary"
                   onClick={cancelEditAddress}
                 >
                   Cancel
@@ -940,7 +940,7 @@ export default function Profile() {
                 {addressHasChanges && (
                   <button
                     type="button"
-                    className="btn-edit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110"
+                    className="btn-edit ui-btn-primary"
                     onClick={handleSaveAddress}
                   >
                     Save
@@ -1070,7 +1070,7 @@ export default function Profile() {
 
       {showSuccessModal && (
         <div className="modal-overlay bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowSuccessModal(false)}>
-          <div className="profile-success-modal rounded-2xl bg-white shadow-2xl shadow-slate-900/30 dark:bg-slate-900 dark:shadow-black/50" onClick={(e) => e.stopPropagation()}>
+          <div className="profile-success-modal ui-modal-panel shadow-2xl shadow-slate-900/30 dark:shadow-black/50" onClick={(e) => e.stopPropagation()}>
             <div className="profile-success-header">
               <h3>Success</h3>
               <button

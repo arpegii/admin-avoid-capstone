@@ -307,7 +307,7 @@ export default function Login({ setOtpVerified }) {
 
   // ------------------- RENDER -------------------
   return (
-    <div className="login-page bg-gradient-to-br from-red-600 via-red-700 to-red-900 font-sans">
+    <div className="login-page ui-auth-page font-sans">
       {/* Floating decorative shapes */}
       <div className="float-shape float-shape--1" />
       <div className="float-shape float-shape--2" />
@@ -321,7 +321,7 @@ export default function Login({ setOtpVerified }) {
       <div className="float-shape float-shape--10" />
 
       <div className="centered-content">
-        <div className="modern-card overflow-hidden rounded-3xl border border-white/20 shadow-2xl shadow-slate-950/40">
+        <div className="modern-card ui-auth-panel overflow-hidden">
           {/* ── Left panel: illustration ── */}
           <div className="login-card-brand">
             <img
@@ -427,7 +427,7 @@ export default function Login({ setOtpVerified }) {
 
                 <button
                   type="submit"
-                  className={`login-btn ${isLoading ? "loading" : ""} rounded-xl bg-white font-semibold text-red-700 shadow-lg transition hover:bg-red-50`}
+                  className={`login-btn ${isLoading ? "loading" : ""} ui-btn-secondary rounded-xl border-white/50 bg-white font-semibold text-red-700 hover:bg-red-50`}
                   disabled={isLoading}
                 >
                   {isLoading ? "" : "Login"}
@@ -483,7 +483,7 @@ export default function Login({ setOtpVerified }) {
                     type="button"
                     onClick={handleResendOTP}
                     disabled={isLoading || resendCooldown > 0}
-                    className="otp-link-btn font-semibold text-white transition hover:text-red-100"
+                    className="otp-link-btn font-semibold text-red-100 transition hover:text-white"
                   >
                     {resendCooldown > 0
                       ? `Resend in ${resendCooldown}s`
@@ -498,7 +498,7 @@ export default function Login({ setOtpVerified }) {
                       lastAutoSubmittedOtpRef.current = "";
                       setError("");
                     }}
-                    className="otp-link-btn font-semibold text-white transition hover:text-red-100"
+                    className="otp-link-btn font-semibold text-red-100 transition hover:text-white"
                   >
                     Back to Login
                   </button>

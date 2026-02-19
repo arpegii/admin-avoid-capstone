@@ -9,7 +9,10 @@ import PageSpinner from "../components/PageSpinner";
 
 const OPENWEATHER_API_KEY = "792874a9880224b30b884c44090d0f05";
 const RIDER_DELIVERY_QUOTA = 150;
-const RIDER_DAILY_QUOTA = RIDER_DELIVERY_QUOTA;
+const RIDER_QUOTA_REACHED_THRESHOLD = 0.9;
+const RIDER_DAILY_QUOTA = Math.ceil(
+  RIDER_DELIVERY_QUOTA * RIDER_QUOTA_REACHED_THRESHOLD,
+);
 
 const normalizeStatus = (value) =>
   String(value || "")
@@ -158,13 +161,24 @@ export default function Riders() {
     passwordLowerValid &&
     passwordNumberValid &&
     passwordSpecialValid;
-  const deliveredForQuota = Number(selectedRiderInfo?.deliveredParcels);
-  const quotaPercent = Number.isFinite(deliveredForQuota)
-    ? Math.min(
-        Math.round((deliveredForQuota / RIDER_DELIVERY_QUOTA) * 100),
-        100,
-      )
-    : 0;
+  const deliveredForQuota = Number(selectedRiderInfo?.deliveredParcels || 0);
+  const quotaTargetForSelectedRider = Number(
+    selectedRiderInfo?.quotaTarget || RIDER_DELIVERY_QUOTA,
+  );
+  const safeQuotaTarget = Number.isFinite(quotaTargetForSelectedRider) &&
+    quotaTargetForSelectedRider > 0
+    ? quotaTargetForSelectedRider
+    : RIDER_DELIVERY_QUOTA;
+  const quotaPercent = Math.min(
+    Math.round((deliveredForQuota / safeQuotaTarget) * 100),
+    100,
+  );
+  const quotaMetTarget = Math.ceil(safeQuotaTarget * RIDER_QUOTA_REACHED_THRESHOLD);
+  const hasMetQuota = deliveredForQuota >= quotaMetTarget;
+  const hasMetFullQuota = deliveredForQuota >= safeQuotaTarget;
+  const isIncentiveEligible = hasMetQuota;
+  const quotaStatusClass = hasMetQuota ? "is-met" : "is-below-minimum";
+  const quotaStatusLabel = hasMetQuota ? "Quota Reached" : "Below Quota";
   const quotaStrokeDasharray = `${quotaPercent * 3.02} 302`;
   const joinDateToday = useMemo(() => {
     const now = new Date();
@@ -181,22 +195,6 @@ export default function Riders() {
     () => getRiderDisplayName(selectedRiderInfo),
     [selectedRiderInfo],
   );
-  const isVandreiCuplaPreview = useMemo(() => {
-    const normalizedDisplay = String(selectedRiderDisplayName || "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, " ");
-    const normalizedUsername = String(selectedRiderInfo?.username || "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, " ");
-    return (
-      normalizedDisplay === "vandrei cupla" ||
-      normalizedUsername === "vandrei cupla" ||
-      normalizedUsername === "vandreicupla"
-    );
-  }, [selectedRiderDisplayName, selectedRiderInfo?.username]);
-
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const currentMarkerRef = useRef(null);
@@ -1579,13 +1577,61 @@ export default function Riders() {
                 <div className="rider-info-shell">
                   <div className="rider-info-hero">
                     <span
-                      className={`rider-streak-pill rider-streak-pill-corner ${(selectedRiderInfo?.metDailyQuotaToday || isVandreiCuplaPreview) ? "is-met" : "is-miss"}`}
+                      className={`rider-streak-pill rider-streak-pill-corner ${selectedRiderInfo?.metDailyQuotaToday ? "is-met" : "is-miss"}`}
                     >
                       <span className="rider-streak-icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" fill="none" role="presentation">
-                          <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" />
                           <path
-                            d="M5.1 8.25 7 10.15l3.9-4.1"
+                            d="M5.5 2.2H10.5C10.5 1.76 10.14 1.4 9.7 1.4H6.3C5.86 1.4 5.5 1.76 5.5 2.2Z"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M4.1 3.4H11.9C12.5 3.4 13 3.9 13 4.5V13C13 13.6 12.5 14.1 11.9 14.1H4.1C3.5 14.1 3 13.6 3 13V4.5C3 3.9 3.5 3.4 4.1 3.4Z"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M4.8 6.7L5.5 7.4L6.8 6.1"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M7.9 6.8H10.9"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M4.8 9.2L5.5 9.9L6.8 8.6"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M7.9 9.3H10.9"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M4.8 11.7L5.5 12.4L6.8 11.1"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M7.9 11.8H10.9"
                             stroke="currentColor"
                             strokeWidth="1.5"
                             strokeLinecap="round"
@@ -1595,9 +1641,7 @@ export default function Riders() {
                       </span>
                       <span>
                         {(() => {
-                          const quotaMetDays = isVandreiCuplaPreview
-                            ? Math.max(1, selectedRiderInfo?.quotaStreakDays ?? 0)
-                            : (selectedRiderInfo?.quotaStreakDays ?? 0);
+                          const quotaMetDays = selectedRiderInfo?.quotaStreakDays ?? 0;
                           return `Quota Met: ${quotaMetDays} Day${quotaMetDays === 1 ? "" : "s"}`;
                         })()}
                       </span>
@@ -1630,13 +1674,7 @@ export default function Riders() {
                       <div className="rider-info-headline">
                         <h3>{selectedRiderDisplayName}</h3>
                         <p>
-                          {[
-                            selectedRiderInfo?.fname,
-                            selectedRiderInfo?.mname,
-                            selectedRiderInfo?.lname,
-                          ]
-                            .filter(Boolean)
-                            .join(" ") || "No full name available"}
+                          {selectedRiderInfo?.email || "No email available"}
                         </p>
                         <div className="rider-status-row">
                           {(() => {
@@ -1664,14 +1702,58 @@ export default function Riders() {
                             className="rider-performance-btn"
                             onClick={() => setPerformanceModalOpen(true)}
                           >
-                            Performance
+                            <span className="rider-action-icon" aria-hidden="true">
+                              <svg viewBox="0 0 16 16" fill="none" role="presentation">
+                                <path
+                                  d="M2.4 11.8L5.1 9.1L7.1 11.1L10.8 7.4"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M9.4 7.4H10.8V8.8"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M2.2 13.6H13.8"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                            <span>Performance</span>
                           </button>
                           <button
                             type="button"
                             className="rider-performance-btn rider-violations-btn"
                             onClick={() => setViolationLogsModalOpen(true)}
                           >
-                            Violation Logs
+                            <span className="rider-action-icon" aria-hidden="true">
+                              <svg viewBox="0 0 16 16" fill="none" role="presentation">
+                                <path
+                                  d="M8 2.2L14.1 12.8C14.26 13.09 14.05 13.45 13.72 13.45H2.28C1.95 13.45 1.74 13.09 1.9 12.8L8 2.2Z"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M8 6V9"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <circle cx="8" cy="11.2" r="0.9" fill="currentColor" />
+                              </svg>
+                            </span>
+                            <span>Violation Logs</span>
                           </button>
                         </div>
                       </div>
@@ -1679,10 +1761,6 @@ export default function Riders() {
                   </div>
 
                   <div className="rider-info-grid">
-                    <div className="rider-info-item">
-                      <span>Email</span>
-                      <strong>{selectedRiderInfo?.email || "-"}</strong>
-                    </div>
                     <div className="rider-info-item">
                       <span>Phone Number</span>
                       <strong>{selectedRiderInfo?.pnumber || "-"}</strong>
@@ -1706,10 +1784,6 @@ export default function Riders() {
                     <div className="rider-info-item">
                       <span>Age</span>
                       <strong>{selectedRiderInfo?.age ?? "-"}</strong>
-                    </div>
-                    <div className="rider-info-item">
-                      <span>Status</span>
-                      <strong>{selectedRiderInfo?.status || "-"}</strong>
                     </div>
                   </div>
                   {selectedRiderInfo?.profile_url && (
@@ -1745,7 +1819,7 @@ export default function Riders() {
             <div className="riders-modal-body rider-performance-body">
               <div className="rider-performance-grid">
                 <div className="rider-performance-card rider-performance-quota">
-                  <span>Quota Progress</span>
+                  <span>Quota progress:</span>
                   <div className="rider-performance-ring-wrap">
                     <svg
                       viewBox="0 0 120 120"
@@ -1758,14 +1832,16 @@ export default function Riders() {
                         r="48"
                       />
                       <circle
-                        className="rider-performance-ring-fg"
+                        className={`rider-performance-ring-fg ${hasMetFullQuota ? "is-met" : ""}`}
                         cx="60"
                         cy="60"
                         r="48"
                         strokeDasharray={quotaStrokeDasharray}
                       />
                     </svg>
-                    <strong className="rider-performance-ring-label">
+                    <strong
+                      className={`rider-performance-ring-label ${hasMetFullQuota ? "is-met" : ""}`}
+                    >
                       {quotaPercent}%
                     </strong>
                   </div>
@@ -1774,6 +1850,18 @@ export default function Riders() {
                     {selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA}{" "}
                     delivered
                   </small>
+                  <div className="rider-performance-quota-status">
+                    <span className={`quota-status-chip ${quotaStatusClass}`}>
+                      {quotaStatusLabel}
+                    </span>
+                    <span
+                      className={`quota-status-chip ${isIncentiveEligible ? "is-incentive-eligible" : "is-incentive-pending"}`}
+                    >
+                      {isIncentiveEligible
+                        ? "Incentive: Eligible"
+                        : "Incentive: Not Eligible"}
+                    </span>
+                  </div>
                 </div>
                 <div className="rider-performance-card rider-performance-delivered">
                   <span>Delivered Parcels</span>

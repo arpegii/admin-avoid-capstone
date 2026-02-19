@@ -6,6 +6,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import "../styles/global.css";
 import "../styles/reports.css";
+import { exportReportAsWorkbook } from "../utils/reportExcel";
 
 // ================= HELPER =================
 const humanizeLabel = (label) => {
@@ -477,54 +478,38 @@ const Reports = () => {
     logo.onerror = finalizePDF;
   };
 
-  // ================= CSV GENERATION =================
-  const generateCsvReport = async (reportType, startDate, endDate, column) => {
-    const { data } = await fetchReportData(reportType, startDate, endDate, column);
-    let csv = "";
-
-    if (reportType === "overall") {
-      data.forEach(section => {
-        csv += `\n## ${section.section}\n`;
-        const cols = section.section === "Riders"
-          ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
-          : section.section === "Violations"
-            ? ["rider_name", "violation_type", "location", "severity", "created_at"]
-          : column === "All"
-            ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"]
-            : column === "delivery_attempt"
-              ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
-              : ["parcel_id", column];
-        csv += cols.join(",") + "\n";
-        section.data.forEach(row => {
-          csv += cols.map(c => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`).join(",") + "\n";
-        });
-      });
-    } else {
-      const reportCols = column === "All"
-        ? reportType === "riders"
-          ? ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"]
-          : reportType === "violations"
-            ? ["rider_name", "violation_type", "location", "severity", "created_at"]
-          : ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"]
-        : reportType === "parcels"
-          ? column === "delivery_attempt"
-            ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
-            : ["parcel_id", column]
-          : [column];
-      csv += reportCols.join(",") + "\n";
-      data.forEach(row => {
-        csv += reportCols.map(c => `"${(row[c] ?? "").toString().replace(/"/g, '""')}"`).join(",") + "\n";
-      });
+  const resolveOverallSectionColumns = (sectionName) => {
+    if (sectionName === "Riders") {
+      return ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"];
     }
+    if (sectionName === "Violations") {
+      return ["rider_name", "violation_type", "location", "severity", "created_at"];
+    }
+    return [
+      "parcel_id",
+      "recipient_name",
+      "recipient_phone",
+      "address",
+      "assigned_rider",
+      "status",
+      ...DELIVERY_ATTEMPT_COLUMNS,
+      "created_at",
+    ];
+  };
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${reportType}_report.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const generateExcelReport = async (reportType, startDate, endDate, column) => {
+    const { data, columns } = await fetchReportData(reportType, startDate, endDate, column);
+    await exportReportAsWorkbook({
+      reportType,
+      selectedColumn: column,
+      startDate,
+      endDate,
+      data,
+      columns,
+      humanizeLabel,
+      resolveSectionColumns: resolveOverallSectionColumns,
+      fileName: `${reportType}_report.xlsx`,
+    });
   };
 
   // ================= GENERATE BUTTON =================
@@ -538,7 +523,7 @@ const Reports = () => {
     try {
       setIsGenerating(true);
       if (format === "pdf") await generatePdfReport(reportType, startDate, endDate, column);
-      else await generateCsvReport(reportType, startDate, endDate, column);
+      else await generateExcelReport(reportType, startDate, endDate, column);
     } catch (error) {
       console.error("Error generating report:", error);
       alert("Failed to generate report. Check console for details.");
@@ -555,9 +540,9 @@ const Reports = () => {
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar currentPage="reports.html" />
 
-      <div className="reports-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="reports-page ui-page-shell p-6">
         <div className="reports-layout gap-6">
-          <div className="reports-card reports-preview-card rounded-2xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/90">
+          <div className="reports-card reports-preview-card ui-card-surface">
             <div className="reports-header"><h1 className="reports-page-title">Data Lists</h1></div>
             <div className="reports-preview-body">
               <section className="reports-preview-section">
@@ -610,7 +595,7 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="reports-card reports-card-modern rounded-2xl border border-slate-200 bg-white/95 shadow-xl dark:border-slate-700 dark:bg-slate-900/90">
+          <div className="reports-card reports-card-modern ui-card-surface">
             <div className="reports-header"><h1 className="reports-page-title">Generate Reports</h1></div>
             <div className="reports-form">
             <div className="reports-form-row full">
@@ -650,12 +635,12 @@ const Reports = () => {
               <label>Format *</label>
               <select id="reportFormat" value={format} onChange={e => setFormat(e.target.value)}>
                 <option value="pdf">PDF</option>
-                <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
               </select>
             </div>
 
             <div className="reports-form-buttons">
-              <button className="reports-btn-generate rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110 disabled:opacity-60" onClick={handleGenerateReport} disabled={isGenerating}>
+              <button className="reports-btn-generate ui-btn-primary" onClick={handleGenerateReport} disabled={isGenerating}>
                 {isGenerating ? (
                   <>
                     <span className="inline-spinner" aria-hidden="true" />
@@ -673,7 +658,7 @@ const Reports = () => {
 
       {showValidation && (
         <div className="reports-validation-modal bg-slate-950/60 backdrop-blur-sm">
-          <div className="reports-validation-content rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="reports-validation-content ui-modal-panel p-6">
             <p>All fields are required.</p>
             <button onClick={hideValidationModal}>OK</button>
           </div>

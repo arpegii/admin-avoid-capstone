@@ -401,7 +401,7 @@ const Parcel = () => {
     <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       <Sidebar currentPage="parcels.html" />
 
-      <div className="parcels-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="parcels-page ui-page-shell p-6">
         {loading ? (
           <PageSpinner fullScreen label="Loading parcels..." />
         ) : (
@@ -409,7 +409,7 @@ const Parcel = () => {
             <h1 className="page-title mb-6">Parcel Management</h1>
 
             {/* Filters */}
-            <div className="parcels-filter-section mb-5 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
+            <div className="parcels-filter-section ui-card-surface mb-5 p-4">
               <label>
                 <strong>Search:</strong>
               </label>
@@ -459,7 +459,7 @@ const Parcel = () => {
             </div>
 
             {/* Table */}
-            <div className="parcels-table-wrapper rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="parcels-table-wrapper ui-table-shell">
               <table className="parcel-table">
                 {/* colgroup locks each column to a fixed width so headers and cells always align */}
                 <colgroup>
@@ -512,7 +512,7 @@ const Parcel = () => {
                       </td>
                       <td>
                         <button
-                          className="btn-view rounded-lg bg-gradient-to-r from-red-600 to-red-800 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition hover:brightness-110"
+                          className="btn-view ui-btn-secondary rounded-lg px-3 py-1.5 text-xs"
                           onClick={() => openParcelModal(parcel)}
                         >
                           View
@@ -551,7 +551,7 @@ const Parcel = () => {
             {viewParcel && (
               <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeParcelModal}>
                 <div
-                  className="parcels-modal-content view-parcel-modal rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                  className="parcels-modal-content view-parcel-modal ui-modal-panel"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="parcels-modal-header">
@@ -604,7 +604,7 @@ const Parcel = () => {
                           <div className="parcel-view-item parcel-view-item-full parcel-view-action-inline">
                             <button
                               type="button"
-                              className="parcel-track-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/20 transition hover:brightness-110 disabled:opacity-50"
+                              className="parcel-track-btn ui-btn-primary rounded-xl px-4 py-2"
                               onClick={() => openTrackModal(viewParcel)}
                               disabled={!getParcelCoords(viewParcel)}
                             >
@@ -684,7 +684,7 @@ const Parcel = () => {
             {trackModalOpen && (
               <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeTrackModal}>
                 <div
-                  className="parcels-modal-content parcel-track-modal rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                  className="parcels-modal-content parcel-track-modal ui-modal-panel"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="parcels-modal-header">

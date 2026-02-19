@@ -14,9 +14,9 @@ html, body {
 
 :root {
   --surface-shadow:
-    0 3px 8px rgba(15, 23, 42, 0.08),
-    0 16px 30px rgba(15, 23, 42, 0.12),
-    0 28px 46px rgba(15, 23, 42, 0.08);
+    0 2px 8px rgba(15, 23, 42, 0.06),
+    0 14px 30px rgba(15, 23, 42, 0.1),
+    0 24px 42px rgba(15, 23, 42, 0.07);
   --page-bg-soft: #f3f5f8;
 }
 
@@ -60,16 +60,18 @@ html, body {
 
 .page-title::before {
   content: "";
-  width: 4px;
+  width: 3px;
   height: 36px;
-  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
   border-radius: 4px;
 }
 
 /* ================= SIDEBAR ================= */
 .sidebar {
   width: 280px;
-  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
+  background:
+    radial-gradient(circle at 20% -10%, rgba(248, 113, 113, 0.35), transparent 35%),
+    linear-gradient(180deg, #b91c1c 0%, #7f1d1d 55%, #450a0a 100%);
   color: white;
   display: flex;
   flex-direction: column;
@@ -162,19 +164,19 @@ html, body {
   border-radius: 12px;
   cursor: pointer;
   margin-bottom: 6px;
-  transition: all 0.3s ease;
-  font-weight: 500;
+  transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  font-weight: 600;
   color: white; /* ensures icons and text are visible */
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateX(3px);
 }
 
 .nav-item.active {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
 }
 
 .nav-icon {
@@ -297,8 +299,8 @@ html, body {
 
 /* Hover effect for user-info */
 .user-info:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateX(3px);
 }
 
 /* Active state for profile page */

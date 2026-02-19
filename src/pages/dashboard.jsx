@@ -20,6 +20,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "../styles/global.css";
 import "../styles/dashboard.css";
 import PageSpinner from "../components/PageSpinner";
+import { exportReportAsWorkbook } from "../utils/reportExcel";
 
 const humanizeLabel = (label) => {
   if (!label) return "";
@@ -508,6 +509,7 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
     delivered: 0,
     cancelled: 0,
+    delayed: 0,
     topMonth: "--",
     topMonthCount: 0,
     topYear: "--",
@@ -517,11 +519,14 @@ const Dashboard = () => {
     years: [],
     yearGrowth: [],
     monthGrowth: Array(12).fill(0),
+    yearDelayGrowth: [],
+    monthDelayGrowth: Array(12).fill(0),
   });
   const [loading, setLoading] = useState(true);
   const [availableYears, setAvailableYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState("All");
   const [growthView, setGrowthView] = useState("month");
+  const [growthMetric, setGrowthMetric] = useState("deliveries");
   const [growthChartType, setGrowthChartType] = useState("line");
   const [yearFilterReady, setYearFilterReady] = useState(false);
   const [violationMapModalOpen, setViolationMapModalOpen] = useState(false);
@@ -564,20 +569,31 @@ const Dashboard = () => {
     [violationLogs],
   );
   const growthChartSeries = useMemo(() => {
+    const isDelayMetric = growthMetric === "delays";
     if (growthView === "month") {
       return {
         labels: MONTH_LABELS,
-        data: dashboardData.monthGrowth || Array(12).fill(0),
-        title: "Delivery Growth by Month",
+        data: isDelayMetric
+          ? (dashboardData.monthDelayGrowth || Array(12).fill(0))
+          : (dashboardData.monthGrowth || Array(12).fill(0)),
+        title: isDelayMetric ? "Delivery Delay Analysis by Month" : "Delivery Growth by Month",
       };
     }
 
     return {
       labels: dashboardData.years,
-      data: dashboardData.yearGrowth,
-      title: "Delivery Growth by Year",
+      data: isDelayMetric ? dashboardData.yearDelayGrowth : dashboardData.yearGrowth,
+      title: isDelayMetric ? "Delivery Delay Analysis by Year" : "Delivery Growth by Year",
     };
-  }, [growthView, dashboardData.monthGrowth, dashboardData.years, dashboardData.yearGrowth]);
+  }, [
+    growthView,
+    growthMetric,
+    dashboardData.monthGrowth,
+    dashboardData.monthDelayGrowth,
+    dashboardData.years,
+    dashboardData.yearGrowth,
+    dashboardData.yearDelayGrowth,
+  ]);
 
   const hasGrowthData = useMemo(
     () => (growthChartSeries.data || []).some((value) => Number(value) > 0),
@@ -607,6 +623,13 @@ const Dashboard = () => {
     ],
     [],
   );
+  const growthMetricOptions = useMemo(
+    () => [
+      { value: "deliveries", label: "Deliveries" },
+      { value: "delays", label: "Delays" },
+    ],
+    [],
+  );
   const reportTypeOptions = useMemo(
     () => [
       { value: "", label: "-- Select Report Type --" },
@@ -620,7 +643,7 @@ const Dashboard = () => {
   const formatOptions = useMemo(
     () => [
       { value: "pdf", label: "PDF" },
-      { value: "csv", label: "CSV" },
+      { value: "xlsx", label: "Excel (.xlsx)" },
     ],
     [],
   );
@@ -659,11 +682,11 @@ const Dashboard = () => {
       className: "violation-warning-marker-wrap",
       html: `
         <span class="violation-warning-pulse" aria-hidden="true"></span>
-        <span class="violation-warning-marker" aria-hidden="true">⚠</span>
+        <span class="violation-warning-marker" aria-hidden="true">&#9888;</span>
       `,
       iconSize: [34, 34],
-      iconAnchor: [17, 17],
-      popupAnchor: [0, -20],
+      iconAnchor: [17, 34],
+      popupAnchor: [0, -34],
     });
 
     layerGroup = L.markerClusterGroup({
@@ -673,17 +696,16 @@ const Dashboard = () => {
       maxClusterRadius: 52,
       iconCreateFunction: (cluster) => {
         const count = cluster.getChildCount();
-        const clusterLevel = count >= 20 ? "high" : count >= 8 ? "medium" : "low";
         const clusterSize = 56;
         const halfSize = 28;
 
         return L.divIcon({
-          className: `violation-cluster-wrap ${clusterLevel}`,
+          className: "violation-cluster-wrap",
           html: `
               <span class="violation-cluster-pulse" aria-hidden="true"></span>
+              <span class="violation-cluster-ring" aria-hidden="true"></span>
               <span class="violation-cluster-core">
-              <span class="violation-cluster-icon" aria-hidden="true">⚠</span>
-                <strong>${count}</strong>
+                <strong class="violation-cluster-count">${count}</strong>
               </span>
             `,
           iconSize: [clusterSize, clusterSize],
@@ -708,7 +730,12 @@ const Dashboard = () => {
             "",
             point.violation_type,
           ),
-          { className: "violation-hotspot-popup", closeButton: false },
+          {
+            className: "violation-hotspot-popup",
+            closeButton: false,
+            autoPan: false,
+            keepInView: false,
+          },
         );
     });
 
@@ -872,16 +899,24 @@ const Dashboard = () => {
         }
 
         const parcelsForSelectedYear = allParcels || [];
-
         // Count delivered parcels (status = "successfully delivered")
         const delivered = parcelsForSelectedYear.filter((p) => isDeliveredStatus(p.status)).length;
 
         // Count cancelled parcels (status = "cancelled")
         const cancelled = parcelsForSelectedYear.filter((p) => isCancelledStatus(p.status)).length;
+        const isDelayedParcel = (parcel) =>
+          normalizeStatus(parcel?.attempt1_status) === "failed" ||
+          normalizeStatus(parcel?.attempt2_status) === "failed" ||
+          isCancelledStatus(parcel?.status);
+        const delayed = parcelsForSelectedYear.filter((p) => isDelayedParcel(p)).length;
 
         const months = {};
         const monthCounts = Array(12).fill(0);
+        const monthDelayCounts = Array(12).fill(0);
         const yearsCount = Object.fromEntries(
+          safeAnalyticsYears.map((year) => [year, 0]),
+        );
+        const yearsDelayCount = Object.fromEntries(
           safeAnalyticsYears.map((year) => [year, 0]),
         );
         const riderCountsById = {};
@@ -895,6 +930,18 @@ const Dashboard = () => {
 
         // Process delivered parcels for analytics.
         parcelsForSelectedYear.forEach((p) => {
+          if (p.created_at) {
+            const parsedDate = new Date(p.created_at);
+            const yearStr = extractYearKey(p.created_at);
+            if (!Number.isNaN(parsedDate.getTime()) && yearStr && isDelayedParcel(p)) {
+              const monthIndex = parsedDate.getMonth();
+              if (monthIndex >= 0 && monthIndex <= 11) {
+                monthDelayCounts[monthIndex] = (monthDelayCounts[monthIndex] || 0) + 1;
+              }
+              yearsDelayCount[yearStr] = (yearsDelayCount[yearStr] || 0) + 1;
+            }
+          }
+
           if (!isDeliveredStatus(p.status)) return;
 
           // Count deliveries by assigned rider ID regardless of created_at.
@@ -951,10 +998,15 @@ const Dashboard = () => {
           selectedYear === "All"
             ? chartYears.map((y) => yearsCount[y] || 0)
             : [yearsCount[selectedYear] || 0];
+        const yearDelayGrowthData =
+          selectedYear === "All"
+            ? chartYears.map((y) => yearsDelayCount[y] || 0)
+            : [yearsDelayCount[selectedYear] || 0];
 
         setDashboardData({
           delivered: delivered || 0,
           cancelled: cancelled || 0,
+          delayed: delayed || 0,
           topMonth: topMonth || "--",
           topMonthCount: topMonthCount || 0,
           topYear: topYear || "--",
@@ -966,6 +1018,8 @@ const Dashboard = () => {
           years: chartYears,
           yearGrowth: yearGrowthData,
           monthGrowth: monthCounts,
+          yearDelayGrowth: yearDelayGrowthData,
+          monthDelayGrowth: monthDelayCounts,
         });
       } catch (err) {
         console.error("Error loading analytics:", err);
@@ -1295,127 +1349,6 @@ const Dashboard = () => {
     return doc;
   };
 
-  const buildCsvContent = (selectedReportType, selectedColumn, data) => {
-    const isLikelyIdLike = (columnKey = "") =>
-      columnKey === "parcel_id" ||
-      columnKey === "recipient_phone" ||
-      /(^id$|_id$|phone)/i.test(columnKey);
-
-    const formatCsvCellValue = (value, columnKey = "") => {
-      if (value === null || value === undefined) return "";
-      const raw = String(value).trim();
-      if (!raw) return "";
-
-      if (
-        columnKey === "created_at" ||
-        columnKey === "date" ||
-        /_date$/i.test(columnKey)
-      ) {
-        const parsed = new Date(raw);
-        if (!Number.isNaN(parsed.getTime())) {
-          return parsed.toLocaleString("en-US", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false,
-          });
-        }
-      }
-
-      // Keep large numeric strings text-like in Excel (avoid scientific notation).
-      if (isLikelyIdLike(columnKey)) return `\t${raw}`;
-      return raw;
-    };
-
-    const csvEscape = (value) => `"${String(value).replace(/"/g, '""')}"`;
-
-    const effectiveColumn =
-      selectedReportType === "parcels" ? selectedColumn : "All";
-    let csv = "";
-    if (selectedReportType === "overall") {
-      data.forEach((section) => {
-        csv += `\n## ${section.section}\n`;
-        const cols =
-          section.section === "Riders"
-            ? [
-                "username",
-                "email",
-                "fname",
-                "mname",
-                "lname",
-                "gender",
-                "doj",
-                "pnumber",
-              ]
-            : section.section === "Violations"
-              ? ["name", "violation", "date"]
-              : effectiveColumn === "All"
-                ? [
-                    "parcel_id",
-                    "recipient_name",
-                    "recipient_phone",
-                    "address",
-                    "assigned_rider",
-                    "status",
-                    ...DELIVERY_ATTEMPT_COLUMNS,
-                    "created_at",
-                  ]
-                : effectiveColumn === "delivery_attempt"
-                  ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
-                  : ["parcel_id", effectiveColumn];
-        csv += cols.map(humanizeLabel).join(",") + "\n";
-        section.data.forEach((row) => {
-          csv +=
-            cols
-              .map((c) => csvEscape(formatCsvCellValue(row[c], c)))
-              .join(",") + "\n";
-        });
-      });
-    } else {
-      const reportCols =
-        effectiveColumn === "All"
-          ? selectedReportType === "riders"
-            ? [
-                "username",
-                "email",
-                "fname",
-                "mname",
-                "lname",
-                "gender",
-                "doj",
-                "pnumber",
-              ]
-            : selectedReportType === "violations"
-              ? ["name", "violation", "date"]
-              : [
-                  "parcel_id",
-                  "recipient_name",
-                  "recipient_phone",
-                  "address",
-                  "assigned_rider",
-                  "status",
-                  ...DELIVERY_ATTEMPT_COLUMNS,
-                  "created_at",
-                ]
-          : selectedReportType === "parcels"
-            ? effectiveColumn === "delivery_attempt"
-              ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
-              : ["parcel_id", effectiveColumn]
-            : [effectiveColumn];
-      csv += reportCols.map(humanizeLabel).join(",") + "\n";
-      data.forEach((row) => {
-        csv +=
-          reportCols
-            .map((c) => csvEscape(formatCsvCellValue(row[c], c)))
-            .join(",") + "\n";
-      });
-    }
-    return csv;
-  };
-
   const generatePdfReport = async (
     selectedReportType,
     selectedStartDate,
@@ -1439,28 +1372,47 @@ const Dashboard = () => {
     doc.save(`${selectedReportType}_report.pdf`);
   };
 
-  const generateCsvReport = async (
+  const resolveOverallSectionColumns = (sectionName) => {
+    if (sectionName === "Riders") {
+      return ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"];
+    }
+    if (sectionName === "Violations") return ["name", "violation", "date"];
+    return [
+      "parcel_id",
+      "recipient_name",
+      "recipient_phone",
+      "address",
+      "assigned_rider",
+      "status",
+      ...DELIVERY_ATTEMPT_COLUMNS,
+      "created_at",
+    ];
+  };
+
+  const generateExcelReport = async (
     selectedReportType,
     selectedStartDate,
     selectedEndDate,
     selectedColumn,
   ) => {
-    const { data } = await fetchReportData(
+    const { data, columns } = await fetchReportData(
       selectedReportType,
       selectedStartDate,
       selectedEndDate,
       selectedColumn,
     );
-    const csv = buildCsvContent(selectedReportType, selectedColumn, data);
 
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${selectedReportType}_report.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportReportAsWorkbook({
+      reportType: selectedReportType,
+      selectedColumn,
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
+      data,
+      columns,
+      humanizeLabel,
+      resolveSectionColumns: resolveOverallSectionColumns,
+      fileName: `${selectedReportType}_report.xlsx`,
+    });
   };
 
   const validateReportInput = () => {
@@ -1484,7 +1436,7 @@ const Dashboard = () => {
       setIsGeneratingReport(true);
       if (format === "pdf")
         await generatePdfReport(reportType, startDate, endDate, column);
-      else await generateCsvReport(reportType, startDate, endDate, column);
+      else await generateExcelReport(reportType, startDate, endDate, column);
       setReportModalOpen(false);
     } catch (error) {
       console.error("Error generating report:", error);
@@ -1499,6 +1451,10 @@ const Dashboard = () => {
     if (chartInstanceRef.current) chartInstanceRef.current.destroy();
 
     const isCircularChart = CIRCULAR_CHART_TYPES.has(growthChartType);
+    const isDelayMetric = growthMetric === "delays";
+    const accentColor = isDelayMetric ? "#ef4444" : "#16a34a";
+    const accentFill = isDelayMetric ? "rgba(239, 68, 68, 0.16)" : "rgba(22, 163, 74, 0.16)";
+    const accentBarFill = isDelayMetric ? "rgba(239, 68, 68, 0.72)" : "rgba(22, 163, 74, 0.72)";
     const palette = [
       "#ef4444",
       "#f97316",
@@ -1523,19 +1479,19 @@ const Dashboard = () => {
         labels: growthChartSeries.labels,
         datasets: [
           {
-            label: "Deliveries",
+            label: isDelayMetric ? "Delayed Parcels" : "Deliveries",
             data: growthChartSeries.data,
-            borderColor: isCircularChart ? chartColors : "#ef4444",
+            borderColor: isCircularChart ? chartColors : accentColor,
             backgroundColor: isCircularChart
               ? chartColors
               : growthChartType === "bar"
-                ? "rgba(239, 68, 68, 0.72)"
-                : "rgba(239, 68, 68, 0.16)",
+                ? accentBarFill
+                : accentFill,
             fill: growthChartType === "line",
             tension: growthChartType === "line" ? 0.35 : 0,
             pointRadius: growthChartType === "line" ? 2.6 : 0,
             pointHoverRadius: growthChartType === "line" ? 4 : 0,
-            pointBackgroundColor: "#ef4444",
+            pointBackgroundColor: accentColor,
             borderWidth: growthChartType === "bar" ? 1 : 2,
             borderRadius: growthChartType === "bar" ? 8 : 0,
           },
@@ -1588,7 +1544,9 @@ const Dashboard = () => {
                       : typeof context?.raw === "number"
                         ? context.raw
                         : 0;
-                return `📦 Deliveries: ${value}`;
+                return isDelayMetric
+                  ? `Delayed Parcels: ${value}`
+                  : `Deliveries: ${value}`;
               },
             },
           },
@@ -1609,7 +1567,7 @@ const Dashboard = () => {
             },
       },
     });
-  }, [growthChartSeries.labels, growthChartSeries.data, growthChartType]);
+  }, [growthChartSeries.labels, growthChartSeries.data, growthChartType, growthMetric]);
 
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
@@ -1700,7 +1658,7 @@ const Dashboard = () => {
     <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
       <Sidebar />
 
-      <div className="dashboard-page bg-gradient-to-br from-red-50 via-slate-50 to-slate-100 px-6 py-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="dashboard-page ui-page-shell px-6 py-6">
         {loading ? (
           <PageSpinner fullScreen label="Loading dashboard..." />
         ) : (
@@ -1712,7 +1670,7 @@ const Dashboard = () => {
               <div className="dash-header-actions">
                 <button
                   type="button"
-                  className="dash-generate-report-btn"
+                  className="dash-generate-report-btn ui-btn-primary"
                   onClick={() => setReportModalOpen(true)}
                 >
                   Generate Report
@@ -1781,6 +1739,14 @@ const Dashboard = () => {
                       className="growth-view-select-shell"
                       triggerClassName="growth-view-select"
                       menuClassName="dash-modern-menu"
+                      value={growthMetric}
+                      options={growthMetricOptions}
+                      onChange={(nextValue) => setGrowthMetric(nextValue)}
+                    />
+                    <ModernSelect
+                      className="growth-view-select-shell"
+                      triggerClassName="growth-view-select"
+                      menuClassName="dash-modern-menu"
                       value={growthChartType}
                       options={growthTypeOptions}
                       onChange={(nextValue) => setGrowthChartType(nextValue)}
@@ -1791,7 +1757,7 @@ const Dashboard = () => {
                   {hasGrowthData ? (
                     <canvas ref={growthChartRef}></canvas>
                   ) : (
-                    <div className="growth-empty">No delivery data yet</div>
+                    <div className="growth-empty">No analytics data yet</div>
                   )}
                 </div>
               </div>
@@ -1835,7 +1801,7 @@ const Dashboard = () => {
                     <h2>Violation Heat Map</h2>
                     <button
                       type="button"
-                      className="violation-map-size-btn rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm transition hover:bg-red-50"
+                      className="violation-map-size-btn ui-btn-secondary rounded-lg px-3 py-1.5 text-xs"
                       onClick={() => setViolationMapModalOpen(true)}
                     >
                       View Fullscreen Map
@@ -1856,6 +1822,7 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
+
             </div>
           </>
         )}
@@ -1867,7 +1834,7 @@ const Dashboard = () => {
           onClick={() => setViolationMapModalOpen(false)}
         >
           <div
-            className="dashboard-modal-content violation-full-map-modal rounded-2xl border border-slate-200 dark:border-slate-700"
+            className="dashboard-modal-content violation-full-map-modal ui-modal-panel rounded-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="violation-full-map-header">
@@ -1898,7 +1865,7 @@ const Dashboard = () => {
           onClick={() => setReportModalOpen(false)}
         >
           <div
-            className="dashboard-modal-content dashboard-report-modal rounded-2xl shadow-2xl shadow-slate-900/35"
+            className="dashboard-modal-content dashboard-report-modal ui-modal-panel rounded-2xl shadow-2xl shadow-slate-900/35"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="dashboard-report-modal-header">
@@ -1969,7 +1936,7 @@ const Dashboard = () => {
                 <div className="dashboard-report-actions-panel">
                   <button
                     type="button"
-                    className="dashboard-report-download-btn rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-3 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110"
+                    className="dashboard-report-download-btn ui-btn-primary rounded-xl px-3 py-2"
                     onClick={handleDownloadReport}
                     disabled={isGeneratingReport}
                   >
@@ -2009,3 +1976,6 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+

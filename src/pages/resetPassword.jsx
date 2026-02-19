@@ -93,7 +93,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="login-page bg-gradient-to-br from-red-600 via-red-700 to-red-900 font-sans">
+    <div className="login-page ui-auth-page font-sans">
       <div className="float-shape float-shape--1" />
       <div className="float-shape float-shape--2" />
       <div className="float-shape float-shape--3" />
@@ -106,7 +106,7 @@ export default function ResetPassword() {
       <div className="float-shape float-shape--10" />
 
       <div className="centered-content">
-        <div className="modern-card reset-card overflow-hidden rounded-3xl border border-white/20 shadow-2xl shadow-slate-950/40">
+        <div className="modern-card reset-card ui-auth-panel overflow-hidden">
           <div className="login-right-panel bg-gradient-to-br from-red-600 to-red-900">
             <div className="login-logo-top reset-logo-top">
               <img src="images/logo.png" alt="Logo" />
@@ -213,7 +213,7 @@ export default function ResetPassword() {
 
               <button
                 type="submit"
-                className={`login-btn ${isLoading ? "loading" : ""} rounded-xl bg-white font-semibold text-red-700 shadow-lg transition hover:bg-red-50`}
+                className={`login-btn ${isLoading ? "loading" : ""} ui-btn-secondary rounded-xl border-white/50 bg-white font-semibold text-red-700 hover:bg-red-50`}
                 disabled={isLoading}
               >
                 {isLoading ? "" : "Update Password"}
