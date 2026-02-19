@@ -65,6 +65,55 @@ const formatPdfCellValue = (value, columnKey = "") => {
   return toTitleCase(raw);
 };
 
+const normalizeStatus = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const getPdfStatusTextColor = (value) => {
+  const normalized = normalizeStatus(value);
+  if (!normalized || normalized === "-") return null;
+  if (
+    normalized === "successfully delivered" ||
+    normalized === "delivered" ||
+    normalized === "successful" ||
+    normalized === "success" ||
+    normalized === "completed"
+  ) {
+    return [22, 163, 74];
+  }
+  if (
+    normalized === "on going" ||
+    normalized === "ongoing" ||
+    normalized === "in progress" ||
+    normalized === "pending"
+  ) {
+    return [202, 138, 4];
+  }
+  if (
+    normalized === "cancelled" ||
+    normalized === "canceled" ||
+    normalized === "failed" ||
+    normalized === "failure"
+  ) {
+    return [220, 38, 38];
+  }
+  return null;
+};
+
+const applyPdfStatusCellColor = (tableData) => {
+  if (tableData.section !== "body") return;
+  const rawValue = Array.isArray(tableData.cell.text)
+    ? tableData.cell.text.join(" ")
+    : tableData.cell.raw;
+  const color = getPdfStatusTextColor(rawValue);
+  if (!color) return;
+  tableData.cell.styles.textColor = color;
+  tableData.cell.styles.fontStyle = "bold";
+};
+
 const VIOLATION_PREVIEW_TEMPLATE = [
   {
     violation_type: "Overspeeding",
@@ -427,6 +476,7 @@ const Reports = () => {
               halign: "left",
             },
             alternateRowStyles: { fillColor: [252, 252, 252] },
+            didParseCell: applyPdfStatusCellColor,
           });
           yOffset = doc.lastAutoTable.finalY + 10;
           if (yOffset > pageHeight - 18) yOffset = doc.lastAutoTable.finalY + 8;
@@ -461,6 +511,7 @@ const Reports = () => {
             halign: "left",
           },
           alternateRowStyles: { fillColor: [252, 252, 252] },
+          didParseCell: applyPdfStatusCellColor,
         });
       }
 
