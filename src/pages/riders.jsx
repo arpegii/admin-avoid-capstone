@@ -107,6 +107,83 @@ const getRiderDisplayName = (rider) => {
   return fullName || rider?.username || "Unknown Rider";
 };
 
+const RiderTableSelect = ({
+  value,
+  onChange,
+  options = [],
+  className = "",
+  triggerClassName = "",
+  menuClassName = "",
+  ariaLabel = "Select option",
+}) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selectedOption = useMemo(
+    () => (options || []).find((option) => option.value === value),
+    [options, value],
+  );
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={rootRef}
+      className={`rider-table-modern-select ${open ? "is-open" : ""} ${className}`.trim()}
+    >
+      <button
+        type="button"
+        className={`rider-table-modern-trigger ${triggerClassName}`.trim()}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+      >
+        <span>{selectedOption?.label || "-"}</span>
+        <span className="rider-table-modern-caret" aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          className={`rider-table-modern-menu ${menuClassName}`.trim()}
+          role="listbox"
+        >
+          {(options || []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`rider-table-modern-option ${value === option.value ? "is-selected" : ""}`}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              role="option"
+              aria-selected={value === option.value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Riders() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -158,6 +235,23 @@ export default function Riders() {
   });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [recentRiderActivity, setRecentRiderActivity] = useState([]);
+  const tableSortOptions = useMemo(
+    () => [
+      { value: "name_asc", label: "Name (A-Z)" },
+      { value: "name_desc", label: "Name (Z-A)" },
+      { value: "delivered_desc", label: "Most Delivered" },
+      { value: "cancelled_desc", label: "Most Cancelled" },
+    ],
+    [],
+  );
+  const tableFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "All Riders" },
+      { value: "has_deliveries", label: "Has Deliveries" },
+      { value: "high_cancelled", label: "High Cancelled (5+)" },
+    ],
+    [],
+  );
 
   useEffect(() => {
     if (!showCreateSuccessModal) return undefined;
@@ -1577,58 +1671,6 @@ export default function Riders() {
                       </div>
                       {fullMapView === "map" && (
                         <div className="rider-toolbar-group">
-                          <div className="rider-layer-toggle-stack">
-                            <div className="rider-layer-toggle-row">
-                              <span>Weather</span>
-                              <label
-                                className="rider-toggle-switch"
-                                aria-label="Toggle weather layer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={activeMapLayer === "weather"}
-                                  onChange={(event) => {
-                                    if (event.target.checked) {
-                                      setActiveMapLayer("weather");
-                                      setShowWeatherPanel(false);
-                                      setShowFullWeatherPanel(false);
-                                    } else {
-                                      setActiveMapLayer(null);
-                                      setShowWeatherPanel(false);
-                                      setShowFullWeatherPanel(false);
-                                    }
-                                  }}
-                                />
-                                <span className="rider-toggle-slider" />
-                              </label>
-                            </div>
-                            <div className="rider-layer-toggle-row">
-                              <span>Flood</span>
-                              <label
-                                className="rider-toggle-switch"
-                                aria-label="Toggle flood layer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={activeMapLayer === "flood"}
-                                  onChange={(event) => {
-                                    if (event.target.checked) {
-                                      setActiveMapLayer("flood");
-                                    } else {
-                                      setActiveMapLayer(null);
-                                    }
-                                    setShowWeatherPanel(false);
-                                    setShowFullWeatherPanel(false);
-                                  }}
-                                />
-                                <span className="rider-toggle-slider" />
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {fullMapView === "map" && (
-                        <div className="rider-toolbar-group">
                           <button
                             type="button"
                             className="rider-map-size-btn rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm transition hover:bg-red-50"
@@ -1645,6 +1687,54 @@ export default function Riders() {
                   {fullMapView === "map" ? (
                     <div className="rider-map-stack">
                       <div ref={allMapRef} className="rider-live-map" />
+                      <div className="rider-map-layer-dock">
+                        <div className="rider-layer-toggle-row">
+                          <span>Weather</span>
+                          <label
+                            className="rider-toggle-switch"
+                            aria-label="Toggle weather layer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={activeMapLayer === "weather"}
+                              onChange={(event) => {
+                                if (event.target.checked) {
+                                  setActiveMapLayer("weather");
+                                  setShowWeatherPanel(false);
+                                  setShowFullWeatherPanel(false);
+                                } else {
+                                  setActiveMapLayer(null);
+                                  setShowWeatherPanel(false);
+                                  setShowFullWeatherPanel(false);
+                                }
+                              }}
+                            />
+                            <span className="rider-toggle-slider" />
+                          </label>
+                        </div>
+                        <div className="rider-layer-toggle-row">
+                          <span>Flood</span>
+                          <label
+                            className="rider-toggle-switch"
+                            aria-label="Toggle flood layer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={activeMapLayer === "flood"}
+                              onChange={(event) => {
+                                if (event.target.checked) {
+                                  setActiveMapLayer("flood");
+                                } else {
+                                  setActiveMapLayer(null);
+                                }
+                                setShowWeatherPanel(false);
+                                setShowFullWeatherPanel(false);
+                              }}
+                            />
+                            <span className="rider-toggle-slider" />
+                          </label>
+                        </div>
+                      </div>
                       {activeMapLayer === "weather" && (
                         <button
                           type="button"
@@ -1729,25 +1819,18 @@ export default function Riders() {
                           value={tableSearchTerm}
                           onChange={(event) => setTableSearchTerm(event.target.value)}
                         />
-                        <select
-                          className="rider-table-select"
+                        <RiderTableSelect
                           value={tableSortBy}
-                          onChange={(event) => setTableSortBy(event.target.value)}
-                        >
-                          <option value="name_asc">Name (A-Z)</option>
-                          <option value="name_desc">Name (Z-A)</option>
-                          <option value="delivered_desc">Most Delivered</option>
-                          <option value="cancelled_desc">Most Cancelled</option>
-                        </select>
-                        <select
-                          className="rider-table-select"
+                          onChange={setTableSortBy}
+                          options={tableSortOptions}
+                          ariaLabel="Sort riders"
+                        />
+                        <RiderTableSelect
                           value={tableFilterBy}
-                          onChange={(event) => setTableFilterBy(event.target.value)}
-                        >
-                          <option value="all">All Riders</option>
-                          <option value="has_deliveries">Has Deliveries</option>
-                          <option value="high_cancelled">High Cancelled (5+)</option>
-                        </select>
+                          onChange={setTableFilterBy}
+                          options={tableFilterOptions}
+                          ariaLabel="Filter riders"
+                        />
                       </div>
                       <table className="rider-full-table">
                         <thead>
@@ -2049,25 +2132,18 @@ export default function Riders() {
                       value={tableSearchTerm}
                       onChange={(event) => setTableSearchTerm(event.target.value)}
                     />
-                    <select
-                      className="rider-table-select"
+                    <RiderTableSelect
                       value={tableSortBy}
-                      onChange={(event) => setTableSortBy(event.target.value)}
-                    >
-                      <option value="name_asc">Name (A-Z)</option>
-                      <option value="name_desc">Name (Z-A)</option>
-                      <option value="delivered_desc">Most Delivered</option>
-                      <option value="cancelled_desc">Most Cancelled</option>
-                    </select>
-                    <select
-                      className="rider-table-select"
+                      onChange={setTableSortBy}
+                      options={tableSortOptions}
+                      ariaLabel="Sort riders"
+                    />
+                    <RiderTableSelect
                       value={tableFilterBy}
-                      onChange={(event) => setTableFilterBy(event.target.value)}
-                    >
-                      <option value="all">All Riders</option>
-                      <option value="has_deliveries">Has Deliveries</option>
-                      <option value="high_cancelled">High Cancelled (5+)</option>
-                    </select>
+                      onChange={setTableFilterBy}
+                      options={tableFilterOptions}
+                      ariaLabel="Filter riders"
+                    />
                   </div>
                   <table className="rider-full-table">
                     <thead>
