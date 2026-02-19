@@ -1959,17 +1959,25 @@ export default function Riders() {
                     </div>
                     {recentRiderActivity.length > 0 ? (
                       <ul className="rider-insight-list rider-activity-list">
-                        {recentRiderActivity.map((activity) => (
-                          <li key={activity.id}>
-                            <span className="rider-item-title">{activity.riderName}</span>
-                            <small>
-                              {activity.status} - {activity.timestamp.toLocaleTimeString([], {
-                                hour: "numeric",
-                                minute: "2-digit",
-                              })}
-                            </small>
-                          </li>
-                        ))}
+                        {recentRiderActivity.map((activity) => {
+                          const online = isActiveRiderStatus(activity.status);
+                          const statusLabel = online ? "Online" : "Offline";
+                          return (
+                            <li key={activity.id}>
+                              <span className="rider-item-title">{activity.riderName}</span>
+                              <small className="rider-activity-meta">
+                                <span
+                                  className={`rider-activity-dot ${online ? "is-online" : "is-offline"}`}
+                                  aria-hidden="true"
+                                />
+                                {statusLabel} - {activity.timestamp.toLocaleTimeString([], {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </small>
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="rider-insight-empty">Waiting for live rider movement...</p>

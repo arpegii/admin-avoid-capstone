@@ -643,7 +643,7 @@ const Dashboard = () => {
   const formatOptions = useMemo(
     () => [
       { value: "pdf", label: "PDF" },
-      { value: "xlsx", label: "Excel (.xlsx)" },
+      { value: "xlsx", label: "Excel" },
     ],
     [],
   );
