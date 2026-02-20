@@ -22,14 +22,15 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 100vh;
   padding: 1.5rem 1.5rem 2rem;
   background:
     radial-gradient(700px 380px at 5% 115%, var(--dash-bg-3), transparent 55%),
     linear-gradient(160deg, var(--page-bg-soft) 0%, var(--dash-bg-1) 80%);
   color: var(--dash-text);
-  overflow-y: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   isolation: isolate;
 }
 
@@ -1550,10 +1551,19 @@
   .dashboard-page .dash-header-actions {
     justify-content: space-between;
     width: 100%;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .dashboard-page .dash-generate-report-btn,
+  .dashboard-page .dash-year-filter,
+  .dashboard-page .date-range {
+    width: 100%;
+    min-width: 0;
   }
 
   .dashboard-page .date-range {
-    width: fit-content;
+    justify-content: space-between;
   }
 
   .dashboard-page .dash-grid {

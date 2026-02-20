@@ -6,8 +6,8 @@
   background: var(--page-bg-soft);
   overflow-y: auto;
   overflow-x: hidden;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 100vh;
   display: flex;
   justify-content: stretch;
 }
@@ -15,12 +15,13 @@
 .riders-content-shell {
   width: 100%;
   max-width: none;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 100%;
   padding: 2rem;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .riders-page .page-title {
@@ -266,8 +267,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
-  overflow: auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  align-self: start;
   align-items: stretch;
 }
 
@@ -381,6 +384,25 @@
   margin: 0;
   font-size: 12px;
   color: #64748b;
+}
+
+.rider-insight-pagination {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rider-insight-pagination span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.rider-insight-pagination .rider-page-btn {
+  padding: 6px 10px;
+  font-size: 11px;
 }
 
 .rider-full-map-modal {
@@ -2599,6 +2621,17 @@
 }
 
 @media (max-width: 1200px) {
+  .riders-page {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .riders-content-shell {
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 100dvh;
+  }
+
   .riders-split-layout {
     grid-template-columns: 1fr;
   }
@@ -2613,6 +2646,26 @@
   .rider-insights-card {
     height: auto;
     min-height: auto;
+  }
+
+  .rider-insights-card {
+    max-height: min(62vh, 560px);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .rider-insights-card::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .rider-insights-card::-webkit-scrollbar-track {
+    background: #eef2f7;
+    border-radius: 999px;
+  }
+
+  .rider-insights-card::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.8);
+    border-radius: 999px;
   }
 
   .rider-live-map {
@@ -2638,12 +2691,19 @@
   .riders-content-shell {
     height: auto !important;
     min-height: auto !important;
-    overflow: visible !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: none !important;
   }
 
   .riders-split-layout {
     height: auto;
     min-height: auto;
+  }
+
+  .rider-insights-card {
+    max-height: none;
+    overflow: visible;
   }
 
   .rider-header-row {
@@ -3071,6 +3131,10 @@ body.dark .rider-item-title {
 
 body.dark .rider-insight-empty,
 body.dark .rider-activity-list li small {
+  color: var(--dm-muted-2);
+}
+
+body.dark .rider-insight-pagination span {
   color: var(--dm-muted-2);
 }
 

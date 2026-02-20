@@ -9,9 +9,12 @@ import "../styles/global.css";
 import PageSpinner from "../components/PageSpinner";
 
 const OPENWEATHER_API_KEY = "792874a9880224b30b884c44090d0f05";
+const FORCE_POLYLINE_PREVIEW = false;
 const RIDER_DELIVERY_QUOTA = 150;
 const RIDER_QUOTA_REACHED_THRESHOLD = 0.9;
 const RIDER_TABLE_PAGE_SIZE = 10;
+const RIDER_INSIGHT_PAGE_SIZE = 5;
+const RIDER_ACTIVITY_HISTORY_LIMIT = 60;
 const RIDER_DAILY_QUOTA = Math.ceil(
   RIDER_DELIVERY_QUOTA * RIDER_QUOTA_REACHED_THRESHOLD,
 );
@@ -87,6 +90,65 @@ const normalizeCoordinate = (value) => {
   return Number.isFinite(numericValue) ? numericValue : null;
 };
 
+const buildRoutePreviewTrail = (rider, trail = []) => {
+  if (Array.isArray(trail) && trail.length >= 2) return trail;
+  const lat = Number(rider?.lat);
+  const lng = Number(rider?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+  const key = String(rider?.username || rider?.user_id || "route");
+  const seed = key.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const latStep = 0.00032 + (seed % 5) * 0.00004;
+  const lngStep = 0.00028 + ((seed >> 1) % 5) * 0.00004;
+  return [
+    [lat, lng],
+    [lat + latStep, lng + lngStep],
+    [lat + latStep * 1.9, lng + lngStep * 0.6],
+  ];
+};
+
+const drawStyledRoute = (
+  map,
+  trail,
+  {
+    mainWeight = 3,
+    casingWeight = 6,
+    isPreview = false,
+  } = {},
+) => {
+  if (!map || !Array.isArray(trail) || trail.length < 2) return [];
+
+  const casing = L.polyline(trail, {
+    color: "#1e3a8a",
+    weight: casingWeight,
+    opacity: isPreview ? 0.18 : 0.24,
+    lineCap: "round",
+    lineJoin: "round",
+  }).addTo(map);
+
+  const main = L.polyline(trail, {
+    color: isPreview ? "#60a5fa" : "#2563eb",
+    weight: mainWeight,
+    opacity: isPreview ? 0.8 : 0.92,
+    lineCap: "round",
+    lineJoin: "round",
+    dashArray: isPreview ? "5 8" : "10 8",
+  }).addTo(map);
+
+  const [endLat, endLng] = trail[trail.length - 1] || [];
+  const endpoint = Number.isFinite(endLat) && Number.isFinite(endLng)
+    ? L.circleMarker([endLat, endLng], {
+        radius: isPreview ? 4 : 5,
+        color: "#dbeafe",
+        weight: 2,
+        fillColor: isPreview ? "#60a5fa" : "#2563eb",
+        fillOpacity: 0.95,
+        opacity: 0.95,
+      }).addTo(map)
+    : null;
+
+  return endpoint ? [casing, main, endpoint] : [casing, main];
+};
+
 const formatViolationLogDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);
@@ -105,6 +167,27 @@ const formatViolationLogDate = (value) => {
 const getRiderDisplayName = (rider) => {
   const fullName = [rider?.fname, rider?.lname].filter(Boolean).join(" ").trim();
   return fullName || rider?.username || "Unknown Rider";
+};
+
+const formatRelativeTime = (value) => {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "No activity";
+  const now = new Date();
+  const diffMs = now.getTime() - value.getTime();
+  if (diffMs <= 0) return "Just now";
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < minute) return "Just now";
+  if (diffMs < hour) {
+    const mins = Math.floor(diffMs / minute);
+    return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  }
+  if (diffMs < day) {
+    const hours = Math.floor(diffMs / hour);
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+  const days = Math.floor(diffMs / day);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 };
 
 const RiderTableSelect = ({
@@ -229,6 +312,8 @@ export default function Riders() {
   const [tableSortBy, setTableSortBy] = useState("name_asc");
   const [tableFilterBy, setTableFilterBy] = useState("all");
   const [tablePage, setTablePage] = useState(1);
+  const [topRidersPage, setTopRidersPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1);
   const [, setRiderDailyStats] = useState({
     deliveredToday: 0,
     cancelledToday: 0,
@@ -325,10 +410,17 @@ export default function Riders() {
         .sort(
           (a, b) =>
             Number(b?.deliveredParcels || 0) - Number(a?.deliveredParcels || 0),
-        )
-        .slice(0, 4),
+        ),
     [riders],
   );
+  const topRidersTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(topRiders.length / RIDER_INSIGHT_PAGE_SIZE)),
+    [topRiders.length],
+  );
+  const pagedTopRiders = useMemo(() => {
+    const start = (topRidersPage - 1) * RIDER_INSIGHT_PAGE_SIZE;
+    return topRiders.slice(start, start + RIDER_INSIGHT_PAGE_SIZE);
+  }, [topRiders, topRidersPage]);
   const isMapsPage = location.pathname === "/maps";
   const focusedRiderQuery = useMemo(
     () => new URLSearchParams(location.search).get("focus") || "",
@@ -396,6 +488,13 @@ export default function Riders() {
   useEffect(() => {
     if (tablePage > totalTablePages) setTablePage(totalTablePages);
   }, [tablePage, totalTablePages]);
+
+  useEffect(() => {
+    if (topRidersPage > topRidersTotalPages) {
+      setTopRidersPage(topRidersTotalPages);
+    }
+  }, [topRidersPage, topRidersTotalPages]);
+
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const currentMarkerRef = useRef(null);
@@ -460,7 +559,7 @@ export default function Riders() {
     const { data, error } = await supabaseClient
       .from("users")
       .select(
-        "user_id, username, fname, lname, status, last_seen_lat, last_seen_lng",
+        "user_id, username, fname, lname, status, last_active, last_seen_lat, last_seen_lng",
       );
 
     if (error) {
@@ -729,6 +828,64 @@ export default function Riders() {
     [riders],
   );
 
+  const recentActivityRows = useMemo(() => {
+    const merged = [];
+    const seen = new Set();
+
+    (recentRiderActivity || []).forEach((activity) => {
+      const key = activity.riderKey || activity.riderName;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      merged.push(activity);
+    });
+
+    const remainingRiders = (riders || [])
+      .map((rider) => {
+        const parsed = rider?.last_active ? new Date(rider.last_active) : null;
+        const lastActive =
+          parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+        const riderKey = rider.username || String(rider.user_id || "");
+        const isOnline = isActiveRiderStatus(rider?.status);
+        return {
+          id: `rider-${riderKey}`,
+          riderKey,
+          riderName: getRiderDisplayName(rider),
+          status: rider?.status || (isOnline ? "Online" : "Offline"),
+          timestamp: lastActive || new Date(0),
+          lastActive,
+          isOnline,
+        };
+      })
+      .sort((a, b) => {
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        const aTime = a.lastActive ? a.lastActive.getTime() : 0;
+        const bTime = b.lastActive ? b.lastActive.getTime() : 0;
+        return bTime - aTime;
+      });
+
+    remainingRiders.forEach((entry) => {
+      if (!entry.riderKey || seen.has(entry.riderKey)) return;
+      seen.add(entry.riderKey);
+      merged.push(entry);
+    });
+
+    return merged;
+  }, [recentRiderActivity, riders]);
+  const activityTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(recentActivityRows.length / RIDER_INSIGHT_PAGE_SIZE)),
+    [recentActivityRows.length],
+  );
+  const pagedActivityRows = useMemo(() => {
+    const start = (activityPage - 1) * RIDER_INSIGHT_PAGE_SIZE;
+    return recentActivityRows.slice(start, start + RIDER_INSIGHT_PAGE_SIZE);
+  }, [recentActivityRows, activityPage]);
+
+  useEffect(() => {
+    if (activityPage > activityTotalPages) {
+      setActivityPage(activityTotalPages);
+    }
+  }, [activityPage, activityTotalPages]);
+
   // Load riders on mount
   useEffect(() => {
     let isMounted = true;
@@ -869,11 +1026,17 @@ export default function Riders() {
       }
 
       if (hasMoved) {
+        const parsedLastActive = rider?.last_active ? new Date(rider.last_active) : null;
+        const lastActive = parsedLastActive && !Number.isNaN(parsedLastActive.getTime())
+          ? parsedLastActive
+          : null;
         activityEntries.push({
           id: `${key}-${now.getTime()}`,
+          riderKey: key,
           riderName: getRiderDisplayName(rider),
           status: rider?.status || "Unknown",
           timestamp: now,
+          lastActive,
           lat: rider.lat,
           lng: rider.lng,
         });
@@ -884,7 +1047,9 @@ export default function Riders() {
 
     previousRiderPositionRef.current = nextPreviousMap;
     if (activityEntries.length > 0) {
-      setRecentRiderActivity((prev) => [...activityEntries, ...prev].slice(0, 6));
+      setRecentRiderActivity((prev) =>
+        [...activityEntries, ...prev].slice(0, RIDER_ACTIVITY_HISTORY_LIMIT),
+      );
     }
   }, [riderLocations]);
 
@@ -942,21 +1107,21 @@ export default function Riders() {
     });
 
     riderLocations.forEach((rider) => {
-      if (!isActiveRiderStatus(rider?.status)) return;
+      if (!FORCE_POLYLINE_PREVIEW && !isActiveRiderStatus(rider?.status)) return;
       const key = rider.username || String(rider.user_id || "");
       if (!key) return;
-      const trail = riderTrailsRef.current.get(key) || [];
+      const trailFromHistory = riderTrailsRef.current.get(key) || [];
+      const trail = FORCE_POLYLINE_PREVIEW
+        ? buildRoutePreviewTrail(rider, trailFromHistory)
+        : trailFromHistory;
       if (trail.length < 2) return;
-
-      const line = L.polyline(trail, {
-        color: "#f59e0b",
-        weight: 3,
-        opacity: 0.82,
-        lineCap: "round",
-        lineJoin: "round",
-        dashArray: "8 7",
-      }).addTo(map);
-      allRouteLinesRef.current.push(line);
+      const isPreviewTrail = FORCE_POLYLINE_PREVIEW && trailFromHistory.length < 2;
+      const layers = drawStyledRoute(map, trail, {
+        mainWeight: 3,
+        casingWeight: 6,
+        isPreview: isPreviewTrail,
+      });
+      allRouteLinesRef.current.push(...layers);
     });
 
     if (!hasAutoCenteredAllMapRef.current && allMarkersRef.current.length > 1) {
@@ -1085,21 +1250,21 @@ export default function Riders() {
     });
 
     riderLocations.forEach((rider) => {
-      if (!isActiveRiderStatus(rider?.status)) return;
+      if (!FORCE_POLYLINE_PREVIEW && !isActiveRiderStatus(rider?.status)) return;
       const key = rider.username || String(rider.user_id || "");
       if (!key) return;
-      const trail = riderTrailsRef.current.get(key) || [];
+      const trailFromHistory = riderTrailsRef.current.get(key) || [];
+      const trail = FORCE_POLYLINE_PREVIEW
+        ? buildRoutePreviewTrail(rider, trailFromHistory)
+        : trailFromHistory;
       if (trail.length < 2) return;
-
-      const line = L.polyline(trail, {
-        color: "#f59e0b",
-        weight: 4,
-        opacity: 0.88,
-        lineCap: "round",
-        lineJoin: "round",
-        dashArray: "10 8",
-      }).addTo(map);
-      fullRouteLinesRef.current.push(line);
+      const isPreviewTrail = FORCE_POLYLINE_PREVIEW && trailFromHistory.length < 2;
+      const layers = drawStyledRoute(map, trail, {
+        mainWeight: 4,
+        casingWeight: 7,
+        isPreview: isPreviewTrail,
+      });
+      fullRouteLinesRef.current.push(...layers);
     });
 
     if (
@@ -1933,10 +2098,10 @@ export default function Riders() {
                     </div>
                     {topRiders.length > 0 ? (
                       <ul className="rider-insight-list rider-top-list">
-                        {topRiders.map((rider, index) => (
+                        {pagedTopRiders.map((rider, index) => (
                           <li key={rider.user_id || rider.username}>
                             <span className="rider-item-title">
-                              {index + 1}. {getRiderDisplayName(rider)}
+                              {(topRidersPage - 1) * RIDER_INSIGHT_PAGE_SIZE + index + 1}. {getRiderDisplayName(rider)}
                             </span>
                             <strong>{rider.deliveredParcels ?? 0} delivered</strong>
                           </li>
@@ -1944,6 +2109,29 @@ export default function Riders() {
                       </ul>
                     ) : (
                       <p className="rider-insight-empty">No rider performance data available.</p>
+                    )}
+                    {topRiders.length > RIDER_INSIGHT_PAGE_SIZE && (
+                      <div className="rider-insight-pagination">
+                        <button
+                          type="button"
+                          className="rider-page-btn"
+                          onClick={() => setTopRidersPage((prev) => Math.max(1, prev - 1))}
+                          disabled={topRidersPage === 1}
+                        >
+                          Previous
+                        </button>
+                        <span>{`Page ${topRidersPage} of ${topRidersTotalPages}`}</span>
+                        <button
+                          type="button"
+                          className="rider-page-btn"
+                          onClick={() =>
+                            setTopRidersPage((prev) => Math.min(topRidersTotalPages, prev + 1))
+                          }
+                          disabled={topRidersPage === topRidersTotalPages}
+                        >
+                          Next
+                        </button>
+                      </div>
                     )}
                   </section>
                   <section className="rider-insight-section">
@@ -1954,14 +2142,15 @@ export default function Riders() {
                             <path d="M12 4a8 8 0 100 16 8 8 0 000-16zm0 2a6 6 0 11-6 6 6 6 0 016-6zm-1 2h2v4.5l3 1.8-1 1.7-4-2.3V8z" />
                           </svg>
                         </span>
-                        Recent Activity
+                        Active Status
                       </h3>
                     </div>
-                    {recentRiderActivity.length > 0 ? (
+                    {recentActivityRows.length > 0 ? (
                       <ul className="rider-insight-list rider-activity-list">
-                        {recentRiderActivity.map((activity) => {
+                        {pagedActivityRows.map((activity) => {
                           const online = isActiveRiderStatus(activity.status);
                           const statusLabel = online ? "Online" : "Offline";
+                          const timeSource = online ? activity.timestamp : activity.lastActive;
                           return (
                             <li key={activity.id}>
                               <span className="rider-item-title">{activity.riderName}</span>
@@ -1970,17 +2159,37 @@ export default function Riders() {
                                   className={`rider-activity-dot ${online ? "is-online" : "is-offline"}`}
                                   aria-hidden="true"
                                 />
-                                {statusLabel} - {activity.timestamp.toLocaleTimeString([], {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                })}
+                                {statusLabel} - {formatRelativeTime(timeSource)}
                               </small>
                             </li>
                           );
                         })}
                       </ul>
                     ) : (
-                      <p className="rider-insight-empty">Waiting for live rider movement...</p>
+                      <p className="rider-insight-empty">No rider activity yet.</p>
+                    )}
+                    {recentActivityRows.length > RIDER_INSIGHT_PAGE_SIZE && (
+                      <div className="rider-insight-pagination">
+                        <button
+                          type="button"
+                          className="rider-page-btn"
+                          onClick={() => setActivityPage((prev) => Math.max(1, prev - 1))}
+                          disabled={activityPage === 1}
+                        >
+                          Previous
+                        </button>
+                        <span>{`Page ${activityPage} of ${activityTotalPages}`}</span>
+                        <button
+                          type="button"
+                          className="rider-page-btn"
+                          onClick={() =>
+                            setActivityPage((prev) => Math.min(activityTotalPages, prev + 1))
+                          }
+                          disabled={activityPage === activityTotalPages}
+                        >
+                          Next
+                        </button>
+                      </div>
                     )}
                   </section>
                 </aside>
