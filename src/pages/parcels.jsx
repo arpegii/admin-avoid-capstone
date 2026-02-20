@@ -63,6 +63,20 @@ const getAttemptStatusClass = (value) => {
   return "is-default";
 };
 
+const getParcelStatusMeta = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "successfully delivered" || normalized === "delivered") {
+    return { className: "is-delivered", label: "Successfully Delivered" };
+  }
+  if (normalized === "on-going" || normalized === "ongoing" || normalized === "in progress") {
+    return { className: "is-ongoing", label: "On-Going" };
+  }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return { className: "is-cancelled", label: "Cancelled" };
+  }
+  return { className: "is-default", label: formatStatusLabel(value) };
+};
+
 const ModernSelect = ({
   value,
   onChange,
@@ -264,6 +278,26 @@ const Parcel = () => {
   const pageStartIndex = (parcelPage - 1) * parcelRows;
   const pageEndIndex = pageStartIndex + parcelRows;
   const pagedParcels = filteredParcels.slice(pageStartIndex, pageEndIndex);
+  const showingStart = parcelTotalRows === 0 ? 0 : pageStartIndex + 1;
+  const showingEnd = Math.min(pageEndIndex, parcelTotalRows);
+
+  const pageItems = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+    const items = new Set([1, totalPages, parcelPage - 1, parcelPage, parcelPage + 1]);
+    const pages = [...items].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+    const result = [];
+    for (let i = 0; i < pages.length; i += 1) {
+      const current = pages[i];
+      const previous = pages[i - 1];
+      if (i > 0 && current - previous > 1) {
+        result.push(`ellipsis-${previous}-${current}`);
+      }
+      result.push(current);
+    }
+    return result;
+  }, [parcelPage, totalPages]);
 
   const openParcelModal = (parcel) => setViewParcel(parcel);
   const closeParcelModal = () => setViewParcel(null);
@@ -497,18 +531,15 @@ const Parcel = () => {
                       <td>{parcel.recipient_phone || "-"}</td>
                       <td>{parcel.address || "-"}</td>
                       <td>{parcel.riderFullName}</td>
-                      <td
-                        className={
-                          parcel.status === "successfully delivered"
-                            ? "delivered"
-                            : parcel.status === "on-going"
-                              ? "ongoing"
-                              : parcel.status === "cancelled"
-                                ? "cancelled"
-                                : ""
-                        }
-                      >
-                        {parcel.status || "-"}
+                      <td className="status-cell">
+                        {(() => {
+                          const statusMeta = getParcelStatusMeta(parcel.status);
+                          return (
+                            <span className={`parcel-status-pill ${statusMeta.className}`}>
+                              {statusMeta.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td>
                         <button
@@ -532,11 +563,33 @@ const Parcel = () => {
               </table>
 
               <div className="parcels-table-footer">
+                <div className="parcels-table-meta">
+                  {`Showing ${showingStart}-${showingEnd} of ${parcelTotalRows} parcels`}
+                </div>
                 <div className="parcels-pagination">
                   <button onClick={prevPage} disabled={parcelPage <= 1}>
                     Previous
                   </button>
-                  <span>{`Page ${parcelPage} of ${totalPages}`}</span>
+                  <div className="parcels-page-list">
+                    {pageItems.map((item) =>
+                      typeof item === "number" ? (
+                        <button
+                          key={`page-${item}`}
+                          type="button"
+                          className={item === parcelPage ? "is-active" : ""}
+                          onClick={() => setParcelPage(item)}
+                          aria-label={`Go to page ${item}`}
+                        >
+                          {item}
+                        </button>
+                      ) : (
+                        <span key={item} className="parcels-page-ellipsis" aria-hidden="true">
+                          ...
+                        </span>
+                      ),
+                    )}
+                  </div>
+                  <span className="parcels-page-summary">{`Page ${parcelPage} of ${totalPages}`}</span>
                   <button
                     onClick={nextPage}
                     disabled={parcelPage >= totalPages}
@@ -643,7 +696,11 @@ const Parcel = () => {
                           </div>
                           <div className="parcel-view-item">
                             <span>Attempt 1 Date</span>
-                            <strong>{viewParcel.attempt1_datetime || "-"}</strong>
+                            <strong>
+                              {formatTimelineDateTime(
+                                viewParcel.attempt1_date || viewParcel.attempt1_datetime,
+                              )}
+                            </strong>
                           </div>
                           <div className="parcel-view-item">
                             <span>Attempt 2 Status</span>
@@ -657,7 +714,11 @@ const Parcel = () => {
                           </div>
                           <div className="parcel-view-item">
                             <span>Attempt 2 Date</span>
-                            <strong>{viewParcel.attempt2_datetime || "-"}</strong>
+                            <strong>
+                              {formatTimelineDateTime(
+                                viewParcel.attempt2_date || viewParcel.attempt2_datetime,
+                              )}
+                            </strong>
                           </div>
                         </div>
                       </section>

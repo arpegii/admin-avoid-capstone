@@ -27,15 +27,17 @@
 /* ================= FILTER SECTION ================= */
 
 .parcels-filter-section {
-  background: white;
-  padding: 24px 28px;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  padding: 20px 24px;
+  border-radius: 18px;
+  border: 1px solid #dbe3ef;
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.1),
+    0 2px 0 rgba(255, 255, 255, 0.9) inset;
   margin-bottom: 24px;
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 14px 20px;
   align-items: center;
   animation: parcelsSlideUp 0.5s ease-out;
   position: relative;
@@ -56,19 +58,21 @@
 .parcels-filter-section label {
   color: #64748b;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
+  letter-spacing: 0.1px;
 }
 
 .parcels-filter-section input[type="text"],
 .parcels-filter-section select {
-  padding: 10px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
+  min-height: 50px;
+  padding: 10px 14px;
+  border: 2px solid #dfe5ef;
+  border-radius: 14px;
   font-size: 14px;
   color: #1e293b;
   background: #ffffff;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   outline: none;
   min-width: 200px;
 }
@@ -183,13 +187,14 @@
 
 .parcels-filter-section input[type="text"]:focus,
 .parcels-filter-section select:focus {
-  border-color: #ff0000;
-  box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1);
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  background: #fffdfd;
 }
 
 .parcels-filter-section input[type="text"]:hover,
 .parcels-filter-section select:hover {
-  border-color: #cbd5e1;
+  border-color: #c7d0df;
 }
 
 .parcels-filter-section input[type="text"]::placeholder {
@@ -229,13 +234,13 @@
   width: 15%;
 } /* Recipient Phone*/
 .parcel-table colgroup col:nth-child(4) {
-  width: 26%;
+  width: 24%;
 } /* Address        */
 .parcel-table colgroup col:nth-child(5) {
   width: 15%;
 } /* Assigned Rider */
 .parcel-table colgroup col:nth-child(6) {
-  width: 10%;
+  width: 12%;
 } /* Status         */
 .parcel-table colgroup col:nth-child(7) {
   width: 7%;
@@ -245,6 +250,9 @@
 .parcel-table thead {
   background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
   color: white;
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 20px rgba(127, 29, 29, 0.18);
 }
 
 .parcel-table thead tr th {
@@ -252,15 +260,32 @@
   top: 0;
   z-index: 2;
   background: transparent;
-  padding: 14px 10px;
+  padding: 15px 12px;
   text-align: center;
-  font-weight: 700;
-  letter-spacing: 0.4px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
-  font-size: 11px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   white-space: normal;
   line-height: 1.25;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.parcel-table thead tr th:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0)
+  );
 }
 
 .parcel-table thead tr th:first-child {
@@ -323,25 +348,47 @@
 }
 
 /* ── Status badges ── */
-.parcel-table tbody td.delivered {
+.parcel-table tbody td.status-cell {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.parcel-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.parcel-status-pill.is-delivered {
+  background: rgba(16, 185, 129, 0.14);
   color: #047857;
-  font-weight: 700;
-  text-transform: capitalize;
-  font-size: 12px;
+  border-color: rgba(5, 150, 105, 0.28);
 }
 
-.parcel-table tbody td.ongoing {
-  color: #eab308;
-  font-weight: 700;
-  text-transform: capitalize;
-  font-size: 12px;
+.parcel-status-pill.is-ongoing {
+  background: rgba(250, 204, 21, 0.16);
+  color: #a16207;
+  border-color: rgba(234, 179, 8, 0.35);
 }
 
-.parcel-table tbody td.cancelled {
+.parcel-status-pill.is-cancelled {
+  background: rgba(239, 68, 68, 0.14);
   color: #b91c1c;
-  font-weight: 700;
-  text-transform: capitalize;
-  font-size: 12px;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.parcel-status-pill.is-default {
+  background: rgba(148, 163, 184, 0.16);
+  color: #334155;
+  border-color: rgba(100, 116, 139, 0.35);
 }
 
 /* ── View button ── */
@@ -396,28 +443,42 @@
 /* ================= TABLE FOOTER & PAGINATION ================= */
 
 .parcels-table-footer {
-  padding: 16px 18px;
+  padding: 14px 18px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   border-bottom-left-radius: 18px;
   border-bottom-right-radius: 18px;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.parcels-table-meta {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .parcels-pagination {
   display: flex;
-  gap: 16px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 6px;
 }
 
 .parcels-pagination button {
   background: #ffffff;
   color: #475569;
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 8px 16px;
+  border-radius: 11px;
+  padding: 8px 14px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -429,11 +490,11 @@
 }
 
 .parcels-pagination button:hover:not(:disabled) {
-  background: #dc2626;
-  color: white;
-  border-color: #dc2626;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(220, 38, 38, 0.22);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.12);
 }
 
 .parcels-pagination button:active:not(:disabled) {
@@ -441,18 +502,57 @@
 }
 
 .parcels-pagination button:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
-  background: #f8fafc;
-  color: #cbd5e1;
+  background: #f8fafc !important;
+  color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: none !important;
 }
 
 .parcels-pagination span {
   color: #475569;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  min-width: 120px;
+  min-width: auto;
   text-align: center;
+}
+
+.parcels-page-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 2px;
+}
+
+.parcels-page-list button {
+  min-width: 38px;
+  padding: 8px 10px;
+}
+
+.parcels-page-list button.is-active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow:
+    0 6px 12px rgba(220, 38, 38, 0.2),
+    0 0 0 2px rgba(239, 68, 68, 0.12);
+}
+
+.parcels-page-ellipsis {
+  min-width: auto !important;
+  letter-spacing: 1px;
+  color: #94a3b8;
+}
+
+.parcels-page-summary {
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  white-space: nowrap;
 }
 
 /* ================= MODAL ================= */
@@ -1084,7 +1184,9 @@
     font-size: 12px;
   }
   .parcels-pagination {
-    gap: 12px;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
   }
   .parcels-pagination button {
     padding: 6px 14px;
@@ -1093,6 +1195,13 @@
   .parcels-pagination span {
     font-size: 13px;
     min-width: 80px;
+  }
+  .parcels-table-footer {
+    justify-content: center;
+  }
+  .parcels-table-meta {
+    width: 100%;
+    text-align: center;
   }
   .parcel-track-map {
     height: 100%;
@@ -1147,7 +1256,8 @@ body.dark .parcels-table-wrapper {
   box-shadow: var(--dm-shadow);
 }
 body.dark .parcels-filter-section label,
-body.dark .parcels-pagination span {
+body.dark .parcels-pagination span,
+body.dark .parcels-table-meta {
   color: var(--dm-muted);
 }
 body.dark .parcels-filter-section input[type="text"],
@@ -1196,6 +1306,11 @@ body.dark .parcels-table-footer {
   background: var(--dm-surface-2);
   border-top-color: var(--dm-border);
 }
+
+body.dark .parcels-pagination {
+  background: var(--dm-surface);
+  border-color: var(--dm-border);
+}
 body.dark .parcel-table tbody tr {
   border-bottom-color: var(--dm-border);
 }
@@ -1214,6 +1329,13 @@ body.dark .parcels-pagination button {
   background: var(--dm-surface-2);
   color: var(--dm-text);
   border-color: var(--dm-border);
+}
+
+body.dark .parcels-pagination button:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.35);
 }
 body.dark .parcels-pagination button:disabled {
   background: var(--dm-bg);
@@ -1376,16 +1498,44 @@ body.dark .parcel-view-status.is-ongoing {
   border-color: rgba(250, 204, 21, 0.45);
 }
 
-body.dark .parcel-table tbody td.delivered {
-  color: #22c55e;
+body.dark .parcel-status-pill.is-delivered {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.45);
 }
 
-body.dark .parcel-table tbody td.ongoing {
-  color: #facc15;
+body.dark .parcel-status-pill.is-ongoing {
+  background: rgba(250, 204, 21, 0.2);
+  color: #fde047;
+  border-color: rgba(250, 204, 21, 0.5);
 }
 
-body.dark .parcel-table tbody td.cancelled {
-  color: #ef4444;
+body.dark .parcel-status-pill.is-cancelled {
+  background: rgba(220, 38, 38, 0.24);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+body.dark .parcel-status-pill.is-default {
+  background: rgba(100, 116, 139, 0.24);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+body.dark .parcels-page-list button.is-active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-color: #f87171;
+  box-shadow: 0 8px 14px rgba(2, 6, 23, 0.45);
+}
+
+body.dark .parcels-page-ellipsis {
+  color: #94a3b8;
+}
+
+body.dark .parcels-page-summary {
+  color: #e2e8f0;
+  background: var(--dm-surface-2);
+  border-color: var(--dm-border);
 }
 
 body.dark .parcel-view-status.is-cancelled {
