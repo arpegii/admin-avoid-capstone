@@ -421,6 +421,401 @@ const loadImageAsDataUrl = (url) =>
     image.src = url;
   });
 
+const getSafePercent = (part, total) => (total > 0 ? (part / total) * 100 : 0);
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const buildMonthlyCounts = (rows = [], dateKey) => {
+  const values = Array(12).fill(0);
+  (rows || []).forEach((row) => {
+    const parsed = new Date(row?.[dateKey]);
+    if (Number.isNaN(parsed.getTime())) return;
+    values[parsed.getMonth()] += 1;
+  });
+  return { labels: MONTH_LABELS, values };
+};
+
+const buildYearlyCounts = (rows = [], dateKey) => {
+  const yearMap = {};
+  (rows || []).forEach((row) => {
+    const year = extractYearKey(row?.[dateKey]);
+    if (!year) return;
+    yearMap[year] = (yearMap[year] || 0) + 1;
+  });
+  const labels = Object.keys(yearMap).sort((a, b) => Number(a) - Number(b));
+  return { labels, values: labels.map((label) => yearMap[label] || 0) };
+};
+
+const buildWeekdayCounts = (rows = [], dateKey) => {
+  const values = Array(7).fill(0);
+  (rows || []).forEach((row) => {
+    const parsed = new Date(row?.[dateKey]);
+    if (Number.isNaN(parsed.getTime())) return;
+    values[parsed.getDay()] += 1;
+  });
+  return { labels: WEEKDAY_LABELS, values };
+};
+
+const buildHourlyCounts = (rows = [], dateKey) => {
+  const values = Array(24).fill(0);
+  (rows || []).forEach((row) => {
+    const parsed = new Date(row?.[dateKey]);
+    if (Number.isNaN(parsed.getTime())) return;
+    values[parsed.getHours()] += 1;
+  });
+  const labels = values.map((_, hour) => `${String(hour).padStart(2, "0")}:00`);
+  return { labels, values };
+};
+
+const topEntries = (mapObject, limit = 5) =>
+  Object.entries(mapObject || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+
+const countBy = (rows = [], resolver) => {
+  const map = {};
+  (rows || []).forEach((row) => {
+    const key = resolver(row);
+    if (!key) return;
+    map[key] = (map[key] || 0) + 1;
+  });
+  return map;
+};
+
+const buildParcelsAnalytics = (parcels = []) => {
+  const deliveredRows = parcels.filter((parcel) => isDeliveredStatus(parcel?.status));
+  const delivered = deliveredRows.length;
+  const cancelled = parcels.filter((parcel) => isCancelledStatus(parcel?.status)).length;
+  const delayed = parcels.filter((parcel) =>
+    normalizeStatus(parcel?.attempt1_status) === "failed" ||
+    normalizeStatus(parcel?.attempt2_status) === "failed" ||
+    isCancelledStatus(parcel?.status),
+  ).length;
+  const undelivered = Math.max(parcels.length - delivered - cancelled, 0);
+  const firstAttemptSuccessCount = deliveredRows.filter((parcel) =>
+    normalizeStatus(parcel?.attempt1_status) === "success" ||
+    normalizeStatus(parcel?.attempt1_status) === "successfully delivered",
+  ).length;
+  const riderCountMap = countBy(deliveredRows, (parcel) => parcel?.assigned_rider || "Unassigned");
+  const topRiders = topEntries(riderCountMap, 5);
+  const monthlyDeliveries = buildMonthlyCounts(deliveredRows, "created_at");
+  const yearlyDeliveries = buildYearlyCounts(deliveredRows, "created_at");
+  const activeDaySet = new Set(
+    deliveredRows
+      .map((parcel) => {
+        const parsed = new Date(parcel?.created_at);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed.toISOString().slice(0, 10);
+      })
+      .filter(Boolean),
+  );
+  const avgPerActiveDay = activeDaySet.size ? delivered / activeDaySet.size : 0;
+
+  return {
+    summaryRows: [
+      ["Total Parcels", String(parcels.length)],
+      ["Delivered", String(delivered)],
+      ["Cancelled", String(cancelled)],
+      ["In Progress/Other", String(undelivered)],
+      ["Delayed", String(delayed)],
+      ["Delivery Rate", `${getSafePercent(delivered, parcels.length).toFixed(1)}%`],
+      ["Cancellation Rate", `${getSafePercent(cancelled, parcels.length).toFixed(1)}%`],
+      ["Delay Rate", `${getSafePercent(delayed, parcels.length).toFixed(1)}%`],
+      ["First Attempt Success", `${getSafePercent(firstAttemptSuccessCount, delivered).toFixed(1)}%`],
+      ["Avg Deliveries per Active Day", avgPerActiveDay.toFixed(2)],
+      ["Top Rider", topRiders[0] ? `${topRiders[0][0]} (${topRiders[0][1]})` : "N/A"],
+    ],
+    charts: [
+      {
+        title: "Parcel Status Mix",
+        type: "doughnut",
+        labels: ["Delivered", "Cancelled", "In Progress/Other"],
+        values: [delivered, cancelled, undelivered],
+        colors: ["#16a34a", "#ef4444", "#94a3b8"],
+      },
+      {
+        title: "Monthly Deliveries",
+        type: "line",
+        labels: monthlyDeliveries.labels,
+        values: monthlyDeliveries.values,
+        datasetLabel: "Deliveries",
+        colors: ["#0ea5e9"],
+      },
+      {
+        title: "Delay vs Cancellation Risk (%)",
+        type: "bar",
+        labels: ["Delay %", "Cancellation %"],
+        values: [
+          Number(getSafePercent(delayed, parcels.length).toFixed(1)),
+          Number(getSafePercent(cancelled, parcels.length).toFixed(1)),
+        ],
+        datasetLabel: "Rate",
+        colors: ["#f59e0b", "#ef4444"],
+      },
+      {
+        title: "Top Riders by Delivered Parcels",
+        type: "bar",
+        labels: topRiders.map(([label]) => label),
+        values: topRiders.map(([, count]) => count),
+        datasetLabel: "Deliveries",
+        colors: ["#2563eb"],
+      },
+      {
+        title: yearlyDeliveries.labels.length > 1 ? "Yearly Deliveries Trend" : "Monthly Deliveries Trend",
+        type: "line",
+        labels: yearlyDeliveries.labels.length > 1 ? yearlyDeliveries.labels : monthlyDeliveries.labels,
+        values: yearlyDeliveries.labels.length > 1 ? yearlyDeliveries.values : monthlyDeliveries.values,
+        datasetLabel: "Deliveries",
+        colors: ["#14b8a6"],
+      },
+    ],
+  };
+};
+
+const buildViolationsAnalytics = (violations = []) => {
+  const byType = countBy(violations, (row) => String(row?.violation || "Unknown violation"));
+  const byRider = countBy(violations, (row) => String(row?.name || "Unknown rider"));
+  const monthly = buildMonthlyCounts(violations, "date");
+  const weekday = buildWeekdayCounts(violations, "date");
+  const hourly = buildHourlyCounts(violations, "date");
+  const topTypes = topEntries(byType, 8);
+  const topRiders = topEntries(byRider, 8);
+  const busiestMonthIndex = monthly.values.reduce(
+    (best, value, index, arr) => (value > arr[best] ? index : best),
+    0,
+  );
+  const activeDays = new Set(
+    violations
+      .map((row) => {
+        const parsed = new Date(row?.date);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed.toISOString().slice(0, 10);
+      })
+      .filter(Boolean),
+  );
+  const avgPerActiveDay = activeDays.size ? violations.length / activeDays.size : 0;
+
+  return {
+    summaryRows: [
+      ["Total Violations", String(violations.length)],
+      ["Distinct Violation Types", String(Object.keys(byType).length)],
+      ["Riders Flagged", String(Object.keys(byRider).length)],
+      ["Avg Violations per Active Day", avgPerActiveDay.toFixed(2)],
+      ["Top Violation Type", topTypes[0] ? `${topTypes[0][0]} (${topTypes[0][1]})` : "N/A"],
+      ["Most Flagged Rider", topRiders[0] ? `${topRiders[0][0]} (${topRiders[0][1]})` : "N/A"],
+      ["Busiest Month", `${MONTH_LABELS[busiestMonthIndex]} (${monthly.values[busiestMonthIndex] || 0})`],
+    ],
+    charts: [
+      {
+        title: "Monthly Violation Trend",
+        type: "line",
+        labels: monthly.labels,
+        values: monthly.values,
+        datasetLabel: "Violations",
+        colors: ["#f59e0b"],
+      },
+      {
+        title: "Top Violation Types",
+        type: "bar",
+        labels: topTypes.map(([label]) => label),
+        values: topTypes.map(([, count]) => count),
+        datasetLabel: "Incidents",
+        colors: ["#ef4444"],
+      },
+      {
+        title: "Most Flagged Riders",
+        type: "bar",
+        labels: topRiders.map(([label]) => label),
+        values: topRiders.map(([, count]) => count),
+        datasetLabel: "Incidents",
+        colors: ["#8b5cf6"],
+      },
+      {
+        title: "Violations by Weekday",
+        type: "bar",
+        labels: weekday.labels,
+        values: weekday.values,
+        datasetLabel: "Incidents",
+        colors: ["#0ea5e9"],
+      },
+      {
+        title: "Violations by Hour",
+        type: "line",
+        labels: hourly.labels,
+        values: hourly.values,
+        datasetLabel: "Incidents",
+        colors: ["#fb7185"],
+      },
+    ],
+  };
+};
+
+const buildRidersAnalytics = (riders = []) => {
+  const monthlyJoins = buildMonthlyCounts(riders, "created_at");
+  const genderMap = countBy(riders, (row) => String(row?.gender || "Unknown"));
+  const topJoinMonthIndex = monthlyJoins.values.reduce(
+    (best, value, index, arr) => (value > arr[best] ? index : best),
+    0,
+  );
+  return {
+    summaryRows: [
+      ["Total Riders", String(riders.length)],
+      ["Distinct Gender Values", String(Object.keys(genderMap).length)],
+      ["Top Join Month", `${MONTH_LABELS[topJoinMonthIndex]} (${monthlyJoins.values[topJoinMonthIndex] || 0})`],
+    ],
+    charts: [
+      {
+        title: "Rider Gender Distribution",
+        type: "doughnut",
+        labels: Object.keys(genderMap),
+        values: Object.values(genderMap),
+        colors: ["#3b82f6", "#ec4899", "#22c55e", "#f59e0b", "#a855f7"],
+      },
+      {
+        title: "Monthly Rider Joins",
+        type: "line",
+        labels: monthlyJoins.labels,
+        values: monthlyJoins.values,
+        colors: ["#0ea5e9"],
+        datasetLabel: "Riders",
+      },
+    ],
+  };
+};
+
+const buildReportAnalyticsBundle = (reportType, data) => {
+  if (reportType === "overall") {
+    const parcels = (data || []).find((section) => section?.section === "Parcels")?.data || [];
+    const riders = (data || []).find((section) => section?.section === "Riders")?.data || [];
+    const violations = (data || []).find((section) => section?.section === "Violations")?.data || [];
+    const parcelAnalytics = buildParcelsAnalytics(parcels);
+    const violationsAnalytics = buildViolationsAnalytics(violations);
+    return {
+      summaryRows: [
+        ["Total Parcels", String(parcels.length)],
+        ["Total Riders", String(riders.length)],
+        ["Total Violations", String(violations.length)],
+        ...parcelAnalytics.summaryRows.slice(3, 8),
+        ["Top Violation Type", violationsAnalytics.summaryRows[4]?.[1] || "N/A"],
+        ["Most Flagged Rider", violationsAnalytics.summaryRows[5]?.[1] || "N/A"],
+      ],
+      charts: [
+        ...parcelAnalytics.charts.slice(0, 3),
+        ...violationsAnalytics.charts.slice(0, 3),
+      ],
+    };
+  }
+  if (reportType === "parcels") return buildParcelsAnalytics(data || []);
+  if (reportType === "violations") return buildViolationsAnalytics(data || []);
+  if (reportType === "riders") return buildRidersAnalytics(data || []);
+  return { summaryRows: [], charts: [] };
+};
+
+const buildChartImageFromSpec = async (spec, width = 900, height = 360) => {
+  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.values) || !spec.values.length) {
+    return null;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const palette = Array.isArray(spec.colors) && spec.colors.length
+    ? spec.colors
+    : ["#ef4444", "#0ea5e9", "#16a34a", "#f59e0b", "#8b5cf6"];
+  const isCircular = spec.type === "doughnut" || spec.type === "pie";
+  const chart = new Chart(context, {
+    type: spec.type || "line",
+    data: {
+      labels: spec.labels,
+      datasets: [
+        {
+          label: spec.datasetLabel || "Value",
+          data: spec.values,
+          borderColor: isCircular ? palette : palette[0],
+          backgroundColor: isCircular
+            ? palette
+            : spec.type === "bar"
+              ? spec.values.map((_, idx) => palette[idx % palette.length])
+              : `${palette[0]}33`,
+          borderWidth: 2,
+          tension: 0.35,
+          fill: !isCircular,
+        },
+      ],
+    },
+    options: {
+      responsive: false,
+      animation: false,
+      plugins: {
+        legend: { display: isCircular, position: "right" },
+      },
+      scales: isCircular
+        ? undefined
+        : {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+          },
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const dataUrl = canvas.toDataURL("image/png");
+  chart.destroy();
+  return { title: spec.title || "Chart", dataUrl };
+};
+
+const buildReportChartImages = async (chartSpecs = []) => {
+  const images = [];
+  for (const spec of (chartSpecs || []).slice(0, 6)) {
+    const image = await buildChartImageFromSpec(spec);
+    if (image) images.push(image);
+  }
+  return images;
+};
+
+const resolveReportGeneratedBy = async () => {
+  try {
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error) throw error;
+    const user = data?.user;
+    const metadata = user?.user_metadata || {};
+    const explicitName = String(
+      metadata.full_name ||
+      metadata.name ||
+      [metadata.fname || metadata.first_name, metadata.lname || metadata.last_name]
+        .filter(Boolean)
+        .join(" "),
+    ).trim();
+    if (explicitName) return explicitName;
+
+    const userEmail = user?.email;
+    if (userEmail) {
+      const { data: profileRows } = await supabaseClient
+        .from("users")
+        .select("fname,lname,username,email")
+        .eq("email", userEmail)
+        .limit(1);
+      const profile = profileRows?.[0];
+      const profileName = String(`${profile?.fname || ""} ${profile?.lname || ""}`).trim();
+      if (profileName) return profileName;
+      if (profile?.username) return String(profile.username);
+
+      const localPart = String(userEmail).split("@")[0].replace(/[._-]+/g, " ");
+      if (localPart.trim()) {
+        return localPart
+          .split(" ")
+          .filter(Boolean)
+          .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+          .join(" ");
+      }
+    }
+    return "Unknown User";
+  } catch {
+    return "Unknown User";
+  }
+};
+
 const ModernSelect = ({
   value,
   onChange,
@@ -549,6 +944,7 @@ const ModernSelect = ({
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
+    totalParcels: 0,
     delivered: 0,
     cancelled: 0,
     delayed: 0,
@@ -567,7 +963,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [availableYears, setAvailableYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState("All");
-  const [growthView, setGrowthView] = useState("month");
+  const [isYearSwitching, setIsYearSwitching] = useState(false);
+  const [dashboardView, setDashboardView] = useState("overview");
+  const [growthView, setGrowthView] = useState("year");
   const [growthMetric, setGrowthMetric] = useState("deliveries");
   const [growthChartType, setGrowthChartType] = useState("line");
   const [yearFilterReady, setYearFilterReady] = useState(false);
@@ -586,6 +984,12 @@ const Dashboard = () => {
   const yearFilterRef = useRef(null);
   const growthChartRef = useRef(null);
   const chartInstanceRef = useRef(null);
+  const analyticsConversionChartRef = useRef(null);
+  const analyticsRiskChartRef = useRef(null);
+  const analyticsTrendChartRef = useRef(null);
+  const analyticsConversionChartInstanceRef = useRef(null);
+  const analyticsRiskChartInstanceRef = useRef(null);
+  const analyticsTrendChartInstanceRef = useRef(null);
   const hasLoadedAnalyticsRef = useRef(false);
   const violationMapRef = useRef(null);
   const violationLeafletMapRef = useRef(null);
@@ -641,6 +1045,69 @@ const Dashboard = () => {
     () => (growthChartSeries.data || []).some((value) => Number(value) > 0),
     [growthChartSeries.data],
   );
+  const analyticsSummary = useMemo(() => {
+    const totalParcels = Number(dashboardData.totalParcels) || 0;
+    const delivered = Number(dashboardData.delivered) || 0;
+    const cancelled = Number(dashboardData.cancelled) || 0;
+    const delayed = Number(dashboardData.delayed) || 0;
+    const safeTotal = totalParcels > 0 ? totalParcels : 1;
+
+    const deliveryRate = (delivered / safeTotal) * 100;
+    const cancellationRate = (cancelled / safeTotal) * 100;
+    const delayRate = (delayed / safeTotal) * 100;
+    const activeMonths = (dashboardData.monthGrowth || []).filter((value) => Number(value) > 0).length;
+    const activeYears = (dashboardData.yearGrowth || []).filter((value) => Number(value) > 0).length;
+    const averageMonthlyDeliveries = activeMonths > 0 ? delivered / activeMonths : 0;
+    const averageYearlyDeliveries = activeYears > 0 ? delivered / activeYears : 0;
+
+    const isAllYears = selectedYear === "All";
+    let trendLabel = isAllYears ? "No yearly trend yet" : "No monthly trend yet";
+    if (isAllYears) {
+      const yearlySeries = (dashboardData.yearGrowth || [])
+        .map((value, index) => ({
+          label: dashboardData.years?.[index] || `Year ${index + 1}`,
+          value: Number(value) || 0,
+        }))
+        .filter((entry) => entry.value > 0);
+
+      if (yearlySeries.length >= 2) {
+        const latestYear = yearlySeries[yearlySeries.length - 1];
+        const previousYear = yearlySeries[yearlySeries.length - 2];
+        const deltaPercent = ((latestYear.value - previousYear.value) / previousYear.value) * 100;
+        trendLabel = `${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(1)}% ${latestYear.label} vs ${previousYear.label}`;
+      } else if (yearlySeries.length === 1) {
+        trendLabel = `Activity started in ${yearlySeries[0].label}`;
+      }
+    } else {
+      const monthlySeries = dashboardData.monthGrowth || [];
+      const activeMonthlySeries = monthlySeries
+        .map((value, index) => ({
+          label: MONTH_LABELS[index],
+          value: Number(value) || 0,
+        }))
+        .filter((entry) => entry.value > 0);
+
+      if (activeMonthlySeries.length >= 2) {
+        const latestMonth = activeMonthlySeries[activeMonthlySeries.length - 1];
+        const previousMonth = activeMonthlySeries[activeMonthlySeries.length - 2];
+        const deltaPercent = ((latestMonth.value - previousMonth.value) / previousMonth.value) * 100;
+        trendLabel = `${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(1)}% ${latestMonth.label} vs ${previousMonth.label}`;
+      } else if (activeMonthlySeries.length === 1) {
+        trendLabel = `Activity started in ${activeMonthlySeries[0].label}`;
+      }
+    }
+
+    return {
+      totalParcels,
+      deliveryRate,
+      cancellationRate,
+      delayRate,
+      averageMonthlyDeliveries,
+      averageYearlyDeliveries,
+      trendMode: isAllYears ? "yearly" : "monthly",
+      trendLabel,
+    };
+  }, [dashboardData, selectedYear]);
 
   const currentYear = new Date().getFullYear();
   const yearSelectOptions = useMemo(
@@ -1046,6 +1513,7 @@ const Dashboard = () => {
             : [yearsDelayCount[selectedYear] || 0];
 
         setDashboardData({
+          totalParcels: parcelsForSelectedYear.length || 0,
           delivered: delivered || 0,
           cancelled: cancelled || 0,
           delayed: delayed || 0,
@@ -1067,6 +1535,7 @@ const Dashboard = () => {
         console.error("Error loading analytics:", err);
       } finally {
         setLoading(false);
+        setIsYearSwitching(false);
         hasLoadedAnalyticsRef.current = true;
       }
     }
@@ -1215,6 +1684,9 @@ const Dashboard = () => {
     selectedColumn,
     data,
     columns,
+    reportAnalytics,
+    reportChartImages,
+    generatedBy,
   ) => {
     const doc = new jsPDF("landscape");
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1250,22 +1722,107 @@ const Dashboard = () => {
       ["Report Type", humanizeLabel(selectedReportType)],
       ["Date Range", `${formatPdfDate(selectedStartDate)} to ${formatPdfDate(selectedEndDate)}`],
       ["Column Scope", selectedReportType === "parcels" ? humanizeLabel(selectedColumn) : "All"],
+      ["Generated By", generatedBy || "Unknown User"],
       ["Generated", generatedAt],
     ];
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    let infoY = headerHeight + 18;
-    metaRows.forEach(([label, value]) => {
-      doc.setFont("helvetica", "bold");
-      doc.text(`${label}:`, 14, infoY);
-      doc.setFont("helvetica", "normal");
-      doc.text(value, 48, infoY);
-      infoY += 6;
+    autoTable(doc, {
+      startY: headerHeight + 6,
+      margin: { left: 12, right: 12 },
+      head: [["Detail", "Value"]],
+      body: metaRows.map(([label, value]) => [label, value]),
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 9.2,
+        textColor: [31, 41, 55],
+        lineColor: [209, 213, 219],
+        lineWidth: 0.25,
+        cellPadding: 2.2,
+      },
+      headStyles: {
+        fillColor: [239, 68, 68],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      columnStyles: {
+        0: { cellWidth: 44, fontStyle: "bold" },
+        1: { cellWidth: "auto" },
+      },
+      didParseCell: (tableData) => {
+        if (tableData.section === "body" && tableData.row.index % 2 === 1) {
+          tableData.cell.styles.fillColor = [250, 250, 251];
+        }
+      },
     });
 
+    let contentY = doc.lastAutoTable.finalY + 8;
+    if (reportAnalytics?.summaryRows?.length) {
+      autoTable(doc, {
+        startY: contentY,
+        margin: { left: 12, right: 12 },
+        head: [["Analytics KPI", "Result"]],
+        body: reportAnalytics.summaryRows.map(([label, value]) => [label, String(value ?? "-")]),
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 9,
+          textColor: [31, 41, 55],
+          lineColor: [209, 213, 219],
+          lineWidth: 0.2,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        columnStyles: {
+          0: { cellWidth: 68, fontStyle: "bold" },
+          1: { cellWidth: "auto" },
+        },
+        didParseCell: (tableData) => {
+          if (tableData.section === "body" && tableData.row.index % 2 === 1) {
+            tableData.cell.styles.fillColor = [248, 250, 252];
+          }
+        },
+      });
+      contentY = doc.lastAutoTable.finalY + 8;
+    }
+
+    if ((reportChartImages || []).length) {
+      const chartGap = 8;
+      const marginX = 12;
+      const chartWidth = (pageWidth - (marginX * 2) - chartGap) / 2;
+      const chartHeight = 50;
+      const rowHeight = chartHeight + 9;
+      let chartY = contentY;
+
+      reportChartImages.forEach((chartImage, index) => {
+        if (index % 2 === 0 && chartY + rowHeight > pageHeight - 14) {
+          doc.addPage();
+          chartY = 16;
+        }
+        const isRight = index % 2 === 1;
+        const chartX = marginX + (isRight ? chartWidth + chartGap : 0);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(chartImage.title || "Analytics Chart", chartX, chartY + 3);
+        doc.addImage(chartImage.dataUrl, "PNG", chartX, chartY + 5, chartWidth, chartHeight);
+        if (isRight || index === reportChartImages.length - 1) {
+          chartY += rowHeight;
+        }
+      });
+      contentY = chartY + 2;
+    }
+
     if (selectedReportType === "overall") {
-      let yOffset = infoY + 4;
+      let yOffset = contentY + 4;
       data.forEach((section) => {
+        if (yOffset > pageHeight - 28) {
+          doc.addPage();
+          yOffset = 16;
+        }
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11.5);
         doc.setTextColor(17, 24, 39);
@@ -1364,8 +1921,12 @@ const Dashboard = () => {
           return formatPdfCellValue(value, c);
         }),
       );
+      if (contentY > pageHeight - 30) {
+        doc.addPage();
+        contentY = 16;
+      }
       autoTable(doc, {
-        startY: infoY + 4,
+        startY: contentY + 4,
         margin: { left: 10, right: 10 },
         head: [head],
         body,
@@ -1405,6 +1966,9 @@ const Dashboard = () => {
       selectedEndDate,
       selectedColumn,
     );
+    const reportAnalytics = buildReportAnalyticsBundle(selectedReportType, data);
+    const reportChartImages = await buildReportChartImages(reportAnalytics.charts);
+    const generatedBy = await resolveReportGeneratedBy();
     const doc = await buildPdfDoc(
       selectedReportType,
       selectedStartDate,
@@ -1412,6 +1976,9 @@ const Dashboard = () => {
       selectedColumn,
       data,
       columns,
+      reportAnalytics,
+      reportChartImages,
+      generatedBy,
     );
     doc.save(`${selectedReportType}_report.pdf`);
   };
@@ -1445,6 +2012,9 @@ const Dashboard = () => {
       selectedEndDate,
       selectedColumn,
     );
+    const reportAnalytics = buildReportAnalyticsBundle(selectedReportType, data);
+    const reportChartImages = await buildReportChartImages(reportAnalytics.charts);
+    const generatedBy = await resolveReportGeneratedBy();
 
     await exportReportAsWorkbook({
       reportType: selectedReportType,
@@ -1453,6 +2023,9 @@ const Dashboard = () => {
       endDate: selectedEndDate,
       data,
       columns,
+      reportAnalytics,
+      reportChartImages,
+      generatedBy,
       humanizeLabel,
       resolveSectionColumns: resolveOverallSectionColumns,
       fileName: `${selectedReportType}_report.xlsx`,
@@ -1614,7 +2187,172 @@ const Dashboard = () => {
   }, [growthChartSeries.labels, growthChartSeries.data, growthChartType, growthMetric]);
 
   useEffect(() => {
+    const destroyAnalyticsCharts = () => {
+      if (analyticsConversionChartInstanceRef.current) {
+        analyticsConversionChartInstanceRef.current.destroy();
+        analyticsConversionChartInstanceRef.current = null;
+      }
+      if (analyticsRiskChartInstanceRef.current) {
+        analyticsRiskChartInstanceRef.current.destroy();
+        analyticsRiskChartInstanceRef.current = null;
+      }
+      if (analyticsTrendChartInstanceRef.current) {
+        analyticsTrendChartInstanceRef.current.destroy();
+        analyticsTrendChartInstanceRef.current = null;
+      }
+    };
+
+    if (dashboardView !== "analytics") {
+      destroyAnalyticsCharts();
+      return;
+    }
+
+    if (
+      !analyticsConversionChartRef.current ||
+      !analyticsRiskChartRef.current ||
+      !analyticsTrendChartRef.current
+    ) {
+      return;
+    }
+
+    destroyAnalyticsCharts();
+
+    analyticsConversionChartInstanceRef.current = new Chart(analyticsConversionChartRef.current, {
+      type: "doughnut",
+      data: {
+        labels: ["Delivered", "Remaining"],
+        datasets: [
+          {
+            data: [
+              dashboardData.delivered || 0,
+              Math.max((analyticsSummary.totalParcels || 0) - (dashboardData.delivered || 0), 0),
+            ],
+            backgroundColor: ["#16a34a", "rgba(148, 163, 184, 0.35)"],
+            borderWidth: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "72%",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.label}: ${context.raw}`,
+            },
+          },
+        },
+      },
+    });
+
+    analyticsRiskChartInstanceRef.current = new Chart(analyticsRiskChartRef.current, {
+      type: "bar",
+      data: {
+        labels: ["Delay %", "Cancel %"],
+        datasets: [
+          {
+            data: [analyticsSummary.delayRate, analyticsSummary.cancellationRate],
+            backgroundColor: ["rgba(245, 158, 11, 0.78)", "rgba(239, 68, 68, 0.78)"],
+            borderRadius: 8,
+            borderSkipped: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            suggestedMax: Math.max(10, Math.ceil(analyticsSummary.delayRate), Math.ceil(analyticsSummary.cancellationRate)),
+            ticks: {
+              callback: (value) => `${value}%`,
+            },
+            grid: { color: "rgba(148, 163, 184, 0.2)" },
+          },
+        },
+      },
+    });
+
+    const trendLabels = selectedYear === "All"
+      ? ((dashboardData.years || []).length ? dashboardData.years : ["Current"])
+      : MONTH_LABELS;
+    const trendData = selectedYear === "All"
+      ? (((dashboardData.yearGrowth || []).length ? dashboardData.yearGrowth : [dashboardData.delivered || 0]))
+      : (((dashboardData.monthGrowth || []).length ? dashboardData.monthGrowth : Array(12).fill(0)));
+
+    analyticsTrendChartInstanceRef.current = new Chart(analyticsTrendChartRef.current, {
+      type: "line",
+      data: {
+        labels: trendLabels,
+        datasets: [
+          {
+            data: trendData,
+            borderColor: "#0ea5e9",
+            backgroundColor: "rgba(14, 165, 233, 0.18)",
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.35,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            grid: { color: "rgba(148, 163, 184, 0.2)" },
+          },
+        },
+      },
+    });
+
+    return () => {
+      destroyAnalyticsCharts();
+    };
+  }, [
+    dashboardView,
+    selectedYear,
+    analyticsSummary.totalParcels,
+    analyticsSummary.delayRate,
+    analyticsSummary.cancellationRate,
+    dashboardData.delivered,
+    dashboardData.years,
+    dashboardData.yearGrowth,
+    dashboardData.monthGrowth,
+  ]);
+
+  useEffect(() => {
+    if (dashboardView !== "overview") {
+      if (violationLeafletMapRef.current) {
+        violationLeafletMapRef.current.remove();
+        violationLeafletMapRef.current = null;
+      }
+      violationLayerGroupRef.current = null;
+      return;
+    }
+
     if (loading || !violationMapRef.current) return;
+
+    const existingMap = violationLeafletMapRef.current;
+    const hasContainerMismatch =
+      existingMap &&
+      typeof existingMap.getContainer === "function" &&
+      existingMap.getContainer() !== violationMapRef.current;
+    if (hasContainerMismatch) {
+      existingMap.remove();
+      violationLeafletMapRef.current = null;
+      violationLayerGroupRef.current = null;
+    }
 
     if (!violationLeafletMapRef.current) {
       const map = L.map(violationMapRef.current, {
@@ -1641,7 +2379,7 @@ const Dashboard = () => {
       violationLeafletMapRef.current?.invalidateSize();
     }, 120);
 
-  }, [loading, violationPointIndicators, renderViolationHotspots]);
+  }, [dashboardView, loading, violationPointIndicators, renderViolationHotspots]);
 
   useEffect(() => {
     if (!violationMapModalOpen) {
@@ -1711,59 +2449,133 @@ const Dashboard = () => {
               <div className="dash-header-copy">
                 <h1 className="page-title mb-6">Dashboard</h1>
               </div>
-              <div className="dash-header-actions">
+              <div className="dash-header-controls">
                 <button
                   type="button"
-                  className="dash-generate-report-btn ui-btn-primary"
-                  onClick={() => setReportModalOpen(true)}
+                  className="dash-view-toggle-btn ui-btn-secondary"
+                  onClick={() =>
+                    setDashboardView((current) =>
+                      current === "overview" ? "analytics" : "overview"
+                    )}
+                  aria-pressed={dashboardView === "analytics"}
+                  aria-label={`Switch dashboard view. Current view is ${dashboardView === "analytics" ? "analytics" : "overview"}.`}
                 >
-                  Generate Report
+                  <span className="dash-view-toggle-indicator" aria-hidden="true" />
+                  <span className="dash-view-toggle-label">View</span>
+                  <span className="dash-view-toggle-value">
+                    {dashboardView === "analytics" ? "Analytics" : "Overview"}
+                  </span>
                 </button>
-                <div
-                  className="dash-year-filter"
-                  ref={yearFilterRef}
-                  onClick={handleYearFilterPillClick}
-                >
-                  <span className="dash-year-filter-label">Year</span>
-                  <ModernSelect
-                    id="dashboard-year-filter"
-                    className="dash-year-modern-select"
-                    triggerClassName="dash-year-modern-trigger"
-                    menuClassName="dash-modern-menu"
-                    value={selectedYear}
-                    options={yearSelectOptions}
-                    onChange={(nextValue) => {
-                      setSelectedYear(nextValue);
-                      setGrowthView("month");
-                    }}
-                  />
+                <div className="dash-header-actions">
+                  <div className="dash-action-group">
+                    <button
+                      type="button"
+                      className="dash-generate-report-btn ui-btn-primary"
+                      onClick={() => setReportModalOpen(true)}
+                    >
+                      Generate Report
+                    </button>
+                  </div>
+                  <div className="dash-filter-group">
+                    <div
+                      className="dash-year-filter"
+                      ref={yearFilterRef}
+                      onClick={handleYearFilterPillClick}
+                    >
+                      <span className="dash-year-filter-label">Year</span>
+                      <ModernSelect
+                        id="dashboard-year-filter"
+                        className="dash-year-modern-select"
+                        triggerClassName="dash-year-modern-trigger"
+                        menuClassName="dash-modern-menu"
+                        value={selectedYear}
+                        options={yearSelectOptions}
+                      onChange={(nextValue) => {
+                        if (nextValue === selectedYear) return;
+                        setIsYearSwitching(true);
+                        setSelectedYear(nextValue);
+                        setGrowthView(nextValue === "All" ? "year" : "month");
+                      }}
+                    />
+                    </div>
+                    <span className="date-range">{todayLabel}</span>
+                  </div>
                 </div>
-                <span className="date-range">{todayLabel}</span>
               </div>
             </div>
 
-            <div className="dash-grid two-rows">
-              <div className="dash-card top-card metric-card kpi-card delivered-card border border-emerald-200/60">
-                <div className="kpi-icon delivered" aria-hidden="true">
-                  <FaCheckCircle />
+            <div
+              className={`dash-grid two-rows ${dashboardView === "analytics" ? "analytics-focus" : "overview-focus"} ${isYearSwitching ? "year-switching" : "year-stable"}`}
+              aria-busy={isYearSwitching}
+            >
+              {dashboardView === "overview" && (
+                <div className="dash-card top-card metric-card kpi-card delivered-card border border-emerald-200/60">
+                  <div className="kpi-icon delivered" aria-hidden="true">
+                    <FaCheckCircle />
+                  </div>
+                  <div className="kpi-copy">
+                    <div className="kpi-title">Delivered</div>
+                    <div className="kpi-value">{dashboardData.delivered}</div>
+                    <div className="kpi-meta">Completed parcels</div>
+                  </div>
                 </div>
-                <div className="kpi-copy">
-                  <div className="kpi-title">Delivered</div>
-                  <div className="kpi-value">{dashboardData.delivered}</div>
-                  <div className="kpi-meta">Completed parcels</div>
-                </div>
-              </div>
+              )}
 
-              <div className="dash-card top-card metric-card kpi-card cancelled-card border border-rose-200/70">
-                <div className="kpi-icon cancelled" aria-hidden="true">
-                  <FaTimesCircle />
+              {dashboardView === "overview" && (
+                <div className="dash-card top-card metric-card kpi-card cancelled-card border border-rose-200/70">
+                  <div className="kpi-icon cancelled" aria-hidden="true">
+                    <FaTimesCircle />
+                  </div>
+                  <div className="kpi-copy">
+                    <div className="kpi-title">Cancelled</div>
+                    <div className="kpi-value">{dashboardData.cancelled}</div>
+                    <div className="kpi-meta">Cancelled parcels</div>
+                  </div>
                 </div>
-                <div className="kpi-copy">
-                  <div className="kpi-title">Cancelled</div>
-                  <div className="kpi-value">{dashboardData.cancelled}</div>
-                  <div className="kpi-meta">Cancelled parcels</div>
+              )}
+
+              {dashboardView === "analytics" && (
+                <div className="dash-card top-card metric-card analytics-kpi analytics-delivery-card rounded-2xl">
+                  <div className="card-label">Delivery Conversion</div>
+                  <div className="card-value">{analyticsSummary.deliveryRate.toFixed(1)}%</div>
+                  <div className="card-desc">
+                    {dashboardData.delivered} delivered out of {analyticsSummary.totalParcels} tracked parcels
+                  </div>
+                  <div className="analytics-kpi-chart">
+                    <canvas ref={analyticsConversionChartRef}></canvas>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {dashboardView === "analytics" && (
+                <div className="dash-card top-card metric-card analytics-kpi analytics-reliability-card rounded-2xl">
+                  <div className="card-label">Delay and Cancellation Risk</div>
+                  <div className="card-value">{analyticsSummary.delayRate.toFixed(1)}%</div>
+                  <div className="card-desc">
+                    Delay rate, with cancellation at {analyticsSummary.cancellationRate.toFixed(1)}%
+                  </div>
+                  <div className="analytics-kpi-chart">
+                    <canvas ref={analyticsRiskChartRef}></canvas>
+                  </div>
+                </div>
+              )}
+
+              {dashboardView === "analytics" && (
+                <div className="dash-card top-card metric-card analytics-kpi analytics-trend-card rounded-2xl">
+                  <div className="card-label">
+                    {analyticsSummary.trendMode === "yearly" ? "Yearly Trend" : "Monthly Trend"}
+                  </div>
+                  <div className="card-value">{analyticsSummary.trendLabel}</div>
+                  <div className="card-desc">
+                    {analyticsSummary.trendMode === "yearly"
+                      ? `Avg ${analyticsSummary.averageYearlyDeliveries.toFixed(1)} deliveries per active year`
+                      : `Avg ${analyticsSummary.averageMonthlyDeliveries.toFixed(1)} deliveries per active month`}
+                  </div>
+                  <div className="analytics-kpi-chart">
+                    <canvas ref={analyticsTrendChartRef}></canvas>
+                  </div>
+                </div>
+              )}
 
               <div className="dash-card bottom-card growth rounded-2xl">
                 <div className="growth-card-header">
@@ -1839,33 +2651,35 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="dash-card bottom-card violation-map-card rounded-2xl border border-slate-200 dark:border-slate-700">
-                <div className="violation-map-header">
-                  <div className="violation-map-header-top">
-                    <h2>Violation Heat Map</h2>
-                    <button
-                      type="button"
-                      className="violation-map-size-btn ui-btn-secondary rounded-lg px-3 py-1.5 text-xs"
-                      onClick={() => setViolationMapModalOpen(true)}
-                    >
-                      View Fullscreen Map
-                    </button>
+              {dashboardView === "overview" && (
+                <div className="dash-card bottom-card violation-map-card rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div className="violation-map-header">
+                    <div className="violation-map-header-top">
+                      <h2>Violation Heat Map</h2>
+                      <button
+                        type="button"
+                        className="violation-map-size-btn ui-btn-secondary rounded-lg px-3 py-1.5 text-xs"
+                        onClick={() => setViolationMapModalOpen(true)}
+                      >
+                        View Fullscreen Map
+                      </button>
+                    </div>
+                    {violationLogsError && (
+                      <p>
+                        Unable to load violation logs: {violationLogsError}
+                      </p>
+                    )}
                   </div>
-                  {violationLogsError && (
-                    <p>
-                      Unable to load violation logs: {violationLogsError}
-                    </p>
-                  )}
-                </div>
-                <div className="violation-map-body">
-                  <div className="violation-map-stack">
-                    <div
-                      ref={violationMapRef}
-                      className="violation-map-canvas"
-                    />
+                  <div className="violation-map-body">
+                    <div className="violation-map-stack">
+                      <div
+                        ref={violationMapRef}
+                        className="violation-map-canvas"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </>
