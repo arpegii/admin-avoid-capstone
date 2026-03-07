@@ -151,25 +151,20 @@ function AppContent() {
       const savedDarkMode = localStorage.getItem("darkMode");
 
       if (savedDarkMode === "enabled") {
-        // User has dark mode enabled
         document.body.classList.add("dark");
         return;
       } else if (savedDarkMode === "disabled") {
-        // User has dark mode disabled
         document.body.classList.remove("dark");
         return;
       } else {
-        // No preference saved - default to light mode.
         document.body.classList.remove("dark");
         localStorage.setItem("darkMode", "disabled");
       }
     };
 
-    // Initialize dark mode on app load
     initializeDarkMode();
     updateFavicon();
 
-    // Keep favicon in sync when dark mode class changes in this tab
     const darkClassObserver = new MutationObserver(() => {
       updateFavicon();
     });
@@ -178,7 +173,6 @@ function AppContent() {
       attributeFilter: ["class"],
     });
 
-    // Sync dark mode across browser tabs
     const handleStorageChange = (e) => {
       if (e.key === "darkMode") {
         if (e.newValue === "enabled") {
@@ -192,7 +186,6 @@ function AppContent() {
 
     window.addEventListener("storage", handleStorageChange);
 
-    // Cleanup
     return () => {
       darkClassObserver.disconnect();
       window.removeEventListener("storage", handleStorageChange);
@@ -228,7 +221,10 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <NotificationProvider>
+        {/* supabaseClient is passed so NotificationProvider can set up
+            its own Realtime channel for violation_logs without depending
+            on any page component to open modals first. */}
+        <NotificationProvider supabase={supabaseClient}>
           <Toaster
             position="top-right"
             reverseOrder={false}

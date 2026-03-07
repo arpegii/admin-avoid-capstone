@@ -355,6 +355,21 @@ export default function Riders() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [recentRiderActivity, setRecentRiderActivity] = useState([]);
 
+  // ── Assign Parcels State ──
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignParcels, setAssignParcels] = useState([]);
+  const [assignLoadingParcels, setAssignLoadingParcels] = useState(false);
+  const [assignParcelsError, setAssignParcelsError] = useState("");
+  const [assignSelectedParcels, setAssignSelectedParcels] = useState(new Set());
+  const [assignStep, setAssignStep] = useState("parcels"); // "parcels" | "rider"
+  const [assigningRider, setAssigningRider] = useState(false);
+  const [assignError, setAssignError] = useState("");
+  const [assignSuccess, setAssignSuccess] = useState("");
+  const [assignSearchTerm, setAssignSearchTerm] = useState("");
+  const [assignRiderSearch, setAssignRiderSearch] = useState("");
+  // ── NEW: sort state for assign parcels modal ──
+  const [assignSortBy, setAssignSortBy] = useState("id_desc");
+
   const tableSortOptions = useMemo(
     () => [
       { value: "name_asc", label: "Name (A–Z)" },
@@ -370,6 +385,19 @@ export default function Riders() {
       { value: "all", label: "All Riders" },
       { value: "has_deliveries", label: "Has Deliveries" },
       { value: "high_cancelled", label: "High Cancelled (5+)" },
+    ],
+    [],
+  );
+
+  // ── Sort options for assign parcels modal ──
+  const assignSortOptions = useMemo(
+    () => [
+      { value: "id_desc", label: "ID: Newest" },
+      { value: "id_asc", label: "ID: Oldest" },
+      { value: "name_asc", label: "Name: A–Z" },
+      { value: "name_desc", label: "Name: Z–A" },
+      { value: "date_desc", label: "Date: Newest" },
+      { value: "date_asc", label: "Date: Oldest" },
     ],
     [],
   );
@@ -603,7 +631,7 @@ export default function Riders() {
     const { data, error } = await supabaseClient
       .from("users")
       .select(
-        "user_id, username, fname, lname, status, last_active, last_seen_lat, last_seen_lng",
+        "user_id, username, fname, lname, status, last_active, last_seen_lat, last_seen_lng, profile_url",
       );
     if (error) throw error;
     return (data || []).map((r) => ({
@@ -1600,6 +1628,145 @@ export default function Riders() {
     setCreatePassword("");
   };
 
+  // ── Assign Parcels Handlers ──
+  const openAssignModal = async () => {
+    setAssignModalOpen(true);
+    setAssignStep("parcels");
+    setAssignSelectedParcels(new Set());
+    setAssignSearchTerm("");
+    setAssignRiderSearch("");
+    setAssignError("");
+    setAssignSuccess("");
+    // ── NEW: reset sort on open ──
+    setAssignSortBy("id_desc");
+    setAssignLoadingParcels(true);
+    setAssignParcelsError("");
+    try {
+      const { data, error } = await supabaseClient
+        .from("parcels")
+        .select("parcel_id, recipient_name, address, status, created_at")
+        .is("assigned_rider_id", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setAssignParcels(data || []);
+    } catch (err) {
+      console.error("Failed to load unassigned parcels:", err);
+      setAssignParcelsError("Failed to load unassigned parcels.");
+    } finally {
+      setAssignLoadingParcels(false);
+    }
+  };
+
+  const closeAssignModal = () => {
+    if (assigningRider) return;
+    setAssignModalOpen(false);
+    setAssignSelectedParcels(new Set());
+    setAssignStep("parcels");
+    setAssignError("");
+    setAssignSuccess("");
+  };
+
+  const toggleParcelSelection = (parcelId) => {
+    const id = Number(parcelId);
+    setAssignSelectedParcels((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  // ── UPDATED: filteredAssignParcels now also sorts ──
+  const filteredAssignParcels = useMemo(() => {
+    const q = assignSearchTerm.trim().toLowerCase();
+    let result = assignParcels.filter((p) =>
+      q ? String(p.parcel_id || "").includes(q) : true,
+    );
+    result = [...result].sort((a, b) => {
+      switch (assignSortBy) {
+        case "id_asc":
+          return Number(a.parcel_id) - Number(b.parcel_id);
+        case "id_desc":
+          return Number(b.parcel_id) - Number(a.parcel_id);
+        case "name_asc":
+          return (a.recipient_name || "").localeCompare(b.recipient_name || "");
+        case "name_desc":
+          return (b.recipient_name || "").localeCompare(a.recipient_name || "");
+        case "date_asc":
+          return new Date(a.created_at) - new Date(b.created_at);
+        case "date_desc":
+          return new Date(b.created_at) - new Date(a.created_at);
+        default:
+          return 0;
+      }
+    });
+    return result;
+  }, [assignParcels, assignSearchTerm, assignSortBy]);
+
+  const filteredAssignRiders = useMemo(() => {
+    const q = assignRiderSearch.trim().toLowerCase();
+    if (!q) return riders;
+    return riders.filter((r) =>
+      getRiderDisplayName(r).toLowerCase().includes(q),
+    );
+  }, [riders, assignRiderSearch]);
+
+  const allVisibleSelected =
+    filteredAssignParcels.length > 0 &&
+    filteredAssignParcels.every((p) =>
+      assignSelectedParcels.has(Number(p.parcel_id)),
+    );
+
+  const handleSelectAllVisible = (checked) => {
+    setAssignSelectedParcels((prev) => {
+      const next = new Set(prev);
+      filteredAssignParcels.forEach((p) =>
+        checked
+          ? next.add(Number(p.parcel_id))
+          : next.delete(Number(p.parcel_id)),
+      );
+      return next;
+    });
+  };
+
+  const handleAssignToRider = async (rider) => {
+    if (assignSelectedParcels.size === 0 || assigningRider) return;
+    setAssigningRider(true);
+    setAssignError("");
+    try {
+      const parcelIds = [...assignSelectedParcels]
+        .map(Number)
+        .filter(Number.isFinite);
+      if (parcelIds.length === 0)
+        throw new Error("No valid parcel IDs selected.");
+      const { error } = await supabaseClient
+        .from("parcels")
+        .update({ assigned_rider_id: rider.user_id })
+        .in("parcel_id", parcelIds);
+      if (error) throw error;
+      const count = parcelIds.length;
+      setAssignSuccess(
+        `${count} parcel${count > 1 ? "s" : ""} assigned to ${getRiderDisplayName(rider)}.`,
+      );
+      setAssignParcels((prev) =>
+        prev.filter((p) => !parcelIds.includes(Number(p.parcel_id))),
+      );
+      setAssignSelectedParcels(new Set());
+      setAssignStep("parcels");
+      setAssignRiderSearch("");
+      const data = await refreshRiders();
+      if (data) {
+        setRiders(data);
+        setLastUpdatedAt(new Date());
+      }
+      setTimeout(() => setAssignSuccess(""), 4000);
+    } catch (err) {
+      console.error("Failed to assign parcels:", err);
+      setAssignError("Failed to assign parcels. Please try again.");
+    } finally {
+      setAssigningRider(false);
+    }
+  };
+
   const handleCreateRider = async (e) => {
     e.preventDefault();
     setCreateRiderError("");
@@ -1779,6 +1946,33 @@ export default function Riders() {
               <div className="rider-header-row">
                 <h1 className="page-title">Rider Management</h1>
                 <div className="rider-header-actions">
+                  <button
+                    type="button"
+                    className="assign-parcels-btn"
+                    onClick={openAssignModal}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <rect
+                        x="1"
+                        y="2"
+                        width="8"
+                        height="10"
+                        rx="1.5"
+                        strokeWidth="1.8"
+                      />
+                      <path d="M4 5h4M4 7.5h3M10 8l2.5 2.5M12.5 8L10 10.5" />
+                    </svg>
+                    Assign Parcels
+                  </button>
                   <button
                     type="button"
                     className="add-rider-btn"
@@ -3101,6 +3295,390 @@ export default function Riders() {
         </div>
       )}
 
+      {/* ══ ASSIGN PARCELS MODAL ══ */}
+      {assignModalOpen && (
+        <div
+          className="riders-modal-overlay"
+          onClick={closeAssignModal}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="riders-modal-content assign-parcels-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 740, maxWidth: "96%" }}
+          >
+            {/* Header */}
+            <div className="riders-modal-header assign-modal-header">
+              <div className="assign-modal-header-left">
+                {assignStep === "rider" && (
+                  <button
+                    type="button"
+                    className="assign-back-btn"
+                    onClick={() => {
+                      setAssignStep("parcels");
+                      setAssignRiderSearch("");
+                      setAssignError("");
+                    }}
+                    disabled={assigningRider}
+                    aria-label="Back to parcel selection"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    >
+                      <path d="M9 2L4 7l5 5" />
+                    </svg>
+                    Back
+                  </button>
+                )}
+                <div>
+                  <h2 style={{ margin: 0 }}>
+                    {assignStep === "parcels"
+                      ? "Assign Parcels"
+                      : "Select Rider"}
+                  </h2>
+                  <p className="assign-modal-subtitle">
+                    {assignStep === "parcels"
+                      ? "Select unassigned parcels to assign to a rider"
+                      : `Assigning ${assignSelectedParcels.size} parcel${assignSelectedParcels.size !== 1 ? "s" : ""} — choose a rider`}
+                  </p>
+                </div>
+              </div>
+              {assignStep === "parcels" && assignSelectedParcels.size > 0 && (
+                <button
+                  type="button"
+                  className="assign-next-btn"
+                  onClick={() => {
+                    setAssignStep("rider");
+                    setAssignRiderSearch("");
+                  }}
+                >
+                  Assign {assignSelectedParcels.size} Parcel
+                  {assignSelectedParcels.size !== 1 ? "s" : ""}
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M2 7h10M7 2l5 5-5 5" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Banners */}
+            {assignSuccess && (
+              <div className="assign-success-banner">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M2 7l3.5 3.5L12 3" />
+                </svg>
+                {assignSuccess}
+              </div>
+            )}
+            {assignError && (
+              <div className="assign-error-banner">{assignError}</div>
+            )}
+
+            {/* Body */}
+            <div className="riders-modal-body assign-modal-body">
+              {/* ── STEP 1: Parcel Selection ── */}
+              {assignStep === "parcels" && (
+                <div className="assign-parcels-shell">
+                  {/* ── UPDATED: Search + Sort row ── */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 2 }}>
+                    <div
+                      className="assign-search-bar"
+                      style={{ flex: 1, marginBottom: 0 }}
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      >
+                        <circle cx="6" cy="6" r="4.5" />
+                        <path d="M10 10l2.5 2.5" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search by parcel ID..."
+                        value={assignSearchTerm}
+                        onChange={(e) => setAssignSearchTerm(e.target.value)}
+                        className="assign-search-input"
+                      />
+                      {assignSelectedParcels.size > 0 && (
+                        <span className="assign-selected-badge">
+                          {assignSelectedParcels.size} selected
+                        </span>
+                      )}
+                    </div>
+                    <RiderTableSelect
+                      value={assignSortBy}
+                      onChange={setAssignSortBy}
+                      options={assignSortOptions}
+                      ariaLabel="Sort parcels"
+                    />
+                  </div>
+
+                  {assignLoadingParcels ? (
+                    <div className="assign-loading-state">
+                      <div className="assign-spinner" />
+                      <p>Loading unassigned parcels...</p>
+                    </div>
+                  ) : assignParcelsError ? (
+                    <div style={{ padding: "16px" }}>
+                      <p className="rider-info-error">{assignParcelsError}</p>
+                    </div>
+                  ) : assignParcels.length === 0 ? (
+                    <div className="assign-empty-state">
+                      <svg
+                        width="44"
+                        height="44"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      >
+                        <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+                        <path d="M16 3H8l-2 4h12l-2-4z" />
+                      </svg>
+                      <p>All parcels are currently assigned.</p>
+                      <span>There are no unassigned parcels at this time.</span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Select all row */}
+                      <div className="assign-select-all-row">
+                        <label className="assign-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={(e) =>
+                              handleSelectAllVisible(e.target.checked)
+                            }
+                          />
+                          <span>Select all visible</span>
+                        </label>
+                        <span className="assign-count-hint">
+                          {filteredAssignParcels.length} parcel
+                          {filteredAssignParcels.length !== 1 ? "s" : ""} shown
+                          {assignSearchTerm &&
+                            ` · ${assignParcels.length} total`}
+                        </span>
+                      </div>
+
+                      {/* Parcel list */}
+                      <div className="assign-parcel-list">
+                        {filteredAssignParcels.length === 0 ? (
+                          <div
+                            className="assign-empty-state"
+                            style={{ padding: "32px 16px" }}
+                          >
+                            <p style={{ margin: 0 }}>
+                              No parcels match your search.
+                            </p>
+                          </div>
+                        ) : (
+                          filteredAssignParcels.map((parcel) => (
+                            <label
+                              key={parcel.parcel_id}
+                              className={`assign-parcel-item ${assignSelectedParcels.has(Number(parcel.parcel_id)) ? "is-selected" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={assignSelectedParcels.has(
+                                  parcel.parcel_id,
+                                )}
+                                onChange={() =>
+                                  toggleParcelSelection(parcel.parcel_id)
+                                }
+                                className="assign-parcel-checkbox"
+                              />
+                              <div className="assign-parcel-info">
+                                <div className="assign-parcel-tracking">
+                                  {`#${String(parcel.parcel_id)}`}
+                                </div>
+                                <div className="assign-parcel-recipient">
+                                  {parcel.recipient_name || "—"}
+                                </div>
+                                <div className="assign-parcel-address">
+                                  {parcel.address || "No address provided"}
+                                </div>
+                              </div>
+                              <div className="assign-parcel-meta">
+                                <span className="assign-parcel-status">
+                                  {parcel.status || "Unassigned"}
+                                </span>
+                                <span className="assign-parcel-date">
+                                  {parcel.created_at
+                                    ? new Date(
+                                        parcel.created_at,
+                                      ).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                      })
+                                    : "—"}
+                                </span>
+                              </div>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── STEP 2: Rider Selection ── */}
+              {assignStep === "rider" && (
+                <div className="assign-rider-shell">
+                  {/* Search bar */}
+                  <div className="assign-search-bar">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    >
+                      <circle cx="6" cy="6" r="4.5" />
+                      <path d="M10 10l2.5 2.5" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search riders..."
+                      value={assignRiderSearch}
+                      onChange={(e) => setAssignRiderSearch(e.target.value)}
+                      className="assign-search-input"
+                    />
+                    <span
+                      className="assign-count-hint"
+                      style={{ flexShrink: 0 }}
+                    >
+                      {filteredAssignRiders.length} rider
+                      {filteredAssignRiders.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {/* Rider list */}
+                  <div className="assign-rider-list">
+                    {filteredAssignRiders.length === 0 ? (
+                      <div
+                        className="assign-empty-state"
+                        style={{ padding: "32px 16px" }}
+                      >
+                        <p style={{ margin: 0 }}>
+                          No riders match your search.
+                        </p>
+                      </div>
+                    ) : (
+                      filteredAssignRiders.map((rider) => {
+                        const online = isActiveRiderStatus(rider.status);
+                        return (
+                          <button
+                            key={rider.user_id || rider.username}
+                            type="button"
+                            className={`assign-rider-item ${online ? "is-online" : ""}`}
+                            onClick={() => handleAssignToRider(rider)}
+                            disabled={assigningRider}
+                          >
+                            <div
+                              className="assign-rider-avatar"
+                              style={{ overflow: "hidden", padding: 0 }}
+                            >
+                              {rider.profile_url ? (
+                                <img
+                                  src={rider.profile_url}
+                                  alt={getRiderDisplayName(rider)}
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    borderRadius: "50%",
+                                    display: "block",
+                                  }}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <span
+                                  style={{
+                                    display: "flex",
+                                    width: "100%",
+                                    height: "100%",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  {(
+                                    rider.fname?.[0] ||
+                                    rider.username?.[0] ||
+                                    "R"
+                                  ).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="assign-rider-details">
+                              <span className="assign-rider-name">
+                                {getRiderDisplayName(rider)}
+                              </span>
+                              <span className="assign-rider-stats">
+                                {rider.ongoingParcels ?? 0} ongoing ·{" "}
+                                {rider.deliveredParcels ?? 0} delivered
+                              </span>
+                            </div>
+                            <div className="assign-rider-right">
+                              <span
+                                className={`assign-rider-status-dot ${online ? "online" : "offline"}`}
+                              />
+                              <span className="assign-rider-status-text">
+                                {online ? "Online" : "Offline"}
+                              </span>
+                            </div>
+                            {assigningRider && (
+                              <div className="assign-rider-loading-indicator" />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══ TOASTS ══ */}
       {showCreateSuccessModal && (
         <div
@@ -3130,7 +3708,7 @@ export default function Riders() {
           onClick={() => setShowTrackFailModal(false)}
         >
           <div
-            className="riders-success-modal riders-fail-modal"
+            className="riders-fail-modal riders-success-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="riders-success-header riders-fail-header">

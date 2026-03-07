@@ -134,8 +134,101 @@ const ModernSelect = ({
   );
 };
 
+// ─────────────────────────────────────────────────────────────
+// CSV HELPERS
+// ─────────────────────────────────────────────────────────────
+
+const CSV_REQUIRED_COLS = [
+  "recipient_name",
+  "recipient_phone",
+  "address",
+  "sender_name",
+  "sender_phone",
+];
+
+const parseCsvText = (text) => {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().toLowerCase().replace(/\s+/g, "_").replace(/"/g, ""));
+  const rows = lines.slice(1).map((line, i) => {
+    const cols = [];
+    let cur = "",
+      inQ = false;
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c];
+      if (ch === '"') {
+        inQ = !inQ;
+        continue;
+      }
+      if (ch === "," && !inQ) {
+        cols.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    cols.push(cur.trim());
+    const obj = { _row: i + 2 };
+    headers.forEach((h, idx) => {
+      obj[h] = cols[idx] ?? "";
+    });
+    return obj;
+  });
+  return { headers, rows };
+};
+
+const validateCsvRows = (rows, headers) => {
+  const errors = [];
+  const missing = CSV_REQUIRED_COLS.filter((c) => !headers.includes(c));
+  if (missing.length > 0) {
+    errors.push({
+      row: "Header",
+      message: `Missing required columns: ${missing.join(", ")}`,
+    });
+    return errors;
+  }
+  rows.forEach((row) => {
+    CSV_REQUIRED_COLS.forEach((col) => {
+      if (!row[col] || !String(row[col]).trim()) {
+        errors.push({
+          row: row._row,
+          message: `Row ${row._row}: "${col}" is empty`,
+        });
+      }
+    });
+  });
+  return errors;
+};
+
+const geocodeAddress = async (address) => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    const res = await fetch(url, {
+      headers: {
+        "Accept-Language": "en",
+        "User-Agent": "ParcelManagementApp/1.0",
+      },
+    });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch (_) {}
+  return { lat: null, lng: null };
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────
+
 const Parcel = () => {
   const { notifyParcelDelivered } = useNotification();
+
+  // ── Parcel list state ──
   const [parcels, setParcels] = useState([]);
   const [parcelPage, setParcelPage] = useState(1);
   const [parcelRows] = useState(MAX_PARCEL_ROWS);
@@ -145,9 +238,27 @@ const Parcel = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewParcel, setViewParcel] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // ── Track map state ──
   const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [trackingParcel, setTrackingParcel] = useState(null);
   const [loadingTrackMap, setLoadingTrackMap] = useState(false);
+
+  // ── CSV import state ──
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
+  const [csvRows, setCsvRows] = useState([]);
+  const [csvErrors, setCsvErrors] = useState([]);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvCancelled, setCsvCancelled] = useState(false);
+  const csvCancelledRef = useRef(false);
+  const [csvProgress, setCsvProgress] = useState({
+    current: 0,
+    total: 0,
+    phase: "",
+  });
+  const [csvDone, setCsvDone] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("");
+  const csvFileRef = useRef(null);
 
   const statusFilterOptions = useMemo(
     () => [
@@ -171,73 +282,75 @@ const Parcel = () => {
   const trackLeafletMapRef = useRef(null);
   const trackMarkerRef = useRef(null);
 
-  useEffect(() => {
-    const loadParcels = async () => {
-      setLoading(true);
-      const [sortColumn, sortDir] = sortBy.split("-");
-      const ascending = sortDir === "asc";
-      const chunkSize = 1000;
-      let from = 0;
-      const allParcels = [];
+  // ── Load parcels ──
+  const loadParcels = async () => {
+    setLoading(true);
+    const [sortColumn, sortDir] = sortBy.split("-");
+    const ascending = sortDir === "asc";
+    const chunkSize = 1000;
+    let from = 0;
+    const allParcels = [];
 
-      try {
-        while (true) {
-          const { data, error } = await supabaseClient
-            .from("parcels")
-            .select(
-              `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname, lname)`,
-            )
-            .order(sortColumn, { ascending })
-            .range(from, from + chunkSize - 1);
+    try {
+      while (true) {
+        const { data, error } = await supabaseClient
+          .from("parcels")
+          .select(
+            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname, lname)`,
+          )
+          .order(sortColumn, { ascending })
+          .range(from, from + chunkSize - 1);
 
-          if (error) throw error;
-          const chunk = data || [];
-          allParcels.push(...chunk);
-          if (chunk.length < chunkSize) break;
-          from += chunkSize;
-        }
-
-        const parcelsWithRiderNames = allParcels.map((p) => ({
-          ...p,
-          riderFullName: p.assigned_rider
-            ? `${p.assigned_rider.fname || ""} ${p.assigned_rider.lname || ""}`.trim() ||
-              "Unassigned"
-            : "Unassigned",
-        }));
-
-        setParcels(parcelsWithRiderNames);
-        setParcelTotalRows(parcelsWithRiderNames.length);
-
-        // Notify about recently delivered parcels
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const deliveredToday = parcelsWithRiderNames.filter((p) => {
-          const createdDate = new Date(p.created_at);
-          const isDelivered = ["successfully delivered", "delivered"].includes(
-            String(p.status || "")
-              .trim()
-              .toLowerCase(),
-          );
-          return isDelivered && createdDate >= today;
-        });
-
-        deliveredToday.slice(0, 3).forEach((parcel) => {
-          notifyParcelDelivered(
-            parcel.parcel_id,
-            parcel.riderFullName || "Customer",
-          );
-        });
-      } catch (err) {
-        console.error("Failed to load parcels:", err);
-        setParcels([]);
-        setParcelTotalRows(0);
-      } finally {
-        setLoading(false);
+        if (error) throw error;
+        const chunk = data || [];
+        allParcels.push(...chunk);
+        if (chunk.length < chunkSize) break;
+        from += chunkSize;
       }
-    };
+
+      const parcelsWithRiderNames = allParcels.map((p) => ({
+        ...p,
+        riderFullName: p.assigned_rider
+          ? `${p.assigned_rider.fname || ""} ${p.assigned_rider.lname || ""}`.trim() ||
+            "Unassigned"
+          : "Unassigned",
+      }));
+
+      setParcels(parcelsWithRiderNames);
+      setParcelTotalRows(parcelsWithRiderNames.length);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const deliveredToday = parcelsWithRiderNames.filter((p) => {
+        const createdDate = new Date(p.created_at);
+        const isDelivered = ["successfully delivered", "delivered"].includes(
+          String(p.status || "")
+            .trim()
+            .toLowerCase(),
+        );
+        return isDelivered && createdDate >= today;
+      });
+
+      deliveredToday.slice(0, 3).forEach((parcel) => {
+        notifyParcelDelivered(
+          parcel.parcel_id,
+          parcel.riderFullName || "Customer",
+        );
+      });
+    } catch (err) {
+      console.error("Failed to load parcels:", err);
+      setParcels([]);
+      setParcelTotalRows(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadParcels();
   }, [sortBy]);
 
+  // ── Filtering / pagination ──
   const statusFilteredParcels = useMemo(() => {
     if (statusFilter === "All") return parcels;
     const nf = statusFilter.trim().toLowerCase();
@@ -299,6 +412,7 @@ const Parcel = () => {
     return result;
   }, [parcelPage, totalPages]);
 
+  // ── Track map helpers ──
   const getParcelCoords = (parcel) => {
     const lat = Number(parcel?.r_lat),
       lng = Number(parcel?.r_lng);
@@ -432,12 +546,138 @@ const Parcel = () => {
     };
   }, []);
 
+  // ─────────────────────────────────────────────────────────────
+  // CSV IMPORT HANDLERS
+  // ─────────────────────────────────────────────────────────────
+
+  const handleCsvFile = (file) => {
+    if (!file) return;
+    setCsvFileName(file.name);
+    setCsvRows([]);
+    setCsvErrors([]);
+    setCsvDone(false);
+    setCsvProgress({ current: 0, total: 0, phase: "" });
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const { headers, rows } = parseCsvText(e.target.result);
+      const errs = validateCsvRows(rows, headers);
+      setCsvErrors(errs);
+      setCsvRows(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCsvDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && (file.type === "text/csv" || file.name.endsWith(".csv"))) {
+      handleCsvFile(file);
+    }
+  };
+
+  const handleCsvCancel = () => {
+    csvCancelledRef.current = true;
+    setCsvCancelled(true);
+    setCsvImporting(false);
+    setCsvProgress({ current: 0, total: 0, phase: "" });
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvRows.length || csvErrors.length > 0) return;
+    setCsvImporting(true);
+    setCsvDone(false);
+    setCsvCancelled(false);
+    csvCancelledRef.current = false;
+
+    const total = csvRows.length;
+    const enriched = [];
+
+    for (let i = 0; i < csvRows.length; i++) {
+      // Check cancellation on each iteration
+      if (csvCancelledRef.current) return;
+
+      const row = csvRows[i];
+      setCsvProgress({
+        current: i + 1,
+        total,
+        phase: "",
+      });
+
+      const { lat, lng } = await geocodeAddress(row.address || "");
+      enriched.push({
+        recipient_name: row.recipient_name || null,
+        recipient_phone: row.recipient_phone || null,
+        address: row.address || null,
+        sender_name: row.sender_name || null,
+        sender_phone: row.sender_phone || null,
+        status: row.status || "On-going",
+        attempt1_status: row.attempt1_status || null,
+        attempt1_date: row.attempt1_date || null,
+        attempt2_status: row.attempt2_status || null,
+        attempt2_date: row.attempt2_date || null,
+        parcel_image_proof: row.parcel_image_proof || null,
+        r_lat: lat,
+        r_lng: lng,
+      });
+
+      if (i < csvRows.length - 1) await sleep(1100);
+    }
+
+    if (csvCancelledRef.current) return;
+
+    setCsvProgress({
+      current: total,
+      total,
+      phase: "",
+    });
+
+    // Batch insert in chunks of 50
+    const chunkSize = 50;
+    for (let i = 0; i < enriched.length; i += chunkSize) {
+      if (csvCancelledRef.current) return;
+      const chunk = enriched.slice(i, i + chunkSize);
+      const { error } = await supabaseClient.from("parcels").insert(chunk);
+      if (error) {
+        console.error("Insert error:", error);
+        setCsvErrors([
+          { row: "DB", message: `Database error: ${error.message}` },
+        ]);
+        setCsvImporting(false);
+        return;
+      }
+    }
+
+    setCsvImporting(false);
+    setCsvDone(true);
+
+    setTimeout(() => {
+      closeCsvModal();
+      loadParcels();
+    }, 2000);
+  };
+
+  const closeCsvModal = () => {
+    if (csvImporting) return;
+    setCsvModalOpen(false);
+    setCsvRows([]);
+    setCsvErrors([]);
+    setCsvFileName("");
+    setCsvDone(false);
+    setCsvCancelled(false);
+    csvCancelledRef.current = false;
+    setCsvProgress({ current: 0, total: 0, phase: "" });
+    if (csvFileRef.current) csvFileRef.current.value = "";
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────
+
   return (
     <div className="dashboard-container">
       <Sidebar currentPage="parcels.html" />
 
-      {/* ── parcels-page is ALWAYS rendered so the Sidebar scroll
-           logic can find it immediately, even while data is loading ── */}
       <div className="parcels-page page-with-topnav">
         {loading ? (
           <PageSpinner label="Loading parcels…" />
@@ -487,6 +727,33 @@ const Parcel = () => {
                   }}
                 />
               </div>
+
+              {/* ── Import CSV button ── */}
+              <div className="parcel-csv-import-spacer" />
+              <button
+                type="button"
+                className="parcel-csv-import-btn"
+                onClick={() => setCsvModalOpen(true)}
+              >
+                <span className="parcel-csv-import-btn-icon" aria-hidden="true">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 15 15"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M7.5 1v9M4 7l3.5 3L11 7M2 13h11"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                Import CSV
+              </button>
             </div>
 
             {/* ── Table ── */}
@@ -804,6 +1071,212 @@ const Parcel = () => {
                         }}
                       />
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════
+                CSV IMPORT MODAL
+            ══════════════════════════════════════════════════ */}
+            {csvModalOpen && (
+              <div
+                className="parcels-modal-overlay show"
+                onClick={!csvImporting ? closeCsvModal : undefined}
+              >
+                <div
+                  className="parcels-modal-content parcel-csv-modal"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="parcels-modal-header">
+                    <h3>Import Parcels via CSV</h3>
+                  </div>
+                  <div className="parcels-modal-body parcel-csv-body">
+                    {/* ── Default state: file picker + preview ── */}
+                    {!csvImporting && !csvDone && (
+                      <>
+                        {/* Drop zone */}
+                        <label
+                          className="parcel-csv-dropzone"
+                          htmlFor="parcel-csv-file-input"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={handleCsvDrop}
+                        >
+                          <input
+                            id="parcel-csv-file-input"
+                            ref={csvFileRef}
+                            type="file"
+                            accept=".csv,text/csv"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleCsvFile(e.target.files[0])}
+                          />
+                          <span
+                            className="parcel-csv-drop-icon"
+                            aria-hidden="true"
+                          >
+                            <svg
+                              width="36"
+                              height="36"
+                              viewBox="0 0 36 36"
+                              fill="none"
+                            >
+                              <rect
+                                width="36"
+                                height="36"
+                                rx="10"
+                                fill="#fdf0ee"
+                              />
+                              <path
+                                d="M18 9v12M13 16l5-5 5 5M9 27h18"
+                                stroke="#e8192c"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                          <span className="parcel-csv-drop-label">
+                            {csvFileName
+                              ? csvFileName
+                              : "Click to choose a .csv file"}
+                          </span>
+                          <span className="parcel-csv-drop-sub">
+                            or drag and drop here
+                          </span>
+                        </label>
+
+                        {/* Validation errors */}
+                        {csvErrors.length > 0 && (
+                          <div className="parcel-csv-errors">
+                            <p className="parcel-csv-errors-title">
+                              ⚠ Validation errors — fix your CSV and re-upload
+                            </p>
+                            <ul>
+                              {csvErrors.slice(0, 8).map((e, i) => (
+                                <li key={i}>{e.message}</li>
+                              ))}
+                              {csvErrors.length > 8 && (
+                                <li>…and {csvErrors.length - 8} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Row preview */}
+                        {csvRows.length > 0 && csvErrors.length === 0 && (
+                          <div className="parcel-csv-preview">
+                            <p className="parcel-csv-preview-title">
+                              ✓ {csvRows.length} row
+                              {csvRows.length !== 1 ? "s" : ""} ready to import
+                            </p>
+                            <div className="parcel-csv-preview-table-wrap">
+                              <table className="parcel-csv-preview-table">
+                                <thead>
+                                  <tr>
+                                    {CSV_REQUIRED_COLS.map((c) => (
+                                      <th key={c}>{c}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {csvRows.slice(0, 5).map((row, i) => (
+                                    <tr key={i}>
+                                      {CSV_REQUIRED_COLS.map((c) => (
+                                        <td key={c}>
+                                          {String(row[c] || "-").slice(0, 30)}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {csvRows.length > 5 && (
+                                <p className="parcel-csv-preview-more">
+                                  +{csvRows.length - 5} more rows…
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Footer actions */}
+                        <div className="parcel-csv-modal-footer">
+                          <button
+                            type="button"
+                            className="parcel-csv-cancel-btn"
+                            onClick={closeCsvModal}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="parcel-csv-confirm-btn"
+                            disabled={!csvRows.length || csvErrors.length > 0}
+                            onClick={handleCsvImport}
+                          >
+                            Import{" "}
+                            {csvRows.length > 0
+                              ? `${csvRows.length} Parcel${csvRows.length !== 1 ? "s" : ""}`
+                              : ""}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ── Importing: progress state ── */}
+                    {csvImporting && (
+                      <div className="parcel-csv-progress-shell">
+                        <div className="parcel-csv-spinner-wrap">
+                          <div className="parcel-track-loader-spinner">
+                            <span className="parcel-track-loader-ring" />
+                            <span className="parcel-track-loader-core" />
+                          </div>
+                        </div>
+                        <div className="parcel-csv-progress-bar-track">
+                          <div
+                            className="parcel-csv-progress-bar-fill"
+                            style={{
+                              width: `${
+                                csvProgress.total > 0
+                                  ? (csvProgress.current / csvProgress.total) *
+                                    100
+                                  : 0
+                              }%`,
+                            }}
+                          />
+                        </div>
+                        <p className="parcel-csv-progress-count">
+                          {csvProgress.current} / {csvProgress.total}
+                        </p>
+                        <button
+                          type="button"
+                          className="parcel-csv-cancel-btn"
+                          onClick={handleCsvCancel}
+                        >
+                          Cancel Import
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Done state ── */}
+                    {csvDone && (
+                      <div className="parcel-csv-done-shell">
+                        <span
+                          className="parcel-csv-done-icon"
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                        <p className="parcel-csv-done-title">
+                          Import complete!
+                        </p>
+                        <p className="parcel-csv-done-sub">
+                          {csvRows.length} parcel
+                          {csvRows.length !== 1 ? "s" : ""} added. Refreshing
+                          list…
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
