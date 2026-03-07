@@ -9,7 +9,11 @@ import PageSpinner from "../components/PageSpinner";
 const PSGC_API_BASE_URL = "https://psgc.gitlab.io/api";
 
 const normalizePsgcItems = (payload) => {
-  const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : [];
   return list
     .map((item) => ({
       code: String(item?.code ?? item?.psgc_code ?? item?.id ?? ""),
@@ -55,8 +59,19 @@ export default function Profile() {
   const [selectedCityCode, setSelectedCityCode] = useState("");
   const fileInputRef = useRef(null);
   const todayIso = new Date().toISOString().split("T")[0];
-  const personalFields = ["first_name", "last_name", "date_of_birth", "phone_number"];
-  const addressFields = ["region", "province", "city", "barangay", "postal_code"];
+  const personalFields = [
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "phone_number",
+  ];
+  const addressFields = [
+    "region",
+    "province",
+    "city",
+    "barangay",
+    "postal_code",
+  ];
 
   const sanitizeProfileValue = (name, rawValue) => {
     const value = String(rawValue ?? "");
@@ -74,7 +89,10 @@ export default function Profile() {
           .replace(/(?!^)\+/g, "")
           .slice(0, 13);
       case "postal_code":
-        return value.replace(/[^a-zA-Z0-9\s-]/g, "").toUpperCase().slice(0, 12);
+        return value
+          .replace(/[^a-zA-Z0-9\s-]/g, "")
+          .toUpperCase()
+          .slice(0, 12);
       default:
         return value;
     }
@@ -84,11 +102,19 @@ export default function Profile() {
     const errors = {};
     const personNameRegex = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
 
-    if (currentProfile.first_name && !personNameRegex.test(currentProfile.first_name.trim())) {
-      errors.first_name = "Use letters only (spaces, apostrophe, and hyphen allowed).";
+    if (
+      currentProfile.first_name &&
+      !personNameRegex.test(currentProfile.first_name.trim())
+    ) {
+      errors.first_name =
+        "Use letters only (spaces, apostrophe, and hyphen allowed).";
     }
-    if (currentProfile.last_name && !personNameRegex.test(currentProfile.last_name.trim())) {
-      errors.last_name = "Use letters only (spaces, apostrophe, and hyphen allowed).";
+    if (
+      currentProfile.last_name &&
+      !personNameRegex.test(currentProfile.last_name.trim())
+    ) {
+      errors.last_name =
+        "Use letters only (spaces, apostrophe, and hyphen allowed).";
     }
     if (currentProfile.date_of_birth) {
       if (currentProfile.date_of_birth > todayIso) {
@@ -101,7 +127,8 @@ export default function Profile() {
       const normalizedPhone = currentProfile.phone_number.replace(/\s+/g, "");
       const phPhoneRegex = /^(\+639\d{9}|639\d{9}|09\d{9})$/;
       if (!phPhoneRegex.test(normalizedPhone)) {
-        errors.phone_number = "Enter a valid PH mobile number (09XXXXXXXXX, 639XXXXXXXXX, or +639XXXXXXXXX).";
+        errors.phone_number =
+          "Enter a valid PH mobile number (09XXXXXXXXX, 639XXXXXXXXX, or +639XXXXXXXXX).";
       }
     }
 
@@ -110,20 +137,34 @@ export default function Profile() {
 
   const validateAddressFields = (currentProfile) => {
     const errors = {};
-    if (!selectedRegionCode || !regions.some((item) => item.code === selectedRegionCode)) {
+    if (
+      !selectedRegionCode ||
+      !regions.some((item) => item.code === selectedRegionCode)
+    ) {
       errors.region = "Select a valid Philippine region.";
     }
 
-    if (!selectedProvinceCode || !provinces.some((item) => item.code === selectedProvinceCode)) {
+    if (
+      !selectedProvinceCode ||
+      !provinces.some((item) => item.code === selectedProvinceCode)
+    ) {
       errors.province = "Select a valid province for the selected region.";
     }
 
-    if (!selectedCityCode || !cities.some((item) => item.code === selectedCityCode)) {
-      errors.city = "Select a valid city/municipality for the selected province.";
+    if (
+      !selectedCityCode ||
+      !cities.some((item) => item.code === selectedCityCode)
+    ) {
+      errors.city =
+        "Select a valid city/municipality for the selected province.";
     }
 
-    if (!currentProfile.barangay || !barangays.some((item) => item.name === currentProfile.barangay)) {
-      errors.barangay = "Select a valid barangay for the selected city/municipality.";
+    if (
+      !currentProfile.barangay ||
+      !barangays.some((item) => item.name === currentProfile.barangay)
+    ) {
+      errors.barangay =
+        "Select a valid barangay for the selected city/municipality.";
     }
     if (currentProfile.postal_code) {
       const postalRegex = /^[A-Z0-9]+(?:[ -][A-Z0-9]+)*$/;
@@ -148,7 +189,8 @@ export default function Profile() {
 
     if (name === "date_of_birth") {
       if (!normalized) return "";
-      if (normalized > todayIso) return "Date of birth cannot be in the future.";
+      if (normalized > todayIso)
+        return "Date of birth cannot be in the future.";
       if (normalized < "1900-01-01") return "Enter a valid date of birth.";
       return "";
     }
@@ -173,30 +215,42 @@ export default function Profile() {
 
     if (name === "region") {
       if (!normalized) return "Select a valid Philippine region.";
-      if (!selectedRegionCode || !regions.some((item) => item.code === selectedRegionCode)) {
+      if (
+        !selectedRegionCode ||
+        !regions.some((item) => item.code === selectedRegionCode)
+      ) {
         return "Select a valid Philippine region.";
       }
       return "";
     }
 
     if (name === "province") {
-      if (!normalized) return "Select a valid province for the selected region.";
-      if (!selectedProvinceCode || !provinces.some((item) => item.code === selectedProvinceCode)) {
+      if (!normalized)
+        return "Select a valid province for the selected region.";
+      if (
+        !selectedProvinceCode ||
+        !provinces.some((item) => item.code === selectedProvinceCode)
+      ) {
         return "Select a valid province for the selected region.";
       }
       return "";
     }
 
     if (name === "city") {
-      if (!normalized) return "Select a valid city/municipality for the selected province.";
-      if (!selectedCityCode || !cities.some((item) => item.code === selectedCityCode)) {
+      if (!normalized)
+        return "Select a valid city/municipality for the selected province.";
+      if (
+        !selectedCityCode ||
+        !cities.some((item) => item.code === selectedCityCode)
+      ) {
         return "Select a valid city/municipality for the selected province.";
       }
       return "";
     }
 
     if (name === "barangay") {
-      if (!normalized) return "Select a valid barangay for the selected city/municipality.";
+      if (!normalized)
+        return "Select a valid barangay for the selected city/municipality.";
       if (!barangays.some((item) => item.name === currentProfile.barangay)) {
         return "Select a valid barangay for the selected city/municipality.";
       }
@@ -214,11 +268,16 @@ export default function Profile() {
 
   const hasFieldChanges = (current, initial, fields) => {
     if (!initial) return false;
-    return fields.some((field) => (current?.[field] ?? "") !== (initial?.[field] ?? ""));
+    return fields.some(
+      (field) => (current?.[field] ?? "") !== (initial?.[field] ?? ""),
+    );
   };
 
-  const personalHasChanges = editingPersonal && hasFieldChanges(profile, personalInitial, personalFields);
-  const addressHasChanges = editingAddress && hasFieldChanges(profile, addressInitial, addressFields);
+  const personalHasChanges =
+    editingPersonal &&
+    hasFieldChanges(profile, personalInitial, personalFields);
+  const addressHasChanges =
+    editingAddress && hasFieldChanges(profile, addressInitial, addressFields);
 
   const fetchPsgc = useCallback(async (path) => {
     const response = await fetch(`${PSGC_API_BASE_URL}${path}`);
@@ -262,7 +321,9 @@ export default function Profile() {
         return;
       }
       try {
-        const payload = await fetchPsgc(`/regions/${selectedRegionCode}/provinces/`);
+        const payload = await fetchPsgc(
+          `/regions/${selectedRegionCode}/provinces/`,
+        );
         const provinceItems = normalizePsgcItems(payload);
         if (!active) return;
         setProvinces(provinceItems);
@@ -279,7 +340,9 @@ export default function Profile() {
 
   useEffect(() => {
     if (!provinces.length || !profile.province || selectedProvinceCode) return;
-    const provinceMatch = provinces.find((item) => item.name === profile.province);
+    const provinceMatch = provinces.find(
+      (item) => item.name === profile.province,
+    );
     if (provinceMatch) {
       setSelectedProvinceCode(provinceMatch.code);
     }
@@ -294,7 +357,9 @@ export default function Profile() {
         return;
       }
       try {
-        const payload = await fetchPsgc(`/provinces/${selectedProvinceCode}/cities-municipalities/`);
+        const payload = await fetchPsgc(
+          `/provinces/${selectedProvinceCode}/cities-municipalities/`,
+        );
         const cityItems = normalizePsgcItems(payload);
         if (!active) return;
         setCities(cityItems);
@@ -325,7 +390,9 @@ export default function Profile() {
         return;
       }
       try {
-        const payload = await fetchPsgc(`/cities-municipalities/${selectedCityCode}/barangays/`);
+        const payload = await fetchPsgc(
+          `/cities-municipalities/${selectedCityCode}/barangays/`,
+        );
         if (!active) return;
         setBarangays(normalizePsgcItems(payload));
       } catch (error) {
@@ -341,7 +408,8 @@ export default function Profile() {
 
   const handleRegionChange = (e) => {
     const nextRegionCode = e.target.value;
-    const nextRegionName = regions.find((item) => item.code === nextRegionCode)?.name || "";
+    const nextRegionName =
+      regions.find((item) => item.code === nextRegionCode)?.name || "";
     setSelectedRegionCode(nextRegionCode);
     setSelectedProvinceCode("");
     setSelectedCityCode("");
@@ -361,7 +429,11 @@ export default function Profile() {
       delete next.province;
       delete next.city;
       delete next.barangay;
-      const regionError = validateField("region", nextProfile.region, nextProfile);
+      const regionError = validateField(
+        "region",
+        nextProfile.region,
+        nextProfile,
+      );
       if (regionError) next.region = regionError;
       else delete next.region;
       return next;
@@ -370,7 +442,8 @@ export default function Profile() {
 
   const handleProvinceChange = (e) => {
     const nextProvinceCode = e.target.value;
-    const nextProvinceName = provinces.find((item) => item.code === nextProvinceCode)?.name || "";
+    const nextProvinceName =
+      provinces.find((item) => item.code === nextProvinceCode)?.name || "";
     setSelectedProvinceCode(nextProvinceCode);
     setSelectedCityCode("");
     setCities([]);
@@ -386,7 +459,11 @@ export default function Profile() {
       const next = { ...prev };
       delete next.city;
       delete next.barangay;
-      const provinceError = validateField("province", nextProfile.province, nextProfile);
+      const provinceError = validateField(
+        "province",
+        nextProfile.province,
+        nextProfile,
+      );
       if (provinceError) next.province = provinceError;
       else delete next.province;
       return next;
@@ -395,7 +472,8 @@ export default function Profile() {
 
   const handleCityChange = (e) => {
     const nextCityCode = e.target.value;
-    const nextCityName = cities.find((item) => item.code === nextCityCode)?.name || "";
+    const nextCityName =
+      cities.find((item) => item.code === nextCityCode)?.name || "";
     setSelectedCityCode(nextCityCode);
     setBarangays([]);
     const nextProfile = {
@@ -430,7 +508,8 @@ export default function Profile() {
 
   const resolveProfilePictureUrl = useCallback(async (value) => {
     if (!value) return "";
-    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    if (value.startsWith("http://") || value.startsWith("https://"))
+      return value;
 
     const { data, error } = await supabaseClient.storage
       .from("admin_profile")
@@ -462,7 +541,10 @@ export default function Profile() {
         if (message.includes("column") && message.includes("does not exist")) {
           continue;
         }
-        console.error(`Failed admin_profile lookup by ${candidate.column}:`, error);
+        console.error(
+          `Failed admin_profile lookup by ${candidate.column}:`,
+          error,
+        );
         continue;
       }
 
@@ -523,7 +605,9 @@ export default function Profile() {
       return { error: insertError };
     }
 
-    return { error: lastError || new Error("Failed to insert admin profile row.") };
+    return {
+      error: lastError || new Error("Failed to insert admin profile row."),
+    };
   };
 
   useEffect(() => {
@@ -536,7 +620,8 @@ export default function Profile() {
       const { row } = await findAdminProfileRow();
       if (row) {
         const rawProfilePicture = row.profile_picture || "";
-        const resolvedProfilePicture = await resolveProfilePictureUrl(rawProfilePicture);
+        const resolvedProfilePicture =
+          await resolveProfilePictureUrl(rawProfilePicture);
         setProfile((prev) => ({
           ...prev,
           ...row,
@@ -582,7 +667,10 @@ export default function Profile() {
     try {
       const { error: uploadError } = await supabaseClient.storage
         .from("admin_profile")
-        .upload(filePath, file, { upsert: false, contentType: file.type || "image/jpeg" });
+        .upload(filePath, file, {
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
 
       if (uploadError) {
         console.error("Profile upload error:", uploadError);
@@ -600,11 +688,16 @@ export default function Profile() {
 
       const resolvedProfilePicture = await resolveProfilePictureUrl(filePath);
       if (!resolvedProfilePicture) {
-        console.error("Failed to generate signed URL for uploaded profile picture.");
+        console.error(
+          "Failed to generate signed URL for uploaded profile picture.",
+        );
         return;
       }
 
-      setProfile((prev) => ({ ...prev, profile_picture: resolvedProfilePicture }));
+      setProfile((prev) => ({
+        ...prev,
+        profile_picture: resolvedProfilePicture,
+      }));
       setProfilePicturePath(filePath);
       setSuccessMessage("Profile picture uploaded successfully.");
       setShowSuccessModal(true);
@@ -663,12 +756,17 @@ export default function Profile() {
       const msg = String(response.error?.message || "").toLowerCase();
       const candidateColumns = Object.keys(payload);
       const referencedColumn = candidateColumns.find(
-        (column) => msg.includes(`'${column}'`) || msg.includes(`"${column}"`) || msg.includes(` ${column} `),
+        (column) =>
+          msg.includes(`'${column}'`) ||
+          msg.includes(`"${column}"`) ||
+          msg.includes(` ${column} `),
       );
       const unknownColumn =
         referencedColumn &&
         msg.includes("column") &&
-        (msg.includes("does not exist") || msg.includes("schema cache") || msg.includes("not found"))
+        (msg.includes("does not exist") ||
+          msg.includes("schema cache") ||
+          msg.includes("not found"))
           ? referencedColumn
           : undefined;
       if (!unknownColumn || !(unknownColumn in payload)) break;
@@ -742,7 +840,7 @@ export default function Profile() {
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar />
 
-      <div className="profile-main-content ui-page-shell p-6">
+      <div className="profile-main-content page-with-topnav ui-page-shell p-6">
         {/* Profile Header Card */}
         <div className="profile-header-card ui-card-surface">
           <div className="profile-header-content">
@@ -759,11 +857,20 @@ export default function Profile() {
             >
               {!profile.profile_picture && (
                 <span className="avatar-placeholder">
-                  {profile.first_name?.[0]?.toUpperCase() || authUser?.email?.[0]?.toUpperCase() || "A"}
+                  {profile.first_name?.[0]?.toUpperCase() ||
+                    authUser?.email?.[0]?.toUpperCase() ||
+                    "A"}
                 </span>
               )}
               <div className="avatar-camera-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                   <circle cx="12" cy="13" r="4"></circle>
                 </svg>
@@ -800,7 +907,14 @@ export default function Profile() {
                 className="btn-edit ui-btn-primary"
                 onClick={startEditPersonal}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
@@ -922,7 +1036,14 @@ export default function Profile() {
                 className="btn-edit ui-btn-primary"
                 onClick={startEditAddress}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
@@ -983,7 +1104,11 @@ export default function Profile() {
                   className={`info-input ${fieldErrors.province ? "invalid" : ""}`}
                   disabled={!selectedRegionCode}
                 >
-                  <option value="">{selectedRegionCode ? "Select province" : "Select region first"}</option>
+                  <option value="">
+                    {selectedRegionCode
+                      ? "Select province"
+                      : "Select region first"}
+                  </option>
                   {provinces.map((province) => (
                     <option key={province.code} value={province.code}>
                       {province.name}
@@ -1007,7 +1132,11 @@ export default function Profile() {
                   className={`info-input ${fieldErrors.city ? "invalid" : ""}`}
                   disabled={!selectedProvinceCode}
                 >
-                  <option value="">{selectedProvinceCode ? "Select city/municipality" : "Select province first"}</option>
+                  <option value="">
+                    {selectedProvinceCode
+                      ? "Select city/municipality"
+                      : "Select province first"}
+                  </option>
                   {cities.map((city) => (
                     <option key={city.code} value={city.code}>
                       {city.name}
@@ -1031,7 +1160,11 @@ export default function Profile() {
                   className={`info-input ${fieldErrors.barangay ? "invalid" : ""}`}
                   disabled={!selectedCityCode}
                 >
-                  <option value="">{selectedCityCode ? "Select barangay" : "Select city/municipality first"}</option>
+                  <option value="">
+                    {selectedCityCode
+                      ? "Select barangay"
+                      : "Select city/municipality first"}
+                  </option>
                   {barangays.map((barangay) => (
                     <option key={barangay.code} value={barangay.name}>
                       {barangay.name}
@@ -1069,8 +1202,14 @@ export default function Profile() {
       </div>
 
       {showSuccessModal && (
-        <div className="modal-overlay bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowSuccessModal(false)}>
-          <div className="profile-success-modal ui-modal-panel shadow-2xl shadow-slate-900/30 dark:shadow-black/50" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay bg-slate-950/60 backdrop-blur-sm"
+          onClick={() => setShowSuccessModal(false)}
+        >
+          <div
+            className="profile-success-modal ui-modal-panel shadow-2xl shadow-slate-900/30 dark:shadow-black/50"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="profile-success-header">
               <h3>Success</h3>
               <button

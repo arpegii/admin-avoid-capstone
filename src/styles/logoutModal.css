@@ -5,7 +5,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(2, 6, 23, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -32,7 +32,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease-out;
   overflow: hidden;
-  border: 2px solid #800000;
+  border: 2px solid #a30c1a;
   position: relative;
   z-index: 1000000;
 }
@@ -48,14 +48,14 @@
   }
 }
 
-/* Modal Header - Red Theme */
+/* Modal Header */
 .modal-header {
   padding: 24px 24px 16px;
-  border-bottom: 2px solid #800000;
+  border-bottom: 2px solid #a30c1a;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
 }
 
 .modal-header h2 {
@@ -106,7 +106,7 @@
   text-align: center;
 }
 
-/* Modal Footer - Red Theme */
+/* Modal Footer */
 .modal-footer {
   padding: 16px 24px 24px;
   display: flex;
@@ -141,16 +141,16 @@
 }
 
 .btn-logout {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(127, 29, 29, 0.4);
-  border: 2px solid #6b1a1a;
+  box-shadow: 0 4px 12px rgba(232, 25, 44, 0.32);
+  border: 2px solid #a30c1a;
 }
 
 .btn-logout:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(127, 29, 29, 0.5);
+  box-shadow: 0 6px 16px rgba(232, 25, 44, 0.42);
 }
 
 .btn-cancel:disabled,
@@ -173,24 +173,19 @@
     margin: 0 10px;
     border-radius: 12px;
   }
-
   .modal-header h2 {
     font-size: 20px;
   }
-
   .modal-body {
     padding: 24px 20px;
   }
-
   .modal-body p {
     font-size: 15px;
   }
-
   .modal-footer {
     flex-direction: column-reverse;
     gap: 10px;
   }
-
   .btn-cancel,
   .btn-logout {
     width: 100%;
@@ -198,40 +193,44 @@
   }
 }
 
-/* Dark mode support (optional) */
+/* ── Dark Mode ── */
 .dark .modal-content {
-  background: #1f2937;
-  color: #f3f4f6;
-  border-color: #800000;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .dark .modal-header {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-  border-bottom-color: #800000;
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
+  border-bottom-color: transparent;
 }
 
 .dark .modal-header h2 {
-  color: #fecaca;
+  color: #ffffff;
 }
 
 .dark .modal-body {
-  background-color: #1f2937;
+  background-color: #1e293b;
 }
 
 .dark .modal-body p {
-  color: #d1d5db;
+  color: #64748b;
 }
 
 .dark .modal-footer {
-  background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
 }
 
 .dark .btn-cancel {
-  background-color: #374151;
-  color: #e5e7eb;
-  border-color: #4b5563;
+  background-color: #0f172a;
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .dark .btn-cancel:hover:not(:disabled) {
-  background-color: #4b5563;
+  background-color: #1e293b;
+  border-color: rgba(255, 255, 255, 0.1);
 }

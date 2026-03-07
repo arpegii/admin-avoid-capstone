@@ -1,9 +1,24 @@
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap");
 @import "tailwindcss";
 @custom-variant dark (&:where(body.dark, body.dark *));
 
+/* DM Sans webfont */
+@font-face {
+  font-family: "App UI";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/dm-sans:vf@latest/latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range:
+    U+0000-0024, U+0026-0029, U+002A, U+002C, U+003B-0040, U+0041-005A,
+    U+005B-0060, U+0061-007A, U+007B-00FF, U+0131, U+0152-0153, U+02BB-02BC,
+    U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2122,
+    U+2191, U+2193, U+2215, U+FEFF, U+FFFD;
+}
+
 @theme {
-  --font-sans: "Roboto", "Segoe UI", Arial, sans-serif;
+  --font-sans: "App UI", "DM Sans", "Segoe UI", Arial, sans-serif;
+  --font-mono: "App UI", "DM Sans", "Segoe UI", Arial, sans-serif;
 }
 
 /* App-level base reset (replaces Vite starter layout rules) */
@@ -22,8 +37,8 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: radial-gradient(circle at top left, #ffe4e6 0%, #f8fafc 42%, #eef2ff 100%);
-  color: #0f172a;
+  background: radial-gradient(circle at top left, #ffe0e3 0%, #f9f5f5 48%, #fff0f1 100%);
+  color: #1a0a0c;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -32,7 +47,12 @@ h1, h2, h3, h4, h5, h6 {
 
 @layer components {
   .ui-page-shell {
-    @apply bg-gradient-to-br from-slate-50 via-slate-50 to-slate-100 p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950;
+    /* light: warm rose-off-white; dark: warm charcoal */
+    background: linear-gradient(135deg, #f9f5f5 0%, #fdf2f3 100%);
+    padding: 1.5rem;
+  }
+  body.dark .ui-page-shell {
+    background: linear-gradient(135deg, #121212 0%, #1e1e1e 100%);
   }
 
   .ui-auth-page {
@@ -52,22 +72,169 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .ui-btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-800 px-4 py-2 font-semibold text-white shadow-lg shadow-red-700/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(232, 25, 44, 0.28);
+    transition: filter 0.18s ease, transform 0.15s ease;
+    border: none;
+    cursor: pointer;
+  }
+  .ui-btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+  .ui-btn-primary:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .ui-btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-red-700/40 dark:hover:bg-red-900/20 dark:hover:text-red-300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e4b4ba;
+    background: #ffffff;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    color: #78504f;
+    box-shadow: 0 1px 3px rgba(26, 10, 12, 0.06);
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    cursor: pointer;
+  }
+  .ui-btn-secondary:hover {
+    border-color: #fda4af;
+    background: #fff0f2;
+    color: #9f1239;
+  }
+  body.dark .ui-btn-secondary {
+    border-color: #3a3a3a;
+    background: #1e1e1e;
+    color: #a89898;
+  }
+  body.dark .ui-btn-secondary:hover {
+    border-color: #4a4a4a;
+    background: #2a2a2a;
+    color: #f0eded;
   }
 
   .ui-field {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-red-300 focus:ring-4 focus:ring-red-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-red-700 dark:focus:ring-red-900/30;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #e4b4ba;
+    background: #ffffff;
+    padding: 0.5rem 0.75rem;
+    color: #1a0a0c;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .ui-field::placeholder { color: #b88c90; }
+  .ui-field:focus {
+    border-color: #f43f5e;
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
+  }
+  body.dark .ui-field {
+    border-color: #3a3a3a;
+    background: #1e1e1e;
+    color: #f0eded;
+  }
+  body.dark .ui-field::placeholder { color: #a89898; }
+  body.dark .ui-field:focus {
+    border-color: #e8192c;
+    box-shadow: 0 0 0 3px rgba(232, 25, 44, 0.14);
   }
 
   .ui-table-shell {
-    @apply overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid #f0d7da;
+    background: #ffffff;
+    box-shadow: 0 4px 18px rgba(26, 10, 12, 0.08);
+  }
+  body.dark .ui-table-shell {
+    border-color: #3a3a3a;
+    background: #1e1e1e;
   }
 
   .ui-table-head {
-    @apply bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300;
+    background: #fdf2f3;
+    color: #78504f;
   }
+  body.dark .ui-table-head {
+    background: #2a2a2a;
+    color: #a89898;
+  }
+}
+
+
+/* PREVENT BACKGROUND SCROLL WHEN MODALS ARE OPEN (Definitive Lock) */
+html:has(.riders-modal-overlay), html:has(.parcels-modal-overlay),
+html:has(.dashboard-modal-overlay), html:has(.modal-overlay), html:has(.reports-validation-modal),
+body:has(.riders-modal-overlay), body:has(.parcels-modal-overlay),
+body:has(.dashboard-modal-overlay), body:has(.modal-overlay), body:has(.reports-validation-modal) {
+  overflow: clip !important;
+  height: 100vh !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+}
+
+body:has(.riders-modal-overlay) .riders-page,
+body:has(.riders-modal-overlay) .riders-content-shell,
+body:has(.parcels-modal-overlay) .parcels-page,
+body:has(.parcels-modal-overlay) .parcels-table-wrapper,
+body:has(.parcels-modal-overlay) .parcels-content-shell,
+body:has(.dashboard-modal-overlay) .dashboard-page,
+body:has(.dashboard-modal-overlay) .dashboard-charts-grid,
+body:has(.reports-validation-modal) .reports-page,
+body:has(.modal-overlay) .dashboard-page,
+body:has(.modal-overlay) .reports-page,
+body:has(.modal-overlay) .settings-page,
+body:has(.modal-overlay) .ui-page-shell {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: clip !important;
+  overscroll-behavior: none !important;
+  pointer-events: none !important;
+  touch-action: none !important;
+  user-select: none !important;
+  z-index: 2000 !important;
+}
+
+/* Ensure modals can still be interacted with and scroll internally */
+.riders-modal-overlay,
+.parcels-modal-overlay,
+.dashboard-modal-overlay,
+.modal-overlay,
+.reports-validation-modal {
+  position: fixed !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.riders-modal-body,
+.parcels-modal-body,
+.dashboard-modal-content,
+.modal-content {
+  overscroll-behavior: contain !important;
+}
+
+/* Ensure modals can still be interacted with */
+.riders-modal-overlay,
+.parcels-modal-overlay,
+.dashboard-modal-overlay,
+.modal-overlay,
+.reports-validation-modal {
+  pointer-events: auto !important;
+  overscroll-behavior: contain !important;
 }

@@ -4,6 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
+import { useNotification } from "../contexts/NotificationContext";
 import "../styles/global.css";
 import "../styles/parcels.css";
 import PageSpinner from "../components/PageSpinner";
@@ -30,50 +31,35 @@ const formatStatusLabel = (value) => {
   return String(value)
     .trim()
     .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 const getAttemptStatusClass = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!normalized) return "is-default";
+  const n = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!n) return "is-default";
   if (
-    normalized === "success" ||
-    normalized === "successful" ||
-    normalized === "successfully delivered" ||
-    normalized === "delivered"
-  ) {
+    ["success", "successful", "successfully delivered", "delivered"].includes(n)
+  )
     return "is-success";
-  }
-  if (
-    normalized === "pending" ||
-    normalized === "on-going" ||
-    normalized === "ongoing" ||
-    normalized === "in progress"
-  ) {
+  if (["pending", "on-going", "ongoing", "in progress"].includes(n))
     return "is-pending";
-  }
-  if (
-    normalized === "failed" ||
-    normalized === "failure" ||
-    normalized === "cancelled" ||
-    normalized === "canceled"
-  ) {
+  if (["failed", "failure", "cancelled", "canceled"].includes(n))
     return "is-failed";
-  }
   return "is-default";
 };
 
 const getParcelStatusMeta = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "successfully delivered" || normalized === "delivered") {
-    return { className: "is-delivered", label: "Successfully Delivered" };
-  }
-  if (normalized === "on-going" || normalized === "ongoing" || normalized === "in progress") {
+  const n = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (n === "successfully delivered" || n === "delivered")
+    return { className: "is-delivered", label: "Delivered" };
+  if (n === "on-going" || n === "ongoing" || n === "in progress")
     return { className: "is-ongoing", label: "On-Going" };
-  }
-  if (normalized === "cancelled" || normalized === "canceled") {
+  if (n === "cancelled" || n === "canceled")
     return { className: "is-cancelled", label: "Cancelled" };
-  }
   return { className: "is-default", label: formatStatusLabel(value) };
 };
 
@@ -88,35 +74,34 @@ const ModernSelect = ({
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const selectedOption = useMemo(
-    () => (options || []).find((option) => option.value === value),
+    () => (options || []).find((o) => o.value === value),
     [options, value],
   );
 
   useEffect(() => {
-    const handlePointerDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
+    const onDown = (e) => {
+      if (!rootRef.current?.contains(e.target)) setOpen(false);
     };
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
     };
   }, []);
 
   return (
-    <div ref={rootRef} className={`parcel-modern-select ${open ? "is-open" : ""} ${className}`.trim()}>
+    <div
+      ref={rootRef}
+      className={`parcel-modern-select ${open ? "is-open" : ""} ${className}`.trim()}
+    >
       <button
         type="button"
         className={`parcel-modern-select-trigger ${triggerClassName}`.trim()}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen((p) => !p)}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -124,20 +109,23 @@ const ModernSelect = ({
         <span className="parcel-modern-select-caret" aria-hidden="true" />
       </button>
       {open && (
-        <div className={`parcel-modern-select-menu ${menuClassName}`.trim()} role="listbox">
-          {(options || []).map((option) => (
+        <div
+          className={`parcel-modern-select-menu ${menuClassName}`.trim()}
+          role="listbox"
+        >
+          {(options || []).map((opt) => (
             <button
-              key={option.value}
+              key={opt.value}
               type="button"
-              className={`parcel-modern-select-option ${value === option.value ? "is-selected" : ""}`}
+              role="option"
+              aria-selected={value === opt.value}
+              className={`parcel-modern-select-option ${value === opt.value ? "is-selected" : ""}`}
               onClick={() => {
-                onChange(option.value);
+                onChange(opt.value);
                 setOpen(false);
               }}
-              role="option"
-              aria-selected={value === option.value}
             >
-              {option.label}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -147,6 +135,7 @@ const ModernSelect = ({
 };
 
 const Parcel = () => {
+  const { notifyParcelDelivered } = useNotification();
   const [parcels, setParcels] = useState([]);
   const [parcelPage, setParcelPage] = useState(1);
   const [parcelRows] = useState(MAX_PARCEL_ROWS);
@@ -159,19 +148,21 @@ const Parcel = () => {
   const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [trackingParcel, setTrackingParcel] = useState(null);
   const [loadingTrackMap, setLoadingTrackMap] = useState(false);
+
   const statusFilterOptions = useMemo(
     () => [
-      { value: "All", label: "All" },
-      { value: "Successfully Delivered", label: "Successfully Delivered" },
-      { value: "On-going", label: "On-going" },
+      { value: "All", label: "All Status" },
+      { value: "Successfully Delivered", label: "Delivered" },
+      { value: "On-going", label: "On-Going" },
       { value: "Cancelled", label: "Cancelled" },
     ],
     [],
   );
+
   const sortOptions = useMemo(
     () => [
-      { value: "parcel_id-asc", label: "Parcel ID (Ascending)" },
-      { value: "parcel_id-desc", label: "Parcel ID (Descending)" },
+      { value: "parcel_id-asc", label: "ID — Ascending" },
+      { value: "parcel_id-desc", label: "ID — Descending" },
     ],
     [],
   );
@@ -194,40 +185,48 @@ const Parcel = () => {
           const { data, error } = await supabaseClient
             .from("parcels")
             .select(
-              `
-          *,
-          assigned_rider:users!parcels_assigned_rider_id_fkey(
-            fname,
-            lname
-          )
-        `,
+              `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname, lname)`,
             )
             .order(sortColumn, { ascending })
             .range(from, from + chunkSize - 1);
 
-          if (error) {
-            throw error;
-          }
-
+          if (error) throw error;
           const chunk = data || [];
           allParcels.push(...chunk);
-          if (chunk.length < chunkSize) {
-            break;
-          }
+          if (chunk.length < chunkSize) break;
           from += chunkSize;
         }
 
-        // Transform the data to include rider name
-        const parcelsWithRiderNames = allParcels.map((parcel) => ({
-          ...parcel,
-          riderFullName: parcel.assigned_rider
-            ? `${parcel.assigned_rider.fname || ""} ${parcel.assigned_rider.lname || ""}`.trim() ||
+        const parcelsWithRiderNames = allParcels.map((p) => ({
+          ...p,
+          riderFullName: p.assigned_rider
+            ? `${p.assigned_rider.fname || ""} ${p.assigned_rider.lname || ""}`.trim() ||
               "Unassigned"
             : "Unassigned",
         }));
 
         setParcels(parcelsWithRiderNames);
         setParcelTotalRows(parcelsWithRiderNames.length);
+
+        // Notify about recently delivered parcels
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const deliveredToday = parcelsWithRiderNames.filter((p) => {
+          const createdDate = new Date(p.created_at);
+          const isDelivered = ["successfully delivered", "delivered"].includes(
+            String(p.status || "")
+              .trim()
+              .toLowerCase(),
+          );
+          return isDelivered && createdDate >= today;
+        });
+
+        deliveredToday.slice(0, 3).forEach((parcel) => {
+          notifyParcelDelivered(
+            parcel.parcel_id,
+            parcel.riderFullName || "Customer",
+          );
+        });
       } catch (err) {
         console.error("Failed to load parcels:", err);
         setParcels([]);
@@ -241,79 +240,80 @@ const Parcel = () => {
 
   const statusFilteredParcels = useMemo(() => {
     if (statusFilter === "All") return parcels;
-    const normalizedFilter = statusFilter.trim().toLowerCase();
+    const nf = statusFilter.trim().toLowerCase();
     return parcels.filter(
-      (parcel) =>
-        String(parcel?.status || "")
+      (p) =>
+        String(p?.status || "")
           .trim()
-          .toLowerCase() === normalizedFilter,
+          .toLowerCase() === nf,
     );
   }, [parcels, statusFilter]);
 
   const filteredParcels = useMemo(() => {
     const keyword = searchTerm.trim();
-    // When searching by parcel ID, search across all loaded parcels
-    // regardless of status filter so exact IDs never disappear.
     const source = keyword ? parcels : statusFilteredParcels;
     if (!keyword) return source;
-    return source.filter((parcel) =>
-      String(parcel?.parcel_id ?? "").startsWith(keyword),
-    );
+    return source.filter((p) => String(p?.parcel_id ?? "").startsWith(keyword));
   }, [parcels, searchTerm, statusFilteredParcels]);
 
   useEffect(() => {
     setParcelTotalRows(filteredParcels.length);
-    const nextTotalPages = Math.max(
+    const nextTotal = Math.max(
       1,
       Math.ceil(filteredParcels.length / parcelRows),
     );
-    if (parcelPage > nextTotalPages) {
-      setParcelPage(nextTotalPages);
-    }
+    if (parcelPage > nextTotal) setParcelPage(nextTotal);
   }, [filteredParcels, parcelPage, parcelRows]);
 
   const totalPages = Math.max(1, Math.ceil(parcelTotalRows / parcelRows));
   const prevPage = () => setParcelPage((p) => Math.max(1, p - 1));
   const nextPage = () => setParcelPage((p) => Math.min(totalPages, p + 1));
   const pageStartIndex = (parcelPage - 1) * parcelRows;
-  const pageEndIndex = pageStartIndex + parcelRows;
-  const pagedParcels = filteredParcels.slice(pageStartIndex, pageEndIndex);
+  const pagedParcels = filteredParcels.slice(
+    pageStartIndex,
+    pageStartIndex + parcelRows,
+  );
   const showingStart = parcelTotalRows === 0 ? 0 : pageStartIndex + 1;
-  const showingEnd = Math.min(pageEndIndex, parcelTotalRows);
+  const showingEnd = Math.min(pageStartIndex + parcelRows, parcelTotalRows);
 
   const pageItems = useMemo(() => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, index) => index + 1);
-    }
-    const items = new Set([1, totalPages, parcelPage - 1, parcelPage, parcelPage + 1]);
-    const pages = [...items].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+    if (totalPages <= 7)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const items = new Set([
+      1,
+      totalPages,
+      parcelPage - 1,
+      parcelPage,
+      parcelPage + 1,
+    ]);
+    const pages = [...items]
+      .filter((p) => p >= 1 && p <= totalPages)
+      .sort((a, b) => a - b);
     const result = [];
-    for (let i = 0; i < pages.length; i += 1) {
-      const current = pages[i];
-      const previous = pages[i - 1];
-      if (i > 0 && current - previous > 1) {
-        result.push(`ellipsis-${previous}-${current}`);
-      }
-      result.push(current);
+    for (let i = 0; i < pages.length; i++) {
+      const cur = pages[i],
+        prev = pages[i - 1];
+      if (i > 0 && cur - prev > 1) result.push(`ellipsis-${prev}-${cur}`);
+      result.push(cur);
     }
     return result;
   }, [parcelPage, totalPages]);
 
-  const openParcelModal = (parcel) => setViewParcel(parcel);
-  const closeParcelModal = () => setViewParcel(null);
   const getParcelCoords = (parcel) => {
-    const lat = Number(parcel?.r_lat);
-    const lng = Number(parcel?.r_lng);
+    const lat = Number(parcel?.r_lat),
+      lng = Number(parcel?.r_lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
     return { lat, lng };
   };
+
   const openTrackModal = (parcel) => {
     if (!getParcelCoords(parcel)) return;
     setTrackingParcel(parcel);
     setLoadingTrackMap(true);
     setTrackModalOpen(true);
   };
+
   const closeTrackModal = () => {
     if (trackMarkerRef.current) {
       trackMarkerRef.current.remove();
@@ -327,17 +327,18 @@ const Parcel = () => {
     setTrackingParcel(null);
     setLoadingTrackMap(false);
   };
+
   const buildParcelTrackPopup = (parcel) => {
     const rawStatus = parcel?.status || "Unknown";
     const statusText = formatStatusLabel(rawStatus);
     const addressText = parcel?.address || "No address available";
-    const normalizedStatus = String(rawStatus).trim().toLowerCase();
+    const n = String(rawStatus).trim().toLowerCase();
     const statusClass =
-      normalizedStatus === "successfully delivered"
+      n === "successfully delivered"
         ? "status-delivered"
-        : normalizedStatus === "on-going"
+        : n === "on-going"
           ? "status-ongoing"
-          : normalizedStatus === "cancelled"
+          : n === "cancelled"
             ? "status-cancelled"
             : "status-default";
     return `
@@ -354,13 +355,11 @@ const Parcel = () => {
           <span>Address</span>
           <b>${addressText}</b>
         </div>
-      </div>
-    `;
+      </div>`;
   };
 
   useEffect(() => {
     if (!trackModalOpen || !trackingParcel) return;
-
     const coords = getParcelCoords(trackingParcel);
     if (!coords) {
       setLoadingTrackMap(false);
@@ -376,18 +375,20 @@ const Parcel = () => {
       trackLeafletMapRef.current = null;
     }
 
-    const initTimer = setTimeout(() => {
+    const t = setTimeout(() => {
       if (!trackMapRef.current) {
         setLoadingTrackMap(false);
         return;
       }
-
-      const map = L.map(trackMapRef.current).setView([coords.lat, coords.lng], 15);
+      const map = L.map(trackMapRef.current).setView(
+        [coords.lat, coords.lng],
+        15,
+      );
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
       }).addTo(map);
 
-      const parcelIcon = L.divIcon({
+      const icon = L.divIcon({
         className: "parcel-map-marker-wrap",
         html: `<span class="parcel-map-marker" aria-hidden="true">📦</span>`,
         iconSize: [40, 40],
@@ -396,14 +397,14 @@ const Parcel = () => {
       });
 
       const marker = L.marker([coords.lat, coords.lng], {
-        icon: parcelIcon,
+        icon,
         zIndexOffset: 1200,
       })
         .addTo(map)
-        .bindPopup(
-          buildParcelTrackPopup(trackingParcel),
-          { className: "parcel-track-popup", closeButton: false },
-        );
+        .bindPopup(buildParcelTrackPopup(trackingParcel), {
+          className: "parcel-track-popup",
+          closeButton: false,
+        });
 
       trackLeafletMapRef.current = map;
       trackMarkerRef.current = marker;
@@ -415,7 +416,7 @@ const Parcel = () => {
       }, 180);
     }, 380);
 
-    return () => clearTimeout(initTimer);
+    return () => clearTimeout(t);
   }, [trackModalOpen, trackingParcel]);
 
   useEffect(() => {
@@ -432,21 +433,21 @@ const Parcel = () => {
   }, []);
 
   return (
-    <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
+    <div className="dashboard-container">
       <Sidebar currentPage="parcels.html" />
 
-      <div className="parcels-page ui-page-shell p-6">
+      {/* ── parcels-page is ALWAYS rendered so the Sidebar scroll
+           logic can find it immediately, even while data is loading ── */}
+      <div className="parcels-page page-with-topnav">
         {loading ? (
-          <PageSpinner fullScreen label="Loading parcels..." />
+          <PageSpinner label="Loading parcels…" />
         ) : (
           <>
-            <h1 className="page-title mb-6">Parcel Management</h1>
+            <h1 className="page-title">Parcel Management</h1>
 
-            {/* Filters */}
-            <div className="parcels-filter-section ui-card-surface mb-5 p-4">
-              <label>
-                <strong>Search:</strong>
-              </label>
+            {/* ── Toolbar ── */}
+            <div className="parcels-filter-section">
+              <label>Search</label>
               <input
                 type="text"
                 value={searchTerm}
@@ -454,12 +455,10 @@ const Parcel = () => {
                   setParcelPage(1);
                   setSearchTerm(e.target.value);
                 }}
-                placeholder="Search by Parcel ID..."
+                placeholder="Search by Parcel ID…"
               />
 
-              <label>
-                <strong>Filter by Status:</strong>
-              </label>
+              <label>Status</label>
               <div className="parcel-filter-select-wrap">
                 <ModernSelect
                   className="parcel-filter-modern-shell"
@@ -467,16 +466,14 @@ const Parcel = () => {
                   menuClassName="parcel-filter-modern-menu"
                   value={statusFilter}
                   options={statusFilterOptions}
-                  onChange={(nextValue) => {
+                  onChange={(v) => {
                     setParcelPage(1);
-                    setStatusFilter(nextValue);
+                    setStatusFilter(v);
                   }}
                 />
               </div>
 
-              <label>
-                <strong>Sort by:</strong>
-              </label>
+              <label>Sort</label>
               <div className="parcel-filter-select-wrap">
                 <ModernSelect
                   className="parcel-filter-modern-shell"
@@ -484,41 +481,33 @@ const Parcel = () => {
                   menuClassName="parcel-filter-modern-menu"
                   value={sortBy}
                   options={sortOptions}
-                  onChange={(nextValue) => {
+                  onChange={(v) => {
                     setParcelPage(1);
-                    setSortBy(nextValue);
+                    setSortBy(v);
                   }}
                 />
               </div>
             </div>
 
-            {/* Table */}
-            <div className="parcels-table-wrapper ui-table-shell">
+            {/* ── Table ── */}
+            <div className="parcels-table-wrapper">
               <table className="parcel-table">
-                {/* colgroup locks each column to a fixed width so headers and cells always align */}
                 <colgroup>
                   <col />
-                  {/* Parcel ID      — 9%  */}
                   <col />
-                  {/* Recipient Name — 18% */}
                   <col />
-                  {/* Recipient Phone— 15% */}
                   <col />
-                  {/* Address        — 26% */}
                   <col />
-                  {/* Assigned Rider — 15% */}
                   <col />
-                  {/* Status         — 10% */}
                   <col />
-                  {/* Action         — 7%  */}
                 </colgroup>
                 <thead>
                   <tr>
                     <th>Parcel ID</th>
-                    <th>Recipient Name</th>
-                    <th>Recipient Phone</th>
+                    <th>Recipient</th>
+                    <th>Phone</th>
                     <th>Address</th>
-                    <th>Assigned Rider</th>
+                    <th>Rider</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
@@ -533,18 +522,20 @@ const Parcel = () => {
                       <td>{parcel.riderFullName}</td>
                       <td className="status-cell">
                         {(() => {
-                          const statusMeta = getParcelStatusMeta(parcel.status);
+                          const m = getParcelStatusMeta(parcel.status);
                           return (
-                            <span className={`parcel-status-pill ${statusMeta.className}`}>
-                              {statusMeta.label}
+                            <span
+                              className={`parcel-status-pill ${m.className}`}
+                            >
+                              {m.label}
                             </span>
                           );
                         })()}
                       </td>
                       <td>
                         <button
-                          className="btn-view ui-btn-secondary rounded-lg px-3 py-1.5 text-xs"
-                          onClick={() => openParcelModal(parcel)}
+                          className="btn-view"
+                          onClick={() => setViewParcel(parcel)}
                         >
                           View
                         </button>
@@ -555,7 +546,7 @@ const Parcel = () => {
                   {Array.from({ length: parcelRows - pagedParcels.length }).map(
                     (_, i) => (
                       <tr key={`empty-${i}`}>
-                        <td colSpan={7} style={{ height: "45px" }} />
+                        <td colSpan={7} style={{ height: "46px" }} />
                       </tr>
                     ),
                   )}
@@ -564,11 +555,13 @@ const Parcel = () => {
 
               <div className="parcels-table-footer">
                 <div className="parcels-table-meta">
-                  {`Showing ${showingStart}-${showingEnd} of ${parcelTotalRows} parcels`}
+                  {parcelTotalRows === 0
+                    ? "No parcels found"
+                    : `Showing ${showingStart}–${showingEnd} of ${parcelTotalRows}`}
                 </div>
                 <div className="parcels-pagination">
                   <button onClick={prevPage} disabled={parcelPage <= 1}>
-                    Previous
+                    ← Prev
                   </button>
                   <div className="parcels-page-list">
                     {pageItems.map((item) =>
@@ -578,33 +571,41 @@ const Parcel = () => {
                           type="button"
                           className={item === parcelPage ? "is-active" : ""}
                           onClick={() => setParcelPage(item)}
-                          aria-label={`Go to page ${item}`}
                         >
                           {item}
                         </button>
                       ) : (
-                        <span key={item} className="parcels-page-ellipsis" aria-hidden="true">
-                          ...
+                        <span
+                          key={item}
+                          className="parcels-page-ellipsis"
+                          aria-hidden="true"
+                        >
+                          …
                         </span>
                       ),
                     )}
                   </div>
-                  <span className="parcels-page-summary">{`Page ${parcelPage} of ${totalPages}`}</span>
+                  <span className="parcels-page-summary">
+                    {parcelPage} / {totalPages}
+                  </span>
                   <button
                     onClick={nextPage}
                     disabled={parcelPage >= totalPages}
                   >
-                    Next
+                    Next →
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Modal */}
+            {/* ── View parcel modal ── */}
             {viewParcel && (
-              <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeParcelModal}>
+              <div
+                className="parcels-modal-overlay show"
+                onClick={() => setViewParcel(null)}
+              >
                 <div
-                  className="parcels-modal-content view-parcel-modal ui-modal-panel"
+                  className="parcels-modal-content view-parcel-modal"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="parcels-modal-header">
@@ -613,7 +614,7 @@ const Parcel = () => {
                   <div className="parcels-modal-body">
                     <div className="parcel-view-shell">
                       <section className="parcel-view-card">
-                        <h4>Delivery Details</h4>
+                        <h4>Delivery</h4>
                         <div className="parcel-view-grid">
                           <div className="parcel-view-item">
                             <span>Parcel ID</span>
@@ -621,21 +622,25 @@ const Parcel = () => {
                           </div>
                           <div className="parcel-view-item">
                             <span>Status</span>
-                            <strong
-                              className={`parcel-view-status ${
-                                (viewParcel.status || "").toLowerCase() ===
-                                "successfully delivered"
-                                  ? "is-delivered"
-                                  : (viewParcel.status || "").toLowerCase() ===
-                                      "on-going"
-                                    ? "is-ongoing"
-                                    : (viewParcel.status || "").toLowerCase() ===
-                                        "cancelled"
-                                      ? "is-cancelled"
-                                      : "is-default"
-                              }`}
-                            >
-                              {viewParcel.status || "-"}
+                            <strong>
+                              {(() => {
+                                const n = (
+                                  viewParcel.status || ""
+                                ).toLowerCase();
+                                const cls =
+                                  n === "successfully delivered"
+                                    ? "is-delivered"
+                                    : n === "on-going"
+                                      ? "is-ongoing"
+                                      : n === "cancelled"
+                                        ? "is-cancelled"
+                                        : "is-default";
+                                return (
+                                  <span className={`parcel-view-status ${cls}`}>
+                                    {viewParcel.status || "-"}
+                                  </span>
+                                );
+                              })()}
                             </strong>
                           </div>
                           <div className="parcel-view-item">
@@ -654,21 +659,21 @@ const Parcel = () => {
                             <span>Assigned Rider</span>
                             <strong>{viewParcel.riderFullName || "-"}</strong>
                           </div>
-                          <div className="parcel-view-item parcel-view-item-full parcel-view-action-inline">
+                          <div className="parcel-view-item parcel-view-action-inline">
                             <button
                               type="button"
-                              className="parcel-track-btn ui-btn-primary rounded-xl px-4 py-2"
+                              className="parcel-track-btn"
                               onClick={() => openTrackModal(viewParcel)}
                               disabled={!getParcelCoords(viewParcel)}
                             >
-                              Track Parcel
+                              View Delivery Location
                             </button>
                           </div>
                         </div>
                       </section>
 
                       <section className="parcel-view-card">
-                        <h4>Sender Details</h4>
+                        <h4>Sender</h4>
                         <div className="parcel-view-grid">
                           <div className="parcel-view-item">
                             <span>Sender Name</span>
@@ -687,9 +692,7 @@ const Parcel = () => {
                           <div className="parcel-view-item">
                             <span>Attempt 1 Status</span>
                             <strong
-                              className={`parcel-attempt-status ${getAttemptStatusClass(
-                                viewParcel.attempt1_status,
-                              )}`}
+                              className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt1_status)}`}
                             >
                               {formatStatusLabel(viewParcel.attempt1_status)}
                             </strong>
@@ -698,16 +701,15 @@ const Parcel = () => {
                             <span>Attempt 1 Date</span>
                             <strong>
                               {formatTimelineDateTime(
-                                viewParcel.attempt1_date || viewParcel.attempt1_datetime,
+                                viewParcel.attempt1_date ||
+                                  viewParcel.attempt1_datetime,
                               )}
                             </strong>
                           </div>
                           <div className="parcel-view-item">
                             <span>Attempt 2 Status</span>
                             <strong
-                              className={`parcel-attempt-status ${getAttemptStatusClass(
-                                viewParcel.attempt2_status,
-                              )}`}
+                              className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
                             >
                               {formatStatusLabel(viewParcel.attempt2_status)}
                             </strong>
@@ -716,7 +718,8 @@ const Parcel = () => {
                             <span>Attempt 2 Date</span>
                             <strong>
                               {formatTimelineDateTime(
-                                viewParcel.attempt2_date || viewParcel.attempt2_datetime,
+                                viewParcel.attempt2_date ||
+                                  viewParcel.attempt2_datetime,
                               )}
                             </strong>
                           </div>
@@ -724,15 +727,19 @@ const Parcel = () => {
                       </section>
 
                       <section className="parcel-view-card">
-                        <h4>System Timeline</h4>
+                        <h4>Timeline</h4>
                         <div className="parcel-view-grid">
                           <div className="parcel-view-item">
-                            <span>Created At</span>
-                            <strong>{formatTimelineDateTime(viewParcel.created_at)}</strong>
+                            <span>Created</span>
+                            <strong>
+                              {formatTimelineDateTime(viewParcel.created_at)}
+                            </strong>
                           </div>
                           <div className="parcel-view-item">
-                            <span>Updated At</span>
-                            <strong>{formatTimelineDateTime(viewParcel.updated_at)}</strong>
+                            <span>Updated</span>
+                            <strong>
+                              {formatTimelineDateTime(viewParcel.updated_at)}
+                            </strong>
                           </div>
                         </div>
                       </section>
@@ -742,10 +749,14 @@ const Parcel = () => {
               </div>
             )}
 
+            {/* ── Track modal ── */}
             {trackModalOpen && (
-              <div className="parcels-modal-overlay show bg-slate-950/60 backdrop-blur-sm" onClick={closeTrackModal}>
+              <div
+                className="parcels-modal-overlay show"
+                onClick={closeTrackModal}
+              >
                 <div
-                  className="parcels-modal-content parcel-track-modal ui-modal-panel"
+                  className="parcels-modal-content parcel-track-modal"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="parcels-modal-header">
@@ -753,7 +764,8 @@ const Parcel = () => {
                   </div>
                   <div className="parcels-modal-body parcel-track-body">
                     <p>
-                      Tracking parcel: <strong>#{trackingParcel?.parcel_id || "-"}</strong>
+                      Tracking{" "}
+                      <strong>#{trackingParcel?.parcel_id || "-"}</strong>
                     </p>
                     <div className="parcel-track-map-wrap">
                       {loadingTrackMap && (
@@ -761,15 +773,22 @@ const Parcel = () => {
                           className="parcel-track-loading-overlay"
                           role="status"
                           aria-live="polite"
-                          aria-label="Loading parcel tracking map"
                         >
                           <div className="parcel-track-loader-shell">
-                            <div className="parcel-track-loader-spinner" aria-hidden="true">
+                            <div
+                              className="parcel-track-loader-spinner"
+                              aria-hidden="true"
+                            >
                               <span className="parcel-track-loader-ring" />
                               <span className="parcel-track-loader-core" />
                             </div>
-                            <p className="parcel-track-loader-title">Tracking parcel</p>
-                            <div className="parcel-track-loader-bars" aria-hidden="true">
+                            <p className="parcel-track-loader-title">
+                              Locating parcel
+                            </p>
+                            <div
+                              className="parcel-track-loader-bars"
+                              aria-hidden="true"
+                            >
                               <span className="parcel-track-loader-bar bar-a" />
                               <span className="parcel-track-loader-bar bar-b" />
                               <span className="parcel-track-loader-bar bar-c" />
@@ -780,7 +799,9 @@ const Parcel = () => {
                       <div
                         ref={trackMapRef}
                         className="parcel-track-map"
-                        style={{ visibility: loadingTrackMap ? "hidden" : "visible" }}
+                        style={{
+                          visibility: loadingTrackMap ? "hidden" : "visible",
+                        }}
                       />
                     </div>
                   </div>

@@ -8,6 +8,17 @@ const OTP_RESEND_COOLDOWN_SECONDS = 60;
 export default function Login({ setOtpVerified }) {
   const navigate = useNavigate();
 
+  // Disable dark mode on login page
+  useEffect(() => {
+    const wasDarkMode = document.body.classList.contains("dark");
+    document.body.classList.remove("dark");
+    return () => {
+      if (wasDarkMode) {
+        document.body.classList.add("dark");
+      }
+    };
+  }, []);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -254,12 +265,10 @@ export default function Login({ setOtpVerified }) {
 
     setForgotLoading(true);
     try {
-      const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(
-        targetEmail,
-        {
+      const { error: resetError } =
+        await supabaseClient.auth.resetPasswordForEmail(targetEmail, {
           redirectTo: `${window.location.origin}/reset-password`,
-        },
-      );
+        });
       if (resetError) {
         setForgotError(resetError.message || "Failed to send reset email.");
         return;
@@ -360,6 +369,7 @@ export default function Login({ setOtpVerified }) {
                       type="email"
                       className="form-input rounded-xl border border-white/30 bg-white/95 focus:ring-4 focus:ring-white/25"
                       placeholder="Enter your email"
+                      style={{ paddingLeft: "42px" }}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -386,6 +396,7 @@ export default function Login({ setOtpVerified }) {
                       type={showLoginPassword ? "text" : "password"}
                       className="form-input rounded-xl border border-white/30 bg-white/95 focus:ring-4 focus:ring-white/25"
                       placeholder="Enter your password"
+                      style={{ paddingLeft: "42px" }}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -394,17 +405,35 @@ export default function Login({ setOtpVerified }) {
                       type="button"
                       className="password-toggle icon-toggle"
                       onClick={() => setShowLoginPassword((prev) => !prev)}
-                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showLoginPassword ? "Hide password" : "Show password"
+                      }
                     >
                       {showLoginPassword ? (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
                           <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-5.05 0-9.27-3.11-11-8 1-2.84 2.94-5.06 5.38-6.36" />
                           <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c5.05 0 9.27 3.11 11 8a11.05 11.05 0 0 1-4.07 5.04" />
                           <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
                           <path d="m1 1 22 22" />
                         </svg>
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
                           <circle cx="12" cy="12" r="3" />
                         </svg>
@@ -591,6 +620,7 @@ export default function Login({ setOtpVerified }) {
                     type="email"
                     className="form-input forgot-input rounded-xl border border-slate-300 bg-white focus:ring-4 focus:ring-red-100"
                     placeholder="Enter your email"
+                    style={{ paddingLeft: "42px" }}
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     required
@@ -599,7 +629,9 @@ export default function Login({ setOtpVerified }) {
               </div>
 
               {forgotError && <div className="login-error">{forgotError}</div>}
-              {forgotMessage && <div className="login-success">{forgotMessage}</div>}
+              {forgotMessage && (
+                <div className="login-success">{forgotMessage}</div>
+              )}
 
               <div className="forgot-modal-actions">
                 <button
@@ -616,7 +648,12 @@ export default function Login({ setOtpVerified }) {
                   disabled={forgotLoading}
                 >
                   <span className="forgot-submit-content">
-                    {forgotLoading && <span className="forgot-submit-spinner" aria-hidden="true" />}
+                    {forgotLoading && (
+                      <span
+                        className="forgot-submit-spinner"
+                        aria-hidden="true"
+                      />
+                    )}
                     {forgotLoading ? "Sending..." : "Send Reset Link"}
                   </span>
                 </button>

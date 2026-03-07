@@ -5,8 +5,8 @@
   padding: 32px;
   display: block;
   background:
-    radial-gradient(860px 340px at 92% 0%, rgba(255, 0, 0, 0.1), transparent 60%),
-    radial-gradient(640px 300px at 8% 100%, rgba(128, 0, 0, 0.08), transparent 60%),
+    radial-gradient(860px 340px at 92% 0%, rgba(232, 25, 44, 0.08), transparent 60%),
+    radial-gradient(640px 300px at 8% 100%, rgba(136, 19, 55, 0.06), transparent 60%),
     var(--page-bg-soft);
   overflow-y: auto;
 }
@@ -23,8 +23,8 @@
 /* ================= CARD ================= */
 .reports-card.reports-card-modern {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
   border-radius: 22px;
   box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
   overflow: hidden;
@@ -33,8 +33,8 @@
 
 .reports-card.reports-preview-card {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
   border-radius: 22px;
   box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
   overflow: hidden;
@@ -72,7 +72,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 8px;
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
   color: #ffffff;
   font-size: 11px;
   font-weight: 800;
@@ -148,7 +148,7 @@
 
 /* ================= HEADER ================= */
 .reports-header {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
   color: #ffffff;
   padding: 28px 32px;
   text-align: center;
@@ -192,7 +192,7 @@
 }
 
 .reports-form-row label {
-  color: #334155;
+  color: var(--theme-muted);
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
@@ -204,11 +204,11 @@
   width: 100%;
   min-height: 48px;
   padding: 12px 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--theme-border-strong);
   border-radius: 12px;
   font-size: 14px;
-  color: #0f172a;
-  background: #ffffff;
+  color: var(--theme-text);
+  background: var(--theme-surface);
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
   font-family: inherit;
@@ -234,8 +234,8 @@
 
 .reports-form-row select:focus,
 .reports-form-row input[type="date"]:focus {
-  border-color: #ff0000;
-  box-shadow: 0 0 0 4px rgba(255, 0, 0, 0.12);
+  border-color: #e8192c;
+  box-shadow: 0 0 0 4px rgba(232, 25, 44, 0.12);
 }
 
 /* ================= BUTTON ================= */
@@ -244,7 +244,7 @@
   border-radius: 12px;
   padding: 12px 22px;
   min-width: 170px;
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
   color: #ffffff;
   font-size: 14px;
   font-weight: 800;
@@ -255,7 +255,7 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.18s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
+  box-shadow: 0 8px 18px rgba(232, 25, 44, 0.26);
 }
 
 .reports-btn-generate:hover {
@@ -344,7 +344,7 @@
   font-size: 56px;
   display: block;
   margin-bottom: 20px;
-  color: #ff0000;
+  color: #e8192c;
 }
 
 .reports-validation-content p {
@@ -358,18 +358,18 @@
   border: none;
   border-radius: 10px;
   padding: 12px 32px;
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(232, 25, 44, 0.22);
 }
 
 .reports-validation-content button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3);
+  box-shadow: 0 4px 14px rgba(232, 25, 44, 0.32);
 }
 
 .reports-validation-content button:active {
@@ -381,7 +381,7 @@
 .reports-form-row input[type="date"]:focus-visible,
 .reports-btn-generate:focus-visible,
 .reports-validation-content button:focus-visible {
-  outline: 2px solid #ff0000;
+  outline: 2px solid #e8192c;
   outline-offset: 2px;
 }
 

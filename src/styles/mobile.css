@@ -15,105 +15,102 @@
   }
 
   .dashboard-container {
-    flex-direction: row;
+    flex-direction: column;
     height: 100dvh;
     min-height: 100dvh;
     overflow: hidden;
   }
 
-  /* Sidebar stays visible as a retracted left rail */
-  .sidebar,
-  .sidebar.collapsed {
-    width: 72px !important;
-    min-width: 72px;
-    max-width: 72px;
+  .top-nav {
+    min-height: auto;
+    padding: 10px 12px;
+    gap: 10px;
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
-    padding: 10px 6px;
-    position: relative;
-    top: auto;
-    z-index: 20;
-    overflow-y: auto;
-    overflow-x: hidden;
   }
 
-  .sidebar-logo,
-  .sidebar.collapsed .sidebar-logo {
+  .top-nav-left,
+  .top-nav-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .top-nav-left {
+    gap: 10px;
+  }
+
+  .top-nav-logo {
     width: 44px;
     height: 44px;
-    margin: 0 auto 12px;
+    border-radius: 12px;
+  }
+
+  .top-nav-logo img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .top-nav-menu {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  .top-nav-menu li {
     flex: 0 0 auto;
   }
 
-  .nav-menu,
-  .sidebar.collapsed .nav-menu {
-    width: 100%;
+  .top-nav-link {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .top-nav-link-label {
+    white-space: nowrap;
+  }
+
+  .top-nav-right {
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  .top-nav-profile {
+    min-width: 0;
+    max-width: 240px;
+    padding-right: 6px;
+  }
+
+  .top-nav-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 11px;
+  }
+
+  .top-nav-profile-copy {
+    max-width: 130px;
+  }
+
+  .top-nav-name {
+    font-size: 11px;
+  }
+
+  .top-nav-role {
+    font-size: 9px;
+  }
+
+  .top-nav-profile-edit {
+    display: none;
+  }
+
+  .top-nav-action {
     flex: 0 0 auto;
-    min-width: auto;
-    display: block;
-    gap: 0;
-    padding: 0 4px;
-    overflow: visible;
-  }
-
-  .nav-item,
-  .sidebar.collapsed .nav-item,
-  .user-actions .nav-item {
-    margin: 0 0 6px;
-    padding: 10px 6px;
-    justify-content: center;
-    flex: 0 1 auto;
-    transform: none !important;
-  }
-
-  .nav-icon,
-  .sidebar.collapsed .nav-icon,
-  .sidebar.collapsed .user-actions .nav-icon {
-    margin-right: 0;
-  }
-
-  .nav-label,
-  .sidebar.collapsed .nav-label {
-    display: none !important;
-  }
-
-  .user-profile,
-  .sidebar.collapsed .user-profile {
-    margin-top: auto;
-    padding: 10px 4px 2px;
-    display: block;
-    align-items: stretch;
-    gap: 0;
-    flex: 1 1 auto;
-  }
-
-  .user-info,
-  .sidebar.collapsed .user-info {
-    margin: 0 0 8px;
-    padding: 8px 4px;
-    justify-content: center;
-  }
-
-  .user-avatar-wrapper,
-  .sidebar.collapsed .user-avatar-wrapper {
-    width: 34px;
-    height: 34px;
-  }
-
-  .user-avatar {
-    width: 34px;
-    height: 34px;
-  }
-
-  .user-details,
-  .avatar-pen {
-    display: none !important;
-  }
-
-  .user-actions {
-    display: block;
-    gap: 0;
+    padding: 7px 10px;
+    font-size: 11px;
   }
 
   .dashboard-page,
@@ -137,6 +134,22 @@
   .settings-page,
   .profile-main-content {
     padding: 14px !important;
+  }
+
+  .dashboard-page {
+    padding-top: calc(var(--tnav-h) + 14px) !important;
+  }
+
+  body.tnav-hidden .dashboard-page {
+    padding-top: 14px !important;
+  }
+
+  .page-with-topnav {
+    padding-top: calc(var(--tnav-h) + 14px) !important;
+  }
+
+  body.tnav-hidden .page-with-topnav {
+    padding-top: 14px !important;
   }
 
   .profile-main-content {
@@ -176,8 +189,25 @@
 }
 
 @media (max-width: 600px) {
-  .nav-label {
-    font-size: 12px;
+  .top-nav-link span:not(.top-nav-link-icon),
+  .top-nav-action span {
+    display: none;
+  }
+
+  .top-nav-link,
+  .top-nav-action {
+    padding: 8px 9px;
+    min-width: 34px;
+    justify-content: center;
+  }
+
+  .top-nav-profile-copy {
+    display: none;
+  }
+
+  .top-nav-profile {
+    padding: 4px;
+    min-width: auto;
   }
 
   .page-title {

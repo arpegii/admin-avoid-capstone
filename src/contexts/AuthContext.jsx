@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useCallback, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabaseClient } from "../App";
 
@@ -21,6 +21,12 @@ export const AuthProvider = ({ children }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
 
+  const clearAuthState = useCallback(() => {
+    setUser(null);
+    setOtpVerifiedState(false);
+    sessionStorage.removeItem(OTP_VERIFIED_KEY);
+  }, []);
+
   const setOtpVerified = (value) => {
     setOtpVerifiedState(value);
     if (value) {
@@ -31,18 +37,44 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    const isInvalidRefreshTokenError = (error) => {
+      const msg = String(error?.message || "").toLowerCase();
+      return msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+    };
+
+    let mounted = true;
+
     // Restore session on refresh
-    supabaseClient.auth.getSession().then(({ data }) => {
-      if (data?.session) {
-        setUser(data.session.user);
-        setOtpVerifiedState(sessionStorage.getItem(OTP_VERIFIED_KEY) === "true");
-      } else {
-        setUser(null);
-        setOtpVerifiedState(false);
-        sessionStorage.removeItem(OTP_VERIFIED_KEY);
+    const hydrateSession = async () => {
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          if (isInvalidRefreshTokenError(error)) {
+            // Drop only local auth state to recover from stale tokens.
+            await supabaseClient.auth.signOut({ scope: "local" });
+          }
+          if (!mounted) return;
+          clearAuthState();
+          setLoading(false);
+          return;
+        }
+
+        if (!mounted) return;
+        if (data?.session) {
+          setUser(data.session.user);
+          setOtpVerifiedState(sessionStorage.getItem(OTP_VERIFIED_KEY) === "true");
+        } else {
+          clearAuthState();
+        }
+      } catch {
+        if (!mounted) return;
+        clearAuthState();
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    hydrateSession();
 
     // Listen for auth changes
     const {
@@ -53,14 +85,15 @@ export const AuthProvider = ({ children }) => {
         setOtpVerifiedState(sessionStorage.getItem(OTP_VERIFIED_KEY) === "true");
       }
       if (event === "SIGNED_OUT") {
-        setUser(null);
-        setOtpVerifiedState(false);
-        sessionStorage.removeItem(OTP_VERIFIED_KEY);
+        clearAuthState();
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [clearAuthState]);
 
   const openLogoutModal = () => {
     setShowLogoutModal(true);

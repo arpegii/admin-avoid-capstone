@@ -1,8 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { Analytics } from "@vercel/analytics/react";
+import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { useEffect } from "react";
 
 // Pages
@@ -67,12 +75,54 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Login setOtpVerified={setOtpVerified} />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/riders" element={<ProtectedRoute><Riders /></ProtectedRoute>} />
-      <Route path="/maps" element={<ProtectedRoute><Riders /></ProtectedRoute>} />
-      <Route path="/parcels" element={<ProtectedRoute><Parcels /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/riders"
+        element={
+          <ProtectedRoute>
+            <Riders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/maps"
+        element={
+          <ProtectedRoute>
+            <Riders />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/parcels"
+        element={
+          <ProtectedRoute>
+            <Parcels />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -98,20 +148,20 @@ function AppContent() {
     };
 
     const initializeDarkMode = () => {
-      const savedDarkMode = localStorage.getItem('darkMode');
-      
-      if (savedDarkMode === 'enabled') {
+      const savedDarkMode = localStorage.getItem("darkMode");
+
+      if (savedDarkMode === "enabled") {
         // User has dark mode enabled
-        document.body.classList.add('dark');
+        document.body.classList.add("dark");
         return;
-      } else if (savedDarkMode === 'disabled') {
+      } else if (savedDarkMode === "disabled") {
         // User has dark mode disabled
-        document.body.classList.remove('dark');
+        document.body.classList.remove("dark");
         return;
       } else {
         // No preference saved - default to light mode.
-        document.body.classList.remove('dark');
-        localStorage.setItem('darkMode', 'disabled');
+        document.body.classList.remove("dark");
+        localStorage.setItem("darkMode", "disabled");
       }
     };
 
@@ -125,27 +175,27 @@ function AppContent() {
     });
     darkClassObserver.observe(document.body, {
       attributes: true,
-      attributeFilter: ['class'],
+      attributeFilter: ["class"],
     });
 
     // Sync dark mode across browser tabs
     const handleStorageChange = (e) => {
-      if (e.key === 'darkMode') {
-        if (e.newValue === 'enabled') {
-          document.body.classList.add('dark');
+      if (e.key === "darkMode") {
+        if (e.newValue === "enabled") {
+          document.body.classList.add("dark");
         } else {
-          document.body.classList.remove('dark');
+          document.body.classList.remove("dark");
         }
         updateFavicon();
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
 
     // Cleanup
     return () => {
       darkClassObserver.disconnect();
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, []);
   // ==================== END DARK MODE INITIALIZATION ====================
@@ -164,7 +214,7 @@ function AppContent() {
 
     document.title = pageTitles[location.pathname] || "Login";
   }, [location.pathname]);
-  
+
   return (
     <>
       <GlobalLogoutModal />
@@ -178,7 +228,17 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppContent />
+        <NotificationProvider>
+          <Toaster
+            position="top-right"
+            reverseOrder={false}
+            gutter={8}
+            toastOptions={{
+              duration: 3000,
+            }}
+          />
+          <AppContent />
+        </NotificationProvider>
       </AuthProvider>
     </Router>
   );

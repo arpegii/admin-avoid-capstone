@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   FaChartBar,
@@ -7,19 +7,18 @@ import {
   FaCog,
   FaSignOutAlt,
   FaPen,
+  FaChevronDown,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
 import { supabaseClient } from "../App";
+import NotificationCenter from "./NotificationCenter";
 
 export default function Sidebar() {
   const { user, openLogoutModal } = useAuth();
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth <= 900 : false,
-  );
-  const [isCollapsed, setIsCollapsed] = useState(true);
-
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,7 +27,7 @@ export default function Sidebar() {
       const candidates = [
         { column: "id", value: user?.id },
         { column: "email", value: user?.email },
-      ].filter((candidate) => candidate.value);
+      ].filter((c) => c.value);
 
       for (const candidate of candidates) {
         const { data, error } = await supabaseClient
@@ -39,18 +38,17 @@ export default function Sidebar() {
 
         if (error) {
           const message = String(error.message || "").toLowerCase();
-          if (message.includes("column") && message.includes("does not exist")) {
+          if (message.includes("column") && message.includes("does not exist"))
             continue;
-          }
-          console.error(`Failed sidebar admin_profile lookup by ${candidate.column}:`, error);
+          console.error(
+            `Failed top nav admin_profile lookup by ${candidate.column}:`,
+            error,
+          );
           continue;
         }
 
-        if (Array.isArray(data) && data.length > 0) {
-          return data[0] || null;
-        }
+        if (Array.isArray(data) && data.length > 0) return data[0] || null;
       }
-
       return null;
     }
 
@@ -77,61 +75,162 @@ export default function Sidebar() {
         return;
       }
 
-      const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
-        .from("admin_profile")
-        .createSignedUrl(rawValue, 60 * 60);
+      const { data: signedUrlData, error: signedUrlError } =
+        await supabaseClient.storage
+          .from("admin_profile")
+          .createSignedUrl(rawValue, 60 * 60);
 
       if (signedUrlError) {
-        console.error("Failed to resolve sidebar profile picture URL:", signedUrlError);
         setProfilePictureUrl("");
         return;
       }
-
       setProfilePictureUrl(signedUrlData?.signedUrl || "");
     }
 
     loadProfilePicture();
 
-    const handleProfilePictureUpdated = () => {
-      loadProfilePicture();
+    const handleProfilePictureUpdated = () => loadProfilePicture();
+    const handleStorageChange = (e) => {
+      if (e.key === "profilePictureUpdatedAt") loadProfilePicture();
     };
 
-    const handleStorageChange = (event) => {
-      if (event.key === "profilePictureUpdatedAt") {
-        loadProfilePicture();
-      }
-    };
-
-    window.addEventListener("profile-picture-updated", handleProfilePictureUpdated);
+    window.addEventListener(
+      "profile-picture-updated",
+      handleProfilePictureUpdated,
+    );
     window.addEventListener("storage", handleStorageChange);
-
     return () => {
-      window.removeEventListener("profile-picture-updated", handleProfilePictureUpdated);
+      window.removeEventListener(
+        "profile-picture-updated",
+        handleProfilePictureUpdated,
+      );
       window.removeEventListener("storage", handleStorageChange);
     };
   }, [user?.id, user?.email]);
 
+  // Close dropdown on outside click
   useEffect(() => {
-    const handleResize = () => {
-      const mobileViewport = window.innerWidth <= 900;
-      setIsMobile(mobileViewport);
-      if (mobileViewport) {
-        setIsCollapsed(true);
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target))
+        setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const nav = document.querySelector(".tnav");
+    if (!nav) return undefined;
+
+    const scrollSelectors = [
+      ".dashboard-page",
+      ".riders-content-shell",
+      ".riders-page",
+      ".parcels-page",
+      ".settings-page",
+      ".profile-main-content",
+      ".reports-page",
+    ];
+
+    let scrollEls = [];
+    let observer = null;
+    const getCurrentScrollY = () => {
+      if (!scrollEls.length) return 0;
+      return Math.max(...scrollEls.map((el) => el.scrollTop || 0));
+    };
+
+    const handleScroll = () => {
+      // Don't hide nav if no scroll containers are bound yet (page still loading)
+      if (!scrollEls.length) return;
+
+      // Don't hide header if a modal is open
+      const isModalOpen = !!document.querySelector(
+        ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
+      );
+      if (isModalOpen) {
+        nav.classList.remove("tnav--hidden");
+        document.body.classList.remove("tnav-hidden");
+        return;
+      }
+
+      const currentY = getCurrentScrollY();
+      const shouldHide = currentY > 2;
+      nav.classList.toggle("tnav--hidden", shouldHide);
+      document.body.classList.toggle("tnav-hidden", shouldHide);
+    };
+
+    const handleWheel = (event) => {
+      // Don't hide nav if no scroll containers are bound yet (page still loading)
+      if (!scrollEls.length) return;
+
+      // Don't hide header if a modal is open
+      const isModalOpen = !!document.querySelector(
+        ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
+      );
+      if (isModalOpen) {
+        nav.classList.remove("tnav--hidden");
+        document.body.classList.remove("tnav-hidden");
+        return;
+      }
+
+      const currentY = getCurrentScrollY();
+      if (event.deltaY > 0) {
+        nav.classList.add("tnav--hidden");
+        document.body.classList.add("tnav-hidden");
+        return;
+      }
+      if (event.deltaY < 0 && currentY <= 2) {
+        nav.classList.remove("tnav--hidden");
+        document.body.classList.remove("tnav-hidden");
       }
     };
 
-    window.addEventListener("resize", handleResize);
-    handleResize();
+    const bindScrollContainers = () => {
+      const next = scrollSelectors
+        .map((selector) => document.querySelector(selector))
+        .filter(Boolean)
+        .filter((el, index, arr) => arr.indexOf(el) === index);
+      if (!next.length) return false;
+
+      scrollEls.forEach((el) => {
+        if (!next.includes(el)) el.removeEventListener("scroll", handleScroll);
+      });
+      next.forEach((el) => {
+        if (!scrollEls.includes(el))
+          el.addEventListener("scroll", handleScroll, { passive: true });
+      });
+      scrollEls = next;
+      handleScroll();
+      return true;
+    };
+
+    // Always ensure nav is visible on route change
+    nav.classList.remove("tnav--hidden");
+    document.body.classList.remove("tnav-hidden");
+
+    document.addEventListener("wheel", handleWheel, {
+      passive: true,
+      capture: true,
+    });
+
+    if (!bindScrollContainers()) {
+      observer = new MutationObserver(() => {
+        if (bindScrollContainers() && observer) {
+          observer.disconnect();
+          observer = null;
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      if (observer) observer.disconnect();
+      scrollEls.forEach((el) => el.removeEventListener("scroll", handleScroll));
+      document.removeEventListener("wheel", handleWheel, true);
+      nav.classList.remove("tnav--hidden");
+      document.body.classList.remove("tnav-hidden");
     };
-  }, []);
-
-  const handleSidebarToggle = () => {
-    if (isMobile) return;
-    setIsCollapsed((prev) => !prev);
-  };
+  }, [location.pathname]);
 
   const getInitials = () => {
     if (profilePictureUrl) return "";
@@ -144,115 +243,136 @@ export default function Sidebar() {
   };
 
   const isActive = (href) => location.pathname === href;
-  const isSettingsPage = location.pathname === "/settings";
 
   const menuItems = [
     { label: "Dashboard", href: "/dashboard", icon: <FaChartBar /> },
-    { label: "Rider Management", href: "/riders", icon: <FaMotorcycle /> },
-    { label: "Parcel Management", href: "/parcels", icon: <FaBox /> },
-  ];
-
-  const handleLogoutClick = () => {
-    openLogoutModal?.();
-  };
-
-  const userActions = [
-    { label: "Settings", href: "/settings", icon: <FaCog /> },
-    { 
-      label: "Log out", 
-      onClick: handleLogoutClick,
-      icon: <FaSignOutAlt /> 
-    },
+    { label: "Riders", href: "/riders", icon: <FaMotorcycle /> },
+    { label: "Parcels", href: "/parcels", icon: <FaBox /> },
   ];
 
   return (
-    <div
-      className={`sidebar ${isCollapsed ? "collapsed" : ""} shadow-2xl`}
-    >
-      <button
-        type="button"
-        className="sidebar-logo sidebar-logo-toggle rounded-2xl transition duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-        onClick={handleSidebarToggle}
-        disabled={isMobile}
-        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        <img src="/images/logo.png" alt="Logo" />
-      </button>
-
-      {/* Main Navigation */}
-      <ul className="nav-menu space-y-1">
-        {menuItems.map((item) => (
-          <li
-            key={item.href}
-            className={`nav-item ${isActive(item.href) ? "active" : ""} border border-transparent backdrop-blur-sm`}
-            onClick={() => navigate(item.href)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-label">{item.label}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Logged-in User */}
-      <div className="user-profile">
-        <div
-          className={`user-info ${isActive("/profile") ? "active" : ""} border border-transparent`}
-          onClick={() => navigate("/profile")}
+    <header className="tnav" role="navigation" aria-label="Primary navigation">
+      <div className="tnav-inner">
+        {/* ── Logo only ── */}
+        <button
+          type="button"
+          className="tnav-brand"
+          onClick={() => navigate("/dashboard")}
+          aria-label="Go to dashboard"
         >
-          <div className="user-avatar-wrapper">
-            <div
-              className="user-avatar"
+          <img src="/images/logo.png" alt="AVID" className="tnav-brand-logo" />
+        </button>
+
+        {/* ── Divider ── */}
+        <span className="tnav-divider" aria-hidden="true" />
+
+        {/* ── Nav links ── */}
+        <nav className="tnav-nav" aria-label="Main menu">
+          <ul className="tnav-list">
+            {menuItems.map((item) => (
+              <li key={item.href}>
+                <button
+                  type="button"
+                  className={`tnav-link ${isActive(item.href) ? "tnav-link--active" : ""}`}
+                  onClick={() => navigate(item.href)}
+                >
+                  <span className="tnav-link-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                  <span className="tnav-link-label">{item.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* ── Spacer ── */}
+        <span className="tnav-spacer" />
+
+        {/* ── Notifications ── */}
+        <NotificationCenter />
+
+        {/* ── Profile dropdown ── */}
+        <div className="tnav-profile-wrap" ref={profileRef}>
+          <button
+            type="button"
+            className={`tnav-profile-trigger ${profileOpen ? "is-open" : ""} ${isActive("/profile") ? "tnav-profile-trigger--active" : ""}`}
+            onClick={() => setProfileOpen((p) => !p)}
+            aria-haspopup="true"
+            aria-expanded={profileOpen}
+          >
+            <span
+              className="tnav-avatar"
               style={{
-                backgroundImage: profilePictureUrl ? `url(${profilePictureUrl})` : "",
-                display: profilePictureUrl ? undefined : "flex",
-                justifyContent: "center",
-                alignItems: "center",
+                backgroundImage: profilePictureUrl
+                  ? `url(${profilePictureUrl})`
+                  : undefined,
               }}
             >
-              {!profilePictureUrl && getInitials()}
+              {!profilePictureUrl && (
+                <span className="tnav-avatar-initials">{getInitials()}</span>
+              )}
+            </span>
+            <span className="tnav-profile-meta">
+              <span className="tnav-profile-name">
+                {displayName || user?.email || "Administrator"}
+              </span>
+              <span className="tnav-profile-role">Admin</span>
+            </span>
+            <FaChevronDown
+              className={`tnav-chevron ${profileOpen ? "rotated" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+
+          {profileOpen && (
+            <div className="tnav-dropdown" role="menu">
+              <div className="tnav-dropdown-header">
+                <span className="tnav-dropdown-email">{user?.email}</span>
+              </div>
+              <div className="tnav-dropdown-body">
+                <button
+                  type="button"
+                  className="tnav-dropdown-item"
+                  role="menuitem"
+                  onClick={() => {
+                    navigate("/profile");
+                    setProfileOpen(false);
+                  }}
+                >
+                  <FaPen className="tnav-dropdown-item-icon" />
+                  Edit Profile
+                </button>
+                <button
+                  type="button"
+                  className="tnav-dropdown-item"
+                  role="menuitem"
+                  onClick={() => {
+                    navigate("/settings");
+                    setProfileOpen(false);
+                  }}
+                >
+                  <FaCog className="tnav-dropdown-item-icon" />
+                  Settings
+                </button>
+                <div className="tnav-dropdown-sep" />
+                <button
+                  type="button"
+                  className="tnav-dropdown-item tnav-dropdown-item--danger"
+                  role="menuitem"
+                  onClick={() => {
+                    openLogoutModal?.();
+                    setProfileOpen(false);
+                  }}
+                >
+                  <FaSignOutAlt className="tnav-dropdown-item-icon" />
+                  Log out
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              className="avatar-pen ring-2 ring-white/30"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate("/profile");
-              }}
-              aria-label="Edit profile picture"
-            >
-              <FaPen />
-            </button>
-          </div>
-
-          <div className="user-details">
-            <div className="user-name">{displayName || user?.email || "Administrator"}</div>
-            <div className="user-role">Administrator</div>
-          </div>
+          )}
         </div>
-
-        {/* User Actions */}
-        <ul className="user-actions mt-2 space-y-1">
-          {userActions.map((action, idx) => (
-            <li
-              key={idx}
-              className={`nav-item user-action-item ${
-                action.label === "Settings" && isSettingsPage ? "active" : ""
-              } border border-transparent`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (action.onClick) {
-                  action.onClick();
-                } else if (action.href) {
-                  navigate(action.href);
-                }
-              }}
-            >
-              <span className="nav-icon">{action.icon}</span>
-              <span className="nav-label">{action.label}</span>
-            </li>
-          ))}
-        </ul>
       </div>
-    </div>
+    </header>
   );
 }

@@ -1,157 +1,191 @@
-/* ================= SETTINGS PAGE - MODERN DESIGN ================= */
+/* ================= SETTINGS PAGE ================= */
 
-/* Scope styles to settings page only */
 .settings-page {
   flex: 1;
-  background: var(--page-bg-soft);
-  overflow: visible !important;
-  overflow-y: auto !important;
+  width: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
-  height: auto !important;
-  min-height: 100vh;
-  padding: 40px;
+  background: var(--page-bg-soft, #f1f5f9);
 }
 
-.settings-page > h1 {
-  margin-bottom: 32px;
+/* ── Inner wrapper — this is what actually centers the content ── */
+.settings-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
 }
 
-/* ================= SETTINGS HEADER ================= */
+/* ── Groups ── */
+.settings-group {
+  width: 100%;
+  margin: 0 0 1.5rem;
+  animation: settingsFadeUp 0.5s ease both;
+}
 
-.settings-page > h1 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 32px;
-  letter-spacing: -0.5px;
+.settings-group:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.settings-group:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.settings-group:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.settings-group-label {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--theme-muted, #94a3b8);
+  margin-bottom: 0.6rem;
+  padding: 0 0.25rem;
 }
 
-.settings-page > h1::before {
-  content: '';
-  width: 4px;
-  height: 36px;
-  background: linear-gradient(180deg, #ff0000 0%, #800000 100%);
-  border-radius: 4px;
+.settings-group-label svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.7;
 }
 
-/* ================= SETTINGS CONTAINER ================= */
-
-.settings-container {
-  background: transparent;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: visible;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  animation: slideUp 0.6s ease-out;
-  display: grid;
-  gap: 12px;
+/* ── Card ── */
+.settings-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: none !important;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
 }
 
-.settings-stack {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  display: grid;
-  gap: 14px;
-}
-
-.settings-section {
-  margin: 0;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ================= SETTINGS ITEM ================= */
-
-.settings-item {
+/* ── Row ── */
+.settings-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 28px 32px;
-  border-bottom: none;
-  transition: background 0.2s ease;
-  margin: 0;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border: none !important;
+  box-shadow: none !important;
+  transition: background 0.15s ease;
 }
 
-.settings-item:last-child {
-  border-bottom: none;
+.settings-row:hover {
+  background: rgba(241, 245, 249, 0.7);
 }
 
-.settings-item:hover {
-  background: #fafafa;
+.settings-row--logout:hover {
+  background: rgba(254, 226, 226, 0.35);
 }
 
-.settings-item span {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1e293b;
+.settings-row-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.12);
+  margin: 0 1.25rem;
 }
 
-.setting-info {
+/* ── Row icon ── */
+.settings-row-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-row-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.settings-row-icon--violet {
+  background: rgba(139, 92, 246, 0.12);
+}
+.settings-row-icon--violet svg {
+  stroke: #8b5cf6;
+}
+.settings-row-icon--sky {
+  background: rgba(14, 165, 233, 0.12);
+}
+.settings-row-icon--sky svg {
+  stroke: #0ea5e9;
+}
+.settings-row-icon--amber {
+  background: rgba(245, 158, 11, 0.12);
+}
+.settings-row-icon--amber svg {
+  stroke: #f59e0b;
+}
+.settings-row-icon--emerald {
+  background: rgba(16, 185, 129, 0.12);
+}
+.settings-row-icon--emerald svg {
+  stroke: #10b981;
+}
+.settings-row-icon--rose {
+  background: rgba(244, 63, 94, 0.1);
+}
+.settings-row-icon--rose svg {
+  stroke: #f43f5e;
+}
+.settings-row-icon--red {
+  background: rgba(232, 25, 44, 0.1);
+}
+.settings-row-icon--red svg {
+  stroke: #e8192c;
+}
+
+/* ── Row body ── */
+.settings-row-body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.setting-description {
-  font-size: 13px;
-  color: #64748b;
-  margin: 4px 0 0 0;
+.settings-row-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--theme-text, #0f172a);
+}
+
+.settings-row-desc {
+  font-size: 0.75rem;
+  color: var(--theme-muted, #64748b);
   font-weight: 400;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
-.logout-btn {
+/* ── Chevron action button ── */
+.settings-action-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.3);
+  justify-content: center;
+  cursor: not-allowed;
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
-.logout-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.4);
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-}
-
-.logout-btn:active {
-  transform: translateY(0);
-}
-
-.logout-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* ================= TOGGLE SWITCH ================= */
-
+/* ── Toggle switch ── */
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 60px;
-  height: 32px;
+  width: 52px;
+  height: 28px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .toggle-switch input {
@@ -162,50 +196,124 @@
 
 .slider {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #cbd5e1;
-  border-radius: 34px;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  inset: 0;
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  transition: background 0.25s ease;
 }
 
-.slider:before {
-  position: absolute;
+.slider::before {
   content: "";
-  height: 24px;
-  width: 24px;
+  position: absolute;
+  width: 20px;
+  height: 20px;
   left: 4px;
-  bottom: 4px;
-  background: white;
+  top: 4px;
+  background: #ffffff;
   border-radius: 50%;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .toggle-switch input:checked + .slider {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
 }
 
-.toggle-switch input:checked + .slider:before {
-  transform: translateX(28px);
+.toggle-switch input:checked + .slider::before {
+  transform: translateX(24px);
 }
 
-.toggle-switch:hover .slider {
-  opacity: 0.9;
+.toggle-switch--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.toggle-switch input:focus + .slider {
-  box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1),
-              inset 0 2px 4px rgba(0, 0, 0, 0.1);
+.toggle-switch input:focus-visible + .slider {
+  outline: 2px solid #e8192c;
+  outline-offset: 2px;
 }
 
-/* ================= LOGOUT MODAL ================= */
+/* ── Logout button ── */
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  background: linear-gradient(135deg, #e8192c 0%, #a30c1a 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    filter 0.15s ease;
+  box-shadow: 0 4px 14px rgba(232, 25, 44, 0.3);
+  flex-shrink: 0;
+}
 
-/* Only ensure modal is visible on settings page - styling comes from logoutModal.css */
+.logout-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: #fff;
+}
+
+.logout-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 8px 20px rgba(232, 25, 44, 0.38);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+}
+
+/* ── Version badge ── */
+.settings-version {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--theme-muted, #94a3b8);
+  font-weight: 500;
+  padding: 0 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.settings-version-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+/* ── Animation ── */
+@keyframes settingsFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .settings-inner {
+    padding: 1rem 1rem 3rem;
+  }
+  .settings-row {
+    padding: 0.9rem 1rem;
+  }
+}
+
+/* ── Logout Modal z-index ── */
 body:has(.settings-page) .modal-overlay {
   position: fixed;
   top: 0;
@@ -218,106 +326,72 @@ body:has(.settings-page) .modal-overlay {
   align-items: center;
 }
 
-/* ================= RESPONSIVE DESIGN ================= */
-
-@media (max-width: 768px) {
-  .settings-page {
-    padding: 24px 16px;
-  }
-
-  .settings-page > h1 {
-    font-size: 24px;
-    margin-bottom: 24px;
-  }
-
-  .settings-container {
-    border-radius: 16px;
-  }
-
-  .settings-item {
-    padding: 24px 20px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .settings-item span {
-    font-size: 15px;
-  }
-}
-
-@media (max-width: 480px) {
-  .settings-page > h1 {
-    font-size: 20px;
-  }
-
-  .settings-item {
-    padding: 20px 16px;
-  }
-}
-
-/* ================= FOCUS VISIBLE ================= */
-
-.toggle-switch input:focus-visible + .slider {
-  outline: 2px solid #ff0000;
-  outline-offset: 2px;
-}
-
-/* ================= DARK MODE SUPPORT (if needed) ================= */
+/* ── Dark Mode ── */
 body.dark .settings-page {
-  background: var(--dm-bg);
+  background: #121212;
 }
 
-body.dark .settings-container {
-  background: transparent;
-  box-shadow: none;
+body.dark .settings-card {
+  background: #1e1e1e;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
-body.dark .settings-item {
-  background: var(--dm-surface-2) !important;
-  border-bottom-color: var(--dm-border);
+body.dark .settings-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+body.dark .settings-row--logout:hover {
+  background: rgba(232, 25, 44, 0.08);
+}
+body.dark .settings-row-divider {
+  background: rgba(255, 255, 255, 0.06);
+}
+body.dark .settings-row-title {
+  color: #f0eded;
+}
+body.dark .settings-row-desc {
+  color: #a89898;
+}
+body.dark .settings-group-label {
+  color: #a89898;
 }
 
-body.dark .settings-item:hover {
-  background: #334155;
+body.dark .settings-row-icon--violet {
+  background: rgba(139, 92, 246, 0.18);
+}
+body.dark .settings-row-icon--sky {
+  background: rgba(14, 165, 233, 0.18);
+}
+body.dark .settings-row-icon--amber {
+  background: rgba(245, 158, 11, 0.18);
+}
+body.dark .settings-row-icon--emerald {
+  background: rgba(16, 185, 129, 0.18);
+}
+body.dark .settings-row-icon--rose {
+  background: rgba(244, 63, 94, 0.15);
+}
+body.dark .settings-row-icon--red {
+  background: rgba(232, 25, 44, 0.15);
 }
 
-body.dark .settings-item span {
-  color: var(--dm-text);
+body.dark .settings-action-btn {
+  background: rgba(255, 255, 255, 0.06);
+}
+body.dark .slider {
+  background: rgba(255, 255, 255, 0.15);
+}
+body.dark .settings-version {
+  color: #a89898;
+}
+/* ── Hide scrollbar ── */
+.settings-page {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-body.dark .setting-description {
-  color: var(--dm-muted-2);
-}
-
-body.dark .logout-btn {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-}
-
-body.dark .logout-btn:hover {
-  background: linear-gradient(135deg, #ff0000 0%, #800000 100%);
-}
-
-body.dark .settings-page > h1 {
-  color: var(--dm-text);
-}
-
-/* ================= ADDITIONAL SETTINGS ITEMS ================= */
-
-/* Style for future settings items */
-.settings-item.disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.settings-item .description {
-  font-size: 14px;
-  color: #64748b;
-  font-weight: 400;
-  margin-top: 4px;
-  display: block;
-}
-
-body.dark .settings-item .description {
-  color: var(--dm-muted-2);
+.settings-page::-webkit-scrollbar {
+  display: none;
 }

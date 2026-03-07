@@ -591,7 +591,7 @@ const Reports = () => {
       {/* ✅ No props needed - Sidebar gets everything from AuthContext */}
       <Sidebar currentPage="reports.html" />
 
-      <div className="reports-page ui-page-shell p-6">
+      <div className="reports-page page-with-topnav ui-page-shell p-6">
         <div className="reports-layout gap-6">
           <div className="reports-card reports-preview-card ui-card-surface">
             <div className="reports-header"><h1 className="reports-page-title">Data Lists</h1></div>
