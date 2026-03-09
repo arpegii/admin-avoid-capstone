@@ -151,7 +151,7 @@ export const ImportProvider = ({
             lat = result.lat;
             lng = result.lng;
             // Rate limit: only sleep when we actually called the geocoder
-            if (i < rowsSnapshot.length - 1) await sleep(1200);
+            if (i < rowsSnapshot.length - 1) await sleep(500);
           }
 
           const normalizeStatus = (val, fallback) => {
