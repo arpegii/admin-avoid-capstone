@@ -1,5 +1,5 @@
 // api/geocode.js — Vercel serverless function
-// Progressive fallback for Philippine barangay-level addresses
+// Uses OpenCage Geocoding API (free tier, no credit card, good PH coverage)
 
 export default async function handler(req, res) {
   const { address } = req.query;
@@ -8,27 +8,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ found: false, error: "No address provided" });
   }
 
+  const apiKey = process.env.OPENCAGE_API_KEY;
+  if (!apiKey) {
+    return res
+      .status(500)
+      .json({ found: false, error: "OPENCAGE_API_KEY not configured" });
+  }
+
   const trimmed = address.trim();
 
   // Build a list of search queries from most specific → least specific
-  // e.g. "42 Rosal Street, Brgy Cupang, Antipolo City"
-  // → try full, then without house number, then city only
   const queries = buildFallbackQueries(trimmed);
 
   for (const query of queries) {
-    const result = await tryNominatim(query);
+    const result = await tryOpenCage(query, apiKey);
     if (result) {
-      return res
-        .status(200)
-        .json({
-          found: true,
-          lat: result.lat,
-          lng: result.lng,
-          matchedQuery: query,
-        });
+      return res.status(200).json({
+        found: true,
+        lat: result.lat,
+        lng: result.lng,
+        matchedQuery: query,
+      });
     }
-    // Small delay between attempts to respect Nominatim rate limit
-    await sleep(300);
   }
 
   return res.status(200).json({ found: false, lat: null, lng: null });
@@ -39,26 +40,28 @@ export default async function handler(req, res) {
 function buildFallbackQueries(address) {
   const queries = [];
 
-  // 1. Full address as-is
-  queries.push(address);
+  // 1. Full address + Philippines
+  const withPH = address.toLowerCase().includes("philippines")
+    ? address
+    : `${address}, Philippines`;
+  queries.push(withPH);
 
-  // 2. Normalize "Brgy" → "Barangay" (Nominatim sometimes handles it better)
-  const withBarangay = address.replace(/\bBrgy\.?\b/gi, "Barangay");
-  if (withBarangay !== address) queries.push(withBarangay);
+  // 2. Normalize "Brgy" → "Barangay"
+  const withBarangay = withPH.replace(/\bBrgy\.?\b/gi, "Barangay");
+  if (withBarangay !== withPH) queries.push(withBarangay);
 
   // 3. Strip house/lot number prefix (e.g. "42 Rosal Street" → "Rosal Street")
-  const noHouseNum = address.replace(/^\d+[\-\d]*\s+/, "");
-  if (noHouseNum !== address) {
+  const noHouseNum = withPH.replace(/^\d+[\-\d]*\s+/, "");
+  if (noHouseNum !== withPH) {
     queries.push(noHouseNum);
     queries.push(noHouseNum.replace(/\bBrgy\.?\b/gi, "Barangay"));
   }
 
   // 4. Just barangay + city (drop the street entirely)
-  // Matches patterns like "Brgy Cupang, Antipolo City" or "Barangay Cupang, Antipolo"
   const brgyMatch = address.match(/\b(?:Brgy\.?|Barangay)\s+([^,]+),\s*(.+)/i);
   if (brgyMatch) {
     const brgy = brgyMatch[1].trim();
-    const city = brgyMatch[2].trim();
+    const city = brgyMatch[2].trim().replace(/,?\s*philippines$/i, "");
     queries.push(`Barangay ${brgy}, ${city}, Philippines`);
     queries.push(`${brgy}, ${city}, Philippines`);
   }
@@ -75,30 +78,22 @@ function buildFallbackQueries(address) {
   return [...new Set(queries)];
 }
 
-// ── Call Nominatim ───────────────────────────────────────────────────────────
+// ── Call OpenCage ────────────────────────────────────────────────────────────
 
-async function tryNominatim(query) {
+async function tryOpenCage(query, apiKey) {
   try {
     const encoded = encodeURIComponent(query);
-    const url = `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&addressdetails=1&limit=1&countrycodes=ph`;
+    const url = `https://api.opencagedata.com/geocode/v1/json?q=${encoded}&key=${apiKey}&countrycode=ph&limit=1&no_annotations=1`;
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "AVOID-Delivery-App/1.0 (capstone project; contact@avoid.app)",
-        "Accept-Language": "en",
-        Referer: "https://admin-avoid-capstone.vercel.app",
-      },
-    });
-
+    const response = await fetch(url);
     if (!response.ok) return null;
 
     const data = await response.json();
 
-    if (!Array.isArray(data) || data.length === 0) return null;
+    if (!data.results?.length) return null;
 
-    const lat = parseFloat(data[0].lat);
-    const lng = parseFloat(data[0].lon);
+    const lat = parseFloat(data.results[0].geometry.lat);
+    const lng = parseFloat(data.results[0].geometry.lng);
 
     if (!isFinite(lat) || !isFinite(lng)) return null;
 
@@ -106,8 +101,4 @@ async function tryNominatim(query) {
   } catch {
     return null;
   }
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
 }
