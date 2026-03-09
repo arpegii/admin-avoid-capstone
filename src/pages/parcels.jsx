@@ -211,7 +211,6 @@ const Parcel = () => {
   const { notifyParcelDelivered } = useNotification();
   const { startImport, bgImport } = useImport();
 
-  // ── Parcel list state ──
   const [parcels, setParcels] = useState([]);
   const [parcelPage, setParcelPage] = useState(1);
   const [parcelRows] = useState(MAX_PARCEL_ROWS);
@@ -222,12 +221,10 @@ const Parcel = () => {
   const [viewParcel, setViewParcel] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Track map state ──
   const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [trackingParcel, setTrackingParcel] = useState(null);
   const [loadingTrackMap, setLoadingTrackMap] = useState(false);
 
-  // ── CSV modal state (file picker only — no progress here) ──
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [csvRows, setCsvRows] = useState([]);
   const [csvErrors, setCsvErrors] = useState([]);
@@ -256,7 +253,6 @@ const Parcel = () => {
   const trackLeafletMapRef = useRef(null);
   const trackMarkerRef = useRef(null);
 
-  // ── Load parcels ──
   const loadParcels = async () => {
     setLoading(true);
     const [sortColumn, sortDir] = sortBy.split("-");
@@ -324,7 +320,6 @@ const Parcel = () => {
     loadParcels();
   }, [sortBy]);
 
-  // ── Filtering / pagination ──
   const statusFilteredParcels = useMemo(() => {
     if (statusFilter === "All") return parcels;
     const nf = statusFilter.trim().toLowerCase();
@@ -386,7 +381,6 @@ const Parcel = () => {
     return result;
   }, [parcelPage, totalPages]);
 
-  // ── Track map helpers ──
   const getParcelCoords = (parcel) => {
     const lat = Number(parcel?.r_lat),
       lng = Number(parcel?.r_lng);
@@ -520,16 +514,11 @@ const Parcel = () => {
     };
   }, []);
 
-  // ─────────────────────────────────────────────────────────────
-  // CSV MODAL HANDLERS (file picking + validation only)
-  // ─────────────────────────────────────────────────────────────
-
   const handleCsvFile = (file) => {
     if (!file) return;
     setCsvFileName(file.name);
     setCsvRows([]);
     setCsvErrors([]);
-
     const reader = new FileReader();
     reader.onload = (e) => {
       const { headers, rows } = parseCsvText(e.target.result);
@@ -548,11 +537,8 @@ const Parcel = () => {
     }
   };
 
-  // ── Kick off import via global ImportContext, close modal immediately ──
   const handleCsvImport = () => {
     if (!csvRows.length || csvErrors.length > 0) return;
-    // Pass loadParcels as the onDone callback so the table auto-refreshes
-    // when the import finishes, even if the user stayed on /parcels.
     startImport(csvRows, csvFileName, loadParcels);
     closeCsvModal();
   };
@@ -565,9 +551,10 @@ const Parcel = () => {
     if (csvFileRef.current) csvFileRef.current.value = "";
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────
+  // Helper: does this parcel have a real attempt 2?
+  const hasAttempt2 = (parcel) =>
+    parcel?.attempt2_status != null &&
+    String(parcel.attempt2_status).trim() !== "";
 
   return (
     <div className="dashboard-container">
@@ -623,7 +610,6 @@ const Parcel = () => {
                 />
               </div>
 
-              {/* ── Import CSV button ── */}
               <div className="parcel-csv-import-spacer" />
               <button
                 type="button"
@@ -710,7 +696,6 @@ const Parcel = () => {
                       </td>
                     </tr>
                   ))}
-
                   {Array.from({ length: parcelRows - pagedParcels.length }).map(
                     (_, i) => (
                       <tr key={`empty-${i}`}>
@@ -860,6 +845,7 @@ const Parcel = () => {
                       <section className="parcel-view-card">
                         <h4>Attempt History</h4>
                         <div className="parcel-view-grid">
+                          {/* Attempt 1 — always shown */}
                           <div className="parcel-view-item">
                             <span>Attempt 1 Status</span>
                             <strong
@@ -877,23 +863,31 @@ const Parcel = () => {
                               )}
                             </strong>
                           </div>
-                          <div className="parcel-view-item">
-                            <span>Attempt 2 Status</span>
-                            <strong
-                              className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
-                            >
-                              {formatStatusLabel(viewParcel.attempt2_status)}
-                            </strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Attempt 2 Date</span>
-                            <strong>
-                              {formatTimelineDateTime(
-                                viewParcel.attempt2_date ||
-                                  viewParcel.attempt2_datetime,
-                              )}
-                            </strong>
-                          </div>
+
+                          {/* Attempt 2 — only shown when attempt2_status is not null/empty */}
+                          {hasAttempt2(viewParcel) && (
+                            <>
+                              <div className="parcel-view-item">
+                                <span>Attempt 2 Status</span>
+                                <strong
+                                  className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
+                                >
+                                  {formatStatusLabel(
+                                    viewParcel.attempt2_status,
+                                  )}
+                                </strong>
+                              </div>
+                              <div className="parcel-view-item">
+                                <span>Attempt 2 Date</span>
+                                <strong>
+                                  {formatTimelineDateTime(
+                                    viewParcel.attempt2_date ||
+                                      viewParcel.attempt2_datetime,
+                                  )}
+                                </strong>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </section>
 
@@ -981,11 +975,7 @@ const Parcel = () => {
               </div>
             )}
 
-            {/* ══════════════════════════════════════════════════
-                CSV IMPORT MODAL — file picker + validation only.
-                Progress is shown in the global floating panel
-                rendered by Sidebar via ImportContext.
-            ══════════════════════════════════════════════════ */}
+            {/* ── CSV Import Modal ── */}
             {csvModalOpen && (
               <div
                 className="parcels-modal-overlay show"
@@ -999,7 +989,6 @@ const Parcel = () => {
                     <h3>Import Parcels via CSV</h3>
                   </div>
                   <div className="parcels-modal-body parcel-csv-body">
-                    {/* Drop zone */}
                     <label
                       className="parcel-csv-dropzone"
                       htmlFor="parcel-csv-file-input"
@@ -1041,14 +1030,6 @@ const Parcel = () => {
                       </span>
                     </label>
 
-                    {/* Background processing note */}
-                    <div className="parcel-csv-bg-note">
-                      <span aria-hidden="true">⚡</span>
-                      Import runs in the background — you can keep working while
-                      addresses are geocoded.
-                    </div>
-
-                    {/* Validation errors */}
                     {csvErrors.length > 0 && (
                       <div className="parcel-csv-errors">
                         <p className="parcel-csv-errors-title">
@@ -1065,7 +1046,6 @@ const Parcel = () => {
                       </div>
                     )}
 
-                    {/* Row preview */}
                     {csvRows.length > 0 && csvErrors.length === 0 && (
                       <div className="parcel-csv-preview">
                         <p className="parcel-csv-preview-title">
@@ -1102,7 +1082,6 @@ const Parcel = () => {
                       </div>
                     )}
 
-                    {/* Footer actions */}
                     <div className="parcel-csv-modal-footer">
                       <button
                         type="button"

@@ -462,6 +462,7 @@ body.tnav-hidden .dashboard-page {
 /* ─── Chart Rows ─────────────────────────────────────────────────────────────── */
 .charts-row-main,
 .charts-row-mid,
+.charts-row-riders,
 .charts-row-violations,
 .charts-row-map-solo {
   display: grid;
@@ -471,11 +472,13 @@ body.tnav-hidden .dashboard-page {
 .charts-row-main {
   grid-template-columns: 2fr 1fr;
 }
-.charts-row-mid {
-  grid-template-columns: 1fr 1fr 1fr;
+
+/* ── Row 4: Top Riders + Most Flagged — equal 2 columns ── */
+.charts-row-riders {
+  grid-template-columns: 1fr 1fr;
 }
 
-/* ── UPDATED: violations row is now 2 columns (toggled chart + most flagged) ── */
+/* ── Row 5: Rate Overview + Violations Trend — equal 2 columns ── */
 .charts-row-violations {
   grid-template-columns: 1fr 1fr;
 }
@@ -491,7 +494,6 @@ body.tnav-hidden .dashboard-page {
   flex-direction: column;
 }
 
-/* Override the default first-child margin since we handle spacing manually */
 .violation-toggled-card > .violation-toggle-header {
   margin-bottom: 0.85rem;
 }
@@ -641,8 +643,6 @@ body.tnav-hidden .dashboard-page {
   box-shadow: 0 2px 6px rgba(139, 92, 246, 0.18);
 }
 
-/* Emerald-tinted avatar border for top riders */
-.hbar-fill-emerald ~ .hbar-body,
 .hbar-item:has(.hbar-fill-emerald) .hbar-avatar {
   border-color: rgba(22, 163, 74, 0.28);
   background: rgba(22, 163, 74, 0.08);
@@ -676,7 +676,6 @@ body.tnav-hidden .dashboard-page {
   text-transform: uppercase;
 }
 
-/* Emerald fallback for top riders */
 .hbar-item:has(.hbar-fill-emerald) .hbar-avatar-fallback {
   color: #16a34a;
   background: linear-gradient(
@@ -684,70 +683,6 @@ body.tnav-hidden .dashboard-page {
     rgba(22, 163, 74, 0.14),
     rgba(74, 222, 128, 0.22)
   );
-}
-
-/* ─── Throughput Card ────────────────────────────────────────────────────────── */
-.throughput-card-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 0.5rem 0;
-  gap: 0.35rem;
-  text-align: center;
-}
-
-.throughput-big-number {
-  font-size: clamp(2.8rem, 4vw, 3.8rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  color: var(--dash-text);
-  line-height: 1;
-}
-
-.throughput-unit {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--dash-muted);
-  margin-bottom: 0.6rem;
-}
-
-.throughput-stat-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
-  width: 100%;
-  margin-top: 0.35rem;
-}
-
-.throughput-stat-box {
-  border-radius: 12px;
-  padding: 0.6rem 0.5rem;
-  background: rgba(148, 163, 184, 0.08);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  text-align: center;
-}
-
-.throughput-stat-box .ts-number {
-  font-size: 1.25rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.throughput-stat-box .ts-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--dash-muted);
-  margin-top: 0.15rem;
-  white-space: nowrap;
-}
-
-.throughput-stat-box.ts-sky .ts-number {
-  color: #0ea5e9;
-}
-.throughput-stat-box.ts-rose .ts-number {
-  color: #ef4444;
 }
 
 /* ─── Violation Map ──────────────────────────────────────────────────────────── */
@@ -884,7 +819,7 @@ body.tnav-hidden .dashboard-page {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   REPORT MODAL — IMPROVED
+   REPORT MODAL
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .rpt-modal {
@@ -897,7 +832,6 @@ body.tnav-hidden .dashboard-page {
   isolation: isolate;
 }
 
-/* ── Header: no decorative circles ── */
 .rpt-modal-header {
   position: relative;
   background: linear-gradient(135deg, #c8102e 0%, #8b0000 100%);
@@ -949,7 +883,6 @@ body.tnav-hidden .dashboard-page {
   font-weight: 500;
 }
 
-/* ── Body ── */
 .rpt-modal-body {
   padding: 20px 22px;
   display: grid;
@@ -1051,7 +984,6 @@ body.tnav-hidden .dashboard-page {
   box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.1);
 }
 
-/* ── Report Type Tiles with SVG icons ── */
 .rpt-type-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1089,7 +1021,6 @@ body.tnav-hidden .dashboard-page {
   transform: translateY(-2px);
 }
 
-/* ── SVG icon inside tile ── */
 .rpt-tile-icon {
   display: flex;
   align-items: center;
@@ -1127,7 +1058,6 @@ body.tnav-hidden .dashboard-page {
   color: #c8102e;
 }
 
-/* ── Format Pills ── */
 .rpt-format-pills {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1193,7 +1123,6 @@ body.tnav-hidden .dashboard-page {
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
-/* ── Column field ── */
 .rpt-col-field {
   margin-top: 4px;
   background: #fff;
@@ -1215,7 +1144,6 @@ body.tnav-hidden .dashboard-page {
   letter-spacing: 0.04em;
 }
 
-/* ── Side column ── */
 .rpt-side-col {
   display: flex;
   flex-direction: column;
@@ -1223,7 +1151,6 @@ body.tnav-hidden .dashboard-page {
   animation: rptSectionIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
 }
 
-/* ── Export Summary Card — LIGHT MODE (white, readable) ── */
 .rpt-summary-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -1238,7 +1165,6 @@ body.tnav-hidden .dashboard-page {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
-/* No decorative circle */
 .rpt-summary-card::before {
   display: none;
 }
@@ -1314,7 +1240,6 @@ body.tnav-hidden .dashboard-page {
   color: #0284c7;
 }
 
-/* ── Download button ── */
 .rpt-download-btn {
   border: none;
   border-radius: 14px;
@@ -1658,10 +1583,10 @@ body.tnav-hidden .dashboard-page {
 }
 
 @media (max-width: 1024px) {
-  .charts-row-mid {
-    grid-template-columns: 1fr 1fr;
-  }
   .charts-row-violations {
+    grid-template-columns: 1fr;
+  }
+  .charts-row-riders {
     grid-template-columns: 1fr;
   }
 }
@@ -1695,10 +1620,10 @@ body.tnav-hidden .dashboard-page {
   .charts-row-main {
     grid-template-columns: 1fr;
   }
-  .charts-row-mid {
+  .charts-row-violations {
     grid-template-columns: 1fr;
   }
-  .charts-row-violations {
+  .charts-row-riders {
     grid-template-columns: 1fr;
   }
 
@@ -1858,7 +1783,6 @@ body.dark .hbar-avatar-fallback {
   );
 }
 
-/* Dark mode emerald avatar (top riders) */
 body.dark .hbar-item:has(.hbar-fill-emerald) .hbar-avatar {
   border-color: rgba(74, 222, 128, 0.22);
   background: rgba(22, 163, 74, 0.14);
@@ -1871,20 +1795,6 @@ body.dark .hbar-item:has(.hbar-fill-emerald) .hbar-avatar-fallback {
     rgba(22, 163, 74, 0.2),
     rgba(74, 222, 128, 0.28)
   );
-}
-
-body.dark .throughput-big-number {
-  color: #e2e8f0;
-}
-body.dark .throughput-unit {
-  color: #64748b;
-}
-body.dark .throughput-stat-box {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.06);
-}
-body.dark .throughput-stat-box .ts-label {
-  color: #64748b;
 }
 
 body.dark .analytics-map-header h3 {
@@ -1921,7 +1831,6 @@ body.dark .dashboard-page .dash-year-filter:focus-within {
   box-shadow: 0 0 0 3px rgba(232, 25, 44, 0.14);
 }
 
-/* ── Dark mode violation tab toggle ── */
 body.dark .violation-toggle-header h3 {
   color: #e2e8f0;
 }
@@ -1941,7 +1850,6 @@ body.dark .vtab-btn {
   color: #475569;
 }
 
-/* ── Dark mode report modal ── */
 body.dark .rpt-modal-body {
   background: #1e293b;
 }
@@ -2009,7 +1917,6 @@ body.dark .rpt-pill-desc {
   color: #475569;
 }
 
-/* ── Dark mode summary card — keep dark bg ── */
 body.dark .rpt-summary-card {
   background: #0f172a;
   border-color: rgba(255, 255, 255, 0.06);
@@ -2122,4 +2029,52 @@ body.dark .violation-cluster-ring {
 }
 body.dark .violation-cluster-count {
   color: #fecaca;
+}
+/* ─── NEW: Report Type Description Card ──────────────────────────────────── */
+.rpt-type-desc-card {
+  background: linear-gradient(135deg, #fef9f0 0%, #fff8f8 100%);
+  border: 1px solid rgba(200, 16, 46, 0.15);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+  animation: rptSectionIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rpt-type-desc-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c8102e;
+}
+
+.rpt-type-desc-card p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* ─── FIX: 3-column type grid (was 4) ───────────────────────────────────── */
+.rpt-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* Dark mode for new elements */
+body.dark .rpt-type-desc-card {
+  background: linear-gradient(
+    135deg,
+    rgba(200, 16, 46, 0.08) 0%,
+    rgba(15, 23, 42, 0.6) 100%
+  );
+  border-color: rgba(200, 16, 46, 0.22);
+}
+body.dark .rpt-type-desc-title {
+  color: #fb7185;
+}
+body.dark .rpt-type-desc-card p {
+  color: #475569;
 }

@@ -79,8 +79,9 @@ const formatPdfCellValue = (value, columnKey = "") => {
   }
   const raw = String(value).trim();
   if (!raw) return "-";
+  // Always return email as-is (lowercase), never title-case it
   if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw))
-    return raw;
+    return raw.toLowerCase();
   if (/phone|_id$|^id$/i.test(columnKey)) return raw;
   return toTitleCase(raw);
 };
@@ -258,16 +259,14 @@ const DELIVERY_ATTEMPT_COLUMNS = [
   "attempt2_date",
 ];
 
-const riderColumns = [
+const riderPerfColumns = [
   { value: "All", label: "All" },
   { value: "username", label: "Username" },
   { value: "email", label: "Email" },
   { value: "fname", label: "First name" },
-  { value: "mname", label: "Middle name" },
   { value: "lname", label: "Last name" },
   { value: "gender", label: "Gender" },
   { value: "doj", label: "Date of join" },
-  { value: "pnumber", label: "Phone number" },
 ];
 
 const violationColumns = [
@@ -432,6 +431,8 @@ const countBy = (rows = [], resolver) => {
   return map;
 };
 
+// ─── Analytics Builders ────────────────────────────────────────────────────────
+
 const buildParcelsAnalytics = (parcels = []) => {
   const deliveredRows = parcels.filter((p) => isDeliveredStatus(p?.status));
   const delivered = deliveredRows.length;
@@ -448,11 +449,6 @@ const buildParcelsAnalytics = (parcels = []) => {
       normalizeStatus(p?.attempt1_status) === "success" ||
       normalizeStatus(p?.attempt1_status) === "successfully delivered",
   ).length;
-  const riderCountMap = countBy(
-    deliveredRows,
-    (p) => p?.assigned_rider || "Unassigned",
-  );
-  const topRiders = topEntries(riderCountMap, 5);
   const monthlyDeliveries = buildMonthlyCounts(deliveredRows, "created_at");
   const yearlyDeliveries = buildYearlyCounts(deliveredRows, "created_at");
   const activeDaySet = new Set(
@@ -465,12 +461,13 @@ const buildParcelsAnalytics = (parcels = []) => {
       .filter(Boolean),
   );
   const avgPerActiveDay = activeDaySet.size ? delivered / activeDaySet.size : 0;
+
   return {
     summaryRows: [
       ["Total Parcels", String(parcels.length)],
       ["Delivered", String(delivered)],
       ["Cancelled", String(cancelled)],
-      ["In Progress/Other", String(undelivered)],
+      ["In Progress / Other", String(undelivered)],
       ["Delayed", String(delayed)],
       [
         "Delivery Rate",
@@ -482,20 +479,16 @@ const buildParcelsAnalytics = (parcels = []) => {
       ],
       ["Delay Rate", `${getSafePercent(delayed, parcels.length).toFixed(1)}%`],
       [
-        "First Attempt Success",
+        "1st Attempt Success Rate",
         `${getSafePercent(firstAttemptSuccessCount, delivered).toFixed(1)}%`,
       ],
-      ["Avg Deliveries per Active Day", avgPerActiveDay.toFixed(2)],
-      [
-        "Top Rider",
-        topRiders[0] ? `${topRiders[0][0]} (${topRiders[0][1]})` : "N/A",
-      ],
+      ["Avg Deliveries / Active Day", avgPerActiveDay.toFixed(2)],
     ],
     charts: [
       {
-        title: "Parcel Status Mix",
+        title: "Parcel Status Distribution",
         type: "doughnut",
-        labels: ["Delivered", "Cancelled", "In Progress/Other"],
+        labels: ["Delivered", "Cancelled", "In Progress / Other"],
         values: [delivered, cancelled, undelivered],
         colors: ["#16a34a", "#ef4444", "#94a3b8"],
       },
@@ -508,7 +501,7 @@ const buildParcelsAnalytics = (parcels = []) => {
         colors: ["#0ea5e9"],
       },
       {
-        title: "Delay vs Cancellation Risk (%)",
+        title: "Delay vs Cancellation Rate (%)",
         type: "bar",
         labels: ["Delay %", "Cancellation %"],
         values: [
@@ -517,14 +510,6 @@ const buildParcelsAnalytics = (parcels = []) => {
         ],
         datasetLabel: "Rate",
         colors: ["#f59e0b", "#ef4444"],
-      },
-      {
-        title: "Top Riders by Delivered Parcels",
-        type: "bar",
-        labels: topRiders.map(([l]) => l),
-        values: topRiders.map(([, c]) => c),
-        datasetLabel: "Deliveries",
-        colors: ["#2563eb"],
       },
       {
         title:
@@ -547,155 +532,195 @@ const buildParcelsAnalytics = (parcels = []) => {
   };
 };
 
-const buildViolationsAnalytics = (violations = []) => {
-  const byType = countBy(violations, (row) =>
-    String(row?.violation || "Unknown violation"),
-  );
-  const byRider = countBy(violations, (row) =>
-    String(row?.name || "Unknown rider"),
-  );
-  const monthly = buildMonthlyCounts(violations, "date");
-  const weekday = buildWeekdayCounts(violations, "date");
-  const hourly = buildHourlyCounts(violations, "date");
-  const topTypes = topEntries(byType, 8);
-  const topRiders = topEntries(byRider, 8);
-  const busiestMonthIndex = monthly.values.reduce(
-    (best, value, index, arr) => (value > arr[best] ? index : best),
-    0,
-  );
-  const activeDays = new Set(
-    violations
-      .map((row) => {
-        const p = new Date(row?.date);
-        return Number.isNaN(p.getTime()) ? null : p.toISOString().slice(0, 10);
-      })
-      .filter(Boolean),
-  );
-  const avgPerActiveDay = activeDays.size
-    ? violations.length / activeDays.size
-    : 0;
-  return {
-    summaryRows: [
-      ["Total Violations", String(violations.length)],
-      ["Distinct Violation Types", String(Object.keys(byType).length)],
-      ["Riders Flagged", String(Object.keys(byRider).length)],
-      ["Avg Violations per Active Day", avgPerActiveDay.toFixed(2)],
-      [
-        "Top Violation Type",
-        topTypes[0] ? `${topTypes[0][0]} (${topTypes[0][1]})` : "N/A",
-      ],
-      [
-        "Most Flagged Rider",
-        topRiders[0] ? `${topRiders[0][0]} (${topRiders[0][1]})` : "N/A",
-      ],
-      [
-        `Busiest Month`,
-        `${MONTH_LABELS[busiestMonthIndex]} (${monthly.values[busiestMonthIndex] || 0})`,
-      ],
-    ],
-    charts: [
-      {
-        title: "Monthly Violation Trend",
-        type: "line",
-        labels: monthly.labels,
-        values: monthly.values,
-        datasetLabel: "Violations",
-        colors: ["#f59e0b"],
-      },
-      {
-        title: "Top Violation Types",
-        type: "bar",
-        labels: topTypes.map(([l]) => l),
-        values: topTypes.map(([, c]) => c),
-        datasetLabel: "Incidents",
-        colors: ["#ef4444"],
-      },
-      {
-        title: "Most Flagged Riders",
-        type: "bar",
-        labels: topRiders.map(([l]) => l),
-        values: topRiders.map(([, c]) => c),
-        datasetLabel: "Incidents",
-        colors: ["#8b5cf6"],
-      },
-      {
-        title: "Violations by Weekday",
-        type: "bar",
-        labels: weekday.labels,
-        values: weekday.values,
-        datasetLabel: "Incidents",
-        colors: ["#0ea5e9"],
-      },
-      {
-        title: "Violations by Hour",
-        type: "line",
-        labels: hourly.labels,
-        values: hourly.values,
-        datasetLabel: "Incidents",
-        colors: ["#fb7185"],
-      },
-    ],
-  };
-};
+// ─── Rider Performance Analytics ──────────────────────────────────────────────
 
-const buildRidersAnalytics = (riders = []) => {
+const buildRiderPerformanceAnalytics = (
+  riders = [],
+  parcels = [],
+  violations = [],
+) => {
+  // Deliveries per rider
+  const deliveredParcels = parcels.filter((p) => isDeliveredStatus(p?.status));
+  const riderDeliveryMap = countBy(
+    deliveredParcels,
+    (p) => getAssignedRiderDisplay(p) || "Unassigned",
+  );
+  const riderTotalMap = countBy(
+    parcels,
+    (p) => getAssignedRiderDisplay(p) || "Unassigned",
+  );
+  const riderCancelMap = countBy(
+    parcels.filter((p) => isCancelledStatus(p?.status)),
+    (p) => getAssignedRiderDisplay(p) || "Unassigned",
+  );
+  const riderDelayMap = countBy(
+    parcels.filter(
+      (p) =>
+        normalizeStatus(p?.attempt1_status) === "failed" ||
+        normalizeStatus(p?.attempt2_status) === "failed",
+    ),
+    (p) => getAssignedRiderDisplay(p) || "Unassigned",
+  );
+
+  const topDeliverers = topEntries(riderDeliveryMap, 8);
+
+  // Violations per rider
+  const violationByRider = countBy(violations, (v) =>
+    String(v?.name || "Unknown"),
+  );
+  const topFlaggedRiders = topEntries(violationByRider, 8);
+
+  // Violation type breakdown
+  const violationByType = countBy(violations, (v) =>
+    String(v?.violation || "Unknown"),
+  );
+  const topViolationTypes = topEntries(violationByType, 8);
+
+  // Monthly violations trend
+  const monthlyViolations = buildMonthlyCounts(violations, "date");
+  const weekdayViolations = buildWeekdayCounts(violations, "date");
+
+  // Monthly joins
   const monthlyJoins = buildMonthlyCounts(riders, "created_at");
   const yearlyJoins = buildYearlyCounts(riders, "created_at");
-  const genderMap = countBy(riders, (row) => String(row?.gender || "Unknown"));
+
+  const genderMap = countBy(riders, (r) => String(r?.gender || "Unknown"));
   const activeRiders = riders.filter(
     (r) => r?.status === "active" || r?.status === "Active",
   ).length;
-  const topJoinMonthIndex = monthlyJoins.values.reduce(
-    (best, v, i, arr) => (v > arr[best] ? i : best),
-    0,
-  );
-  const totalJoinsThisYear = (() => {
-    const yr = new Date().getFullYear();
-    return riders.filter((r) => {
-      const d = new Date(r?.created_at);
-      return !Number.isNaN(d.getTime()) && d.getFullYear() === yr;
-    }).length;
-  })();
+
+  // Avg deliveries per rider
+  const riderNames = Object.keys(riderDeliveryMap);
+  const avgDeliveriesPerRider = riderNames.length
+    ? Object.values(riderDeliveryMap).reduce((a, b) => a + b, 0) /
+      riderNames.length
+    : 0;
+
+  // First attempt success per rider (top 5)
+  const firstAttemptByRider = {};
+  deliveredParcels.forEach((p) => {
+    const name = getAssignedRiderDisplay(p);
+    if (!name) return;
+    if (!firstAttemptByRider[name])
+      firstAttemptByRider[name] = { success: 0, total: 0 };
+    firstAttemptByRider[name].total += 1;
+    if (
+      normalizeStatus(p?.attempt1_status) === "success" ||
+      normalizeStatus(p?.attempt1_status) === "successfully delivered"
+    ) {
+      firstAttemptByRider[name].success += 1;
+    }
+  });
+  const topRiderFirstAttempt = Object.entries(firstAttemptByRider)
+    .map(([name, { success, total }]) => [
+      name,
+      total > 0 ? Math.round((success / total) * 100) : 0,
+    ])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  const topRider = topDeliverers[0];
+  const mostFlagged = topFlaggedRiders[0];
+
   return {
     summaryRows: [
       ["Total Riders", String(riders.length)],
       ["Active Riders", String(activeRiders || riders.length)],
+      ["Total Deliveries", String(deliveredParcels.length)],
+      ["Avg Deliveries / Rider", avgDeliveriesPerRider.toFixed(1)],
+      [
+        "Top Performer",
+        topRider ? `${topRider[0]} (${topRider[1]} deliveries)` : "N/A",
+      ],
+      ["Total Violations", String(violations.length)],
+      [
+        "Most Flagged Rider",
+        mostFlagged
+          ? `${mostFlagged[0]} (${mostFlagged[1]} violations)`
+          : "N/A",
+      ],
       [
         "Gender Breakdown",
         Object.entries(genderMap)
           .map(([g, c]) => `${g}: ${c}`)
           .join(" · ") || "N/A",
       ],
-      ["Joined This Year", String(totalJoinsThisYear)],
-      [
-        `Peak Join Month`,
-        `${MONTH_LABELS[topJoinMonthIndex]} (${monthlyJoins.values[topJoinMonthIndex] || 0} joins)`,
-      ],
-      ["Avg Joins per Month", (riders.length / 12).toFixed(1)],
     ],
+    riderPerfRows: topEntries(riderTotalMap, 20).map(([name]) => ({
+      name,
+      delivered: riderDeliveryMap[name] || 0,
+      cancelled: riderCancelMap[name] || 0,
+      delayed: riderDelayMap[name] || 0,
+      violations: violationByRider[name] || 0,
+      deliveryRate: riderTotalMap[name]
+        ? Math.round(
+            ((riderDeliveryMap[name] || 0) / riderTotalMap[name]) * 100,
+          )
+        : 0,
+    })),
     charts: [
+      {
+        title: "Top Riders by Deliveries",
+        type: "bar",
+        labels: topDeliverers.map(([l]) => l),
+        values: topDeliverers.map(([, c]) => c),
+        datasetLabel: "Deliveries",
+        colors: ["#16a34a"],
+      },
+      {
+        title: "Rider 1st Attempt Success Rate (%)",
+        type: "bar",
+        labels: topRiderFirstAttempt.map(([l]) => l),
+        values: topRiderFirstAttempt.map(([, v]) => v),
+        datasetLabel: "Success %",
+        colors: ["#0ea5e9"],
+      },
+      {
+        title: "Most Flagged Riders (Violations)",
+        type: "bar",
+        labels: topFlaggedRiders.map(([l]) => l),
+        values: topFlaggedRiders.map(([, c]) => c),
+        datasetLabel: "Violations",
+        colors: ["#ef4444"],
+      },
+      {
+        title: "Top Violation Types",
+        type: "bar",
+        labels: topViolationTypes.map(([l]) => l),
+        values: topViolationTypes.map(([, c]) => c),
+        datasetLabel: "Incidents",
+        colors: ["#f59e0b"],
+      },
+      {
+        title: "Monthly Violation Trend",
+        type: "line",
+        labels: monthlyViolations.labels,
+        values: monthlyViolations.values,
+        datasetLabel: "Violations",
+        colors: ["#8b5cf6"],
+      },
+      {
+        title: "Violations by Weekday",
+        type: "bar",
+        labels: weekdayViolations.labels,
+        values: weekdayViolations.values,
+        datasetLabel: "Violations",
+        colors: ["#ec4899"],
+      },
       {
         title: "Gender Distribution",
         type: "doughnut",
         labels: Object.keys(genderMap),
         values: Object.values(genderMap),
-        colors: ["#3b82f6", "#ec4899", "#22c55e", "#f59e0b", "#a855f7"],
+        colors: ["#3b82f6", "#ec4899", "#22c55e", "#f59e0b"],
       },
       {
         title: "Monthly Rider Joins",
         type: "line",
         labels: monthlyJoins.labels,
         values: monthlyJoins.values,
-        colors: ["#0ea5e9"],
+        colors: ["#14b8a6"],
         datasetLabel: "New Riders",
-      },
-      {
-        title: "Yearly Rider Growth",
-        type: "bar",
-        labels: yearlyJoins.labels,
-        values: yearlyJoins.values,
-        colors: ["#8b5cf6"],
-        datasetLabel: "Riders Joined",
       },
     ],
   };
@@ -710,8 +735,11 @@ const buildReportAnalyticsBundle = (reportType, data) => {
     const violations =
       (data || []).find((s) => s?.section === "Violations")?.data || [];
     const parcelAnalytics = buildParcelsAnalytics(parcels);
-    const violationsAnalytics = buildViolationsAnalytics(violations);
-    const ridersAnalytics = buildRidersAnalytics(riders);
+    const riderPerfAnalytics = buildRiderPerformanceAnalytics(
+      riders,
+      parcels,
+      violations,
+    );
     return {
       sections: [
         {
@@ -720,14 +748,10 @@ const buildReportAnalyticsBundle = (reportType, data) => {
           charts: parcelAnalytics.charts,
         },
         {
-          title: "Violations",
-          summaryRows: violationsAnalytics.summaryRows,
-          charts: violationsAnalytics.charts.slice(0, 4),
-        },
-        {
-          title: "Riders",
-          summaryRows: ridersAnalytics.summaryRows,
-          charts: ridersAnalytics.charts,
+          title: "Rider Performance",
+          summaryRows: riderPerfAnalytics.summaryRows,
+          charts: riderPerfAnalytics.charts.slice(0, 4),
+          riderPerfRows: riderPerfAnalytics.riderPerfRows,
         },
       ],
       summaryRows: [
@@ -756,39 +780,40 @@ const buildReportAnalyticsBundle = (reportType, data) => {
         [
           "1st Attempt Success",
           parcelAnalytics.summaryRows.find(
-            ([k]) => k === "First Attempt Success",
+            ([k]) => k === "1st Attempt Success Rate",
           )?.[1] || "0%",
-        ],
-        [
-          "Top Rider",
-          parcelAnalytics.summaryRows.find(([k]) => k === "Top Rider")?.[1] ||
-            "N/A",
         ],
         ["Total Riders", String(riders.length)],
         ["Total Violations", String(violations.length)],
         [
-          "Top Violation Type",
-          violationsAnalytics.summaryRows.find(
-            ([k]) => k === "Top Violation Type",
+          "Top Performer",
+          riderPerfAnalytics.summaryRows.find(
+            ([k]) => k === "Top Performer",
           )?.[1] || "N/A",
         ],
         [
           "Most Flagged Rider",
-          violationsAnalytics.summaryRows.find(
+          riderPerfAnalytics.summaryRows.find(
             ([k]) => k === "Most Flagged Rider",
           )?.[1] || "N/A",
         ],
       ],
       charts: [
         ...parcelAnalytics.charts.slice(0, 2),
-        ...violationsAnalytics.charts.slice(0, 2),
-        ...ridersAnalytics.charts.slice(0, 1),
+        ...riderPerfAnalytics.charts.slice(0, 3),
       ],
     };
   }
   if (reportType === "parcels") return buildParcelsAnalytics(data || []);
-  if (reportType === "violations") return buildViolationsAnalytics(data || []);
-  if (reportType === "riders") return buildRidersAnalytics(data || []);
+  if (reportType === "rider_performance") {
+    const riders =
+      (data || []).find((s) => s?.section === "Riders")?.data || [];
+    const parcels =
+      (data || []).find((s) => s?.section === "Parcels")?.data || [];
+    const violations =
+      (data || []).find((s) => s?.section === "Violations")?.data || [];
+    return buildRiderPerformanceAnalytics(riders, parcels, violations);
+  }
   return { summaryRows: [], charts: [] };
 };
 
@@ -850,7 +875,7 @@ const buildChartImageFromSpec = async (spec, width = 900, height = 360) => {
 
 const buildReportChartImages = async (chartSpecs = []) => {
   const images = [];
-  for (const spec of (chartSpecs || []).slice(0, 6)) {
+  for (const spec of (chartSpecs || []).slice(0, 8)) {
     const image = await buildChartImageFromSpec(spec);
     if (image) images.push(image);
   }
@@ -1352,7 +1377,7 @@ const IconParcel = () => (
   </svg>
 );
 
-const IconRider = () => (
+const IconRiderPerf = () => (
   <svg
     width="22"
     height="22"
@@ -1365,25 +1390,7 @@ const IconRider = () => (
   >
     <circle cx="12" cy="7" r="4" />
     <path d="M5.5 20a7 7 0 0 1 13 0" />
-    <path d="M3 17c1-2 2.5-3 4-3" />
-    <path d="M21 17c-1-2-2.5-3-4-3" />
-  </svg>
-);
-
-const IconViolation = () => (
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
+    <polyline points="17 10 19 12 23 8" />
   </svg>
 );
 
@@ -1406,14 +1413,717 @@ const IconOverall = () => (
   </svg>
 );
 
-// ─── Report type options with SVG icons ───────────────────────────────────────
+// ─── Report type options ───────────────────────────────────────────────────────
 
 const REPORT_TYPE_OPTIONS = [
   { value: "parcels", label: "Parcels", Icon: IconParcel },
-  { value: "riders", label: "Riders", Icon: IconRider },
-  { value: "violations", label: "Violations", Icon: IconViolation },
+  {
+    value: "rider_performance",
+    label: "Rider Performance",
+    Icon: IconRiderPerf,
+  },
   { value: "overall", label: "Overall Reports", Icon: IconOverall },
 ];
+
+// ─── PDF Generation Helpers ───────────────────────────────────────────────────
+
+const PDF_BRAND_RED = [163, 0, 0];
+const PDF_BRAND_DARK = [15, 23, 42];
+const PDF_SLATE_600 = [71, 85, 105];
+const PDF_SLATE_400 = [148, 163, 184];
+const PDF_SLATE_100 = [241, 245, 249];
+const PDF_WHITE = [255, 255, 255];
+const PDF_BORDER = [226, 232, 240];
+
+const pdfAddCoverHeader = (
+  doc,
+  pageWidth,
+  reportTitle,
+  dateRange,
+  generatedBy,
+  generatedAt,
+  logoDataUrl,
+) => {
+  // Top red band
+  doc.setFillColor(...PDF_BRAND_RED);
+  doc.rect(0, 0, pageWidth, 38, "F");
+
+  // Decorative accent stripe
+  doc.setFillColor(200, 16, 46);
+  doc.rect(0, 34, pageWidth, 4, "F");
+
+  // Logo
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", 10, 7, 24, 24);
+    } catch (_) {
+      /* skip if logo fails */
+    }
+  }
+
+  const textX = logoDataUrl ? 40 : 14;
+
+  // Report title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...PDF_WHITE);
+  doc.text(reportTitle, textX, 20);
+
+  // Sub-info line
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(255, 200, 200);
+  doc.text(
+    `${dateRange}   ·   Generated by: ${generatedBy || "Unknown"}   ·   ${generatedAt}`,
+    textX,
+    28,
+  );
+
+  doc.setTextColor(...PDF_BRAND_DARK);
+};
+
+const loadLogoDataUrl = () =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (_) {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = "/logo.png";
+  });
+
+const pdfAddRunningHeader = (doc, pageWidth, reportTitle) => {
+  doc.setFillColor(...PDF_BRAND_RED);
+  doc.rect(0, 0, pageWidth, 9, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...PDF_WHITE);
+  doc.text(reportTitle.toUpperCase(), pageWidth / 2, 6, { align: "center" });
+  doc.setTextColor(...PDF_BRAND_DARK);
+};
+
+const pdfAddPageFooter = (
+  doc,
+  pageNum,
+  totalPages,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  // Bottom bar
+  doc.setFillColor(...PDF_SLATE_100);
+  doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
+  doc.setDrawColor(...PDF_BORDER);
+  doc.setLineWidth(0.3);
+  doc.line(0, pageHeight - 10, pageWidth, pageHeight - 10);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...PDF_SLATE_400);
+  doc.text(`${reportTitle} · Confidential`, 12, pageHeight - 4);
+  doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - 12, pageHeight - 4, {
+    align: "right",
+  });
+};
+
+const pdfSectionHeading = (doc, text, y, pageWidth) => {
+  // Left accent bar + dark bg
+  doc.setFillColor(...PDF_BRAND_DARK);
+  doc.roundedRect(10, y - 5, pageWidth - 20, 9, 1, 1, "F");
+
+  // Red left accent
+  doc.setFillColor(...PDF_BRAND_RED);
+  doc.roundedRect(10, y - 5, 3, 9, 1, 1, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...PDF_WHITE);
+  doc.text(text.toUpperCase(), 17, y);
+  doc.setTextColor(...PDF_BRAND_DARK);
+  return y + 6;
+};
+
+const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
+  const cols = 3;
+  const boxW = (pageWidth - 20 - (cols - 1) * 5) / cols;
+  const boxH = 16;
+  const gap = 5;
+  let x = 10,
+    y = startY;
+
+  rows.forEach(([label, value], i) => {
+    if (i > 0 && i % cols === 0) {
+      x = 10;
+      y += boxH + gap;
+    }
+
+    // Card background
+    doc.setFillColor(252, 252, 253);
+    doc.setDrawColor(...PDF_BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, boxW, boxH, 2, 2, "FD");
+
+    // Label
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(...PDF_SLATE_400);
+    doc.text(String(label), x + 4, y + 6);
+
+    // Value
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...PDF_BRAND_DARK);
+    doc.text(String(value), x + 4, y + 13);
+
+    x += boxW + gap;
+  });
+
+  const totalRows = Math.ceil(rows.length / cols);
+  return startY + totalRows * (boxH + gap) + 3;
+};
+
+const pdfChartGrid = (
+  doc,
+  chartImages,
+  startY,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  const cols = 2;
+  const marginX = 10;
+  const gap = 6;
+  const chartW = (pageWidth - marginX * 2 - gap) / cols;
+  const chartH = 62;
+  const labelH = 7;
+  const rowH = labelH + chartH + gap + 2;
+  let y = startY;
+
+  chartImages.forEach((ci, i) => {
+    const col = i % cols;
+    if (col === 0) {
+      if (i > 0) y += rowH;
+      if (y + rowH > pageHeight - 14) {
+        doc.addPage();
+        pdfAddRunningHeader(doc, pageWidth, reportTitle);
+        y = 16;
+      }
+    }
+    const x = marginX + col * (chartW + gap);
+
+    // Chart label
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...PDF_SLATE_600);
+    doc.text(ci.title || "Chart", x, y + labelH - 1);
+
+    // Chart border + bg
+    doc.setFillColor(252, 252, 253);
+    doc.setDrawColor(...PDF_BORDER);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(x, y + labelH, chartW, chartH, 2, 2, "FD");
+
+    doc.addImage(
+      ci.dataUrl,
+      "PNG",
+      x + 1,
+      y + labelH + 1,
+      chartW - 2,
+      chartH - 2,
+    );
+  });
+
+  const lastRow = Math.floor((chartImages.length - 1) / cols);
+  return y + (lastRow >= 0 ? rowH : 0) + 6;
+};
+
+// ─── PDF: Rider Performance Table ─────────────────────────────────────────────
+
+const pdfRiderPerfTable = (
+  doc,
+  riderPerfRows,
+  startY,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  if (!riderPerfRows?.length) return startY;
+
+  if (startY + 30 > pageHeight - 14) {
+    doc.addPage();
+    pdfAddRunningHeader(doc, pageWidth, reportTitle);
+    startY = 16;
+  }
+
+  startY = pdfSectionHeading(
+    doc,
+    "Rider Performance Breakdown",
+    startY,
+    pageWidth,
+  );
+  startY += 2;
+
+  const head = [
+    [
+      "Rider Name",
+      "Delivered",
+      "Cancelled",
+      "Delayed",
+      "Violations",
+      "Delivery Rate",
+    ],
+  ];
+  const body = riderPerfRows.map((r) => [
+    r.name,
+    String(r.delivered),
+    String(r.cancelled),
+    String(r.delayed),
+    String(r.violations),
+    `${r.deliveryRate}%`,
+  ]);
+
+  autoTable(doc, {
+    startY,
+    margin: { left: 10, right: 10 },
+    head,
+    body,
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8,
+      textColor: [31, 41, 55],
+      lineColor: PDF_BORDER,
+      lineWidth: 0.18,
+      cellPadding: 2.5,
+    },
+    headStyles: {
+      fillColor: PDF_BRAND_DARK,
+      textColor: PDF_WHITE,
+      fontStyle: "bold",
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    columnStyles: {
+      0: { cellWidth: "auto" },
+      1: { halign: "center" },
+      2: { halign: "center" },
+      3: { halign: "center" },
+      4: { halign: "center" },
+      5: { halign: "center" },
+    },
+    didParseCell: (tableData) => {
+      if (tableData.section !== "body") return;
+      const col = tableData.column.index;
+      if (col === 5) {
+        const val = parseInt(tableData.cell.raw, 10);
+        if (val >= 80) tableData.cell.styles.textColor = [22, 163, 74];
+        else if (val >= 50) tableData.cell.styles.textColor = [202, 138, 4];
+        else tableData.cell.styles.textColor = [220, 38, 38];
+        tableData.cell.styles.fontStyle = "bold";
+      }
+      if (col === 4 && parseInt(tableData.cell.raw, 10) > 0) {
+        tableData.cell.styles.textColor = [220, 38, 38];
+        tableData.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  return doc.lastAutoTable.finalY + 8;
+};
+
+// ─── Main PDF Builder ──────────────────────────────────────────────────────────
+
+const buildPdfDoc = async (
+  selType,
+  selStart,
+  selEnd,
+  selCol,
+  data,
+  columns,
+  reportAnalytics,
+  reportChartImages,
+  generatedBy,
+  logoDataUrl,
+) => {
+  const doc = new jsPDF("landscape");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const reportTitleMap = {
+    parcels: "Parcels Report",
+    rider_performance: "Rider Performance Report",
+    overall: "Overall Operations Report",
+  };
+  const reportTitle = reportTitleMap[selType] || "Operations Report";
+
+  const generatedAt = new Date().toLocaleString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const dateRange =
+    selStart && selEnd
+      ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}`
+      : "All time";
+
+  // ── Cover header ──
+  pdfAddCoverHeader(
+    doc,
+    pageWidth,
+    reportTitle,
+    dateRange,
+    generatedBy,
+    generatedAt,
+    logoDataUrl,
+  );
+
+  let y = 46;
+
+  // ── OVERALL: multi-section layout ──
+  if (selType === "overall" && reportAnalytics?.sections?.length) {
+    for (const section of reportAnalytics.sections) {
+      if (y > pageHeight - 40) {
+        doc.addPage();
+        pdfAddRunningHeader(doc, pageWidth, reportTitle);
+        y = 16;
+      }
+      y = pdfSectionHeading(doc, section.title, y, pageWidth);
+      y += 3;
+
+      if (section.summaryRows?.length) {
+        y = pdfKpiGrid(doc, section.summaryRows, y, pageWidth);
+        y += 4;
+      }
+
+      if (section.charts?.length) {
+        const sectionImages = [];
+        for (const spec of section.charts.slice(0, 4)) {
+          const img = await buildChartImageFromSpec(spec, 900, 360);
+          if (img) sectionImages.push(img);
+        }
+        if (sectionImages.length) {
+          if (y + 78 > pageHeight - 14) {
+            doc.addPage();
+            pdfAddRunningHeader(doc, pageWidth, reportTitle);
+            y = 16;
+          }
+          y = pdfChartGrid(
+            doc,
+            sectionImages,
+            y,
+            pageWidth,
+            pageHeight,
+            reportTitle,
+          );
+        }
+      }
+
+      // Rider perf table for the "Rider Performance" section in overall
+      if (section.riderPerfRows?.length) {
+        y = pdfRiderPerfTable(
+          doc,
+          section.riderPerfRows,
+          y,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+        );
+      }
+
+      y += 6;
+    }
+  } else {
+    // ── SINGLE REPORT TYPE ──
+
+    // KPIs
+    if (reportAnalytics?.summaryRows?.length) {
+      y = pdfSectionHeading(doc, "Key Metrics", y, pageWidth);
+      y += 3;
+      y = pdfKpiGrid(doc, reportAnalytics.summaryRows, y, pageWidth);
+      y += 6;
+    }
+
+    // Charts
+    if (reportChartImages?.length) {
+      if (y + 78 > pageHeight - 14) {
+        doc.addPage();
+        pdfAddRunningHeader(doc, pageWidth, reportTitle);
+        y = 16;
+      }
+      y = pdfSectionHeading(doc, "Analytics Charts", y, pageWidth);
+      y += 3;
+      y = pdfChartGrid(
+        doc,
+        reportChartImages,
+        y,
+        pageWidth,
+        pageHeight,
+        reportTitle,
+      );
+    }
+
+    // Rider Performance breakdown table (rider_performance report only)
+    if (
+      selType === "rider_performance" &&
+      reportAnalytics?.riderPerfRows?.length
+    ) {
+      y = pdfRiderPerfTable(
+        doc,
+        reportAnalytics.riderPerfRows,
+        y,
+        pageWidth,
+        pageHeight,
+        reportTitle,
+      );
+    }
+  }
+
+  // ── DATA TABLE ──
+  if (y + 30 > pageHeight - 14) {
+    doc.addPage();
+    pdfAddRunningHeader(doc, pageWidth, reportTitle);
+    y = 16;
+  }
+  y = pdfSectionHeading(doc, "Raw Data", y, pageWidth);
+  y += 3;
+
+  const tableStyles = {
+    font: "helvetica",
+    fontSize: 7.8,
+    textColor: [31, 41, 55],
+    lineColor: PDF_BORDER,
+    lineWidth: 0.18,
+    cellPadding: 2.2,
+    overflow: "linebreak",
+  };
+  const tableHeadStyles = {
+    fillColor: PDF_BRAND_DARK,
+    textColor: PDF_WHITE,
+    fontStyle: "bold",
+    halign: "left",
+    fontSize: 8,
+  };
+
+  if (selType === "overall") {
+    data.forEach((section) => {
+      if (y > pageHeight - 28) {
+        doc.addPage();
+        pdfAddRunningHeader(doc, pageWidth, reportTitle);
+        y = 16;
+      }
+
+      // Section sub-label
+      doc.setFillColor(...PDF_SLATE_100);
+      doc.setDrawColor(...PDF_BORDER);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(10, y - 1, pageWidth - 20, 8, 1, 1, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_SLATE_600);
+      doc.text(section.section, 14, y + 4.5);
+      y += 10;
+
+      const head =
+        section.section === "Riders"
+          ? [
+              [
+                "Username",
+                "Email",
+                "First Name",
+                "Last Name",
+                "Gender",
+                "Joined",
+                "Phone",
+              ],
+            ]
+          : section.section === "Violations"
+            ? [["Name", "Violation", "Date"]]
+            : [
+                [
+                  "Parcel ID",
+                  "Recipient",
+                  "Phone",
+                  "Address",
+                  "Rider",
+                  "Status",
+                  "Att.1 Status",
+                  "Att.1 Date",
+                  "Att.2 Status",
+                  "Att.2 Date",
+                  "Created",
+                ],
+              ];
+
+      const body = section.data.map((row) =>
+        section.section === "Riders"
+          ? [
+              formatPdfCellValue(row.username, "username"),
+              formatPdfCellValue(row.email, "email"),
+              formatPdfCellValue(row.fname, "fname"),
+              formatPdfCellValue(row.lname, "lname"),
+              formatPdfCellValue(row.gender, "gender"),
+              formatPdfCellValue(row.doj, "doj"),
+              formatPdfCellValue(row.pnumber, "pnumber"),
+            ]
+          : section.section === "Violations"
+            ? [
+                formatPdfCellValue(row.name, "name"),
+                formatPdfCellValue(row.violation, "violation"),
+                formatPdfCellValue(row.date, "date"),
+              ]
+            : [
+                formatPdfCellValue(row.parcel_id, "parcel_id"),
+                formatPdfCellValue(row.recipient_name, "recipient_name"),
+                formatPdfCellValue(row.recipient_phone, "recipient_phone"),
+                formatPdfCellValue(row.address, "address"),
+                formatPdfCellValue(row.assigned_rider, "assigned_rider"),
+                formatPdfCellValue(row.status, "status"),
+                formatPdfCellValue(row.attempt1_status, "attempt1_status"),
+                formatPdfCellValue(row.attempt1_date, "attempt1_date"),
+                formatPdfCellValue(row.attempt2_status, "attempt2_status"),
+                formatPdfCellValue(row.attempt2_date, "attempt2_date"),
+                formatPdfCellValue(row.created_at, "created_at"),
+              ],
+      );
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 10, right: 10 },
+        head,
+        body,
+        theme: "grid",
+        styles: tableStyles,
+        headStyles: tableHeadStyles,
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        didParseCell: applyPdfStatusCellColor,
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    });
+  } else if (selType === "rider_performance") {
+    // For rider_performance raw data: show riders list + violations list
+    const ridersData = Array.isArray(data)
+      ? data.find?.((s) => s?.section === "Riders")?.data || []
+      : [];
+    const violationsData = Array.isArray(data)
+      ? data.find?.((s) => s?.section === "Violations")?.data || []
+      : [];
+
+    // Riders table
+    if (ridersData.length) {
+      doc.setFillColor(...PDF_SLATE_100);
+      doc.setDrawColor(...PDF_BORDER);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(10, y - 1, pageWidth - 20, 8, 1, 1, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_SLATE_600);
+      doc.text("Riders", 14, y + 4.5);
+      y += 10;
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 10, right: 10 },
+        head: [
+          [
+            "Username",
+            "Email",
+            "First Name",
+            "Last Name",
+            "Gender",
+            "Date Joined",
+            "Phone",
+          ],
+        ],
+        body: ridersData.map((row) => [
+          formatPdfCellValue(row.username, "username"),
+          formatPdfCellValue(row.email, "email"),
+          formatPdfCellValue(row.fname, "fname"),
+          formatPdfCellValue(row.lname, "lname"),
+          formatPdfCellValue(row.gender, "gender"),
+          formatPdfCellValue(row.doj, "doj"),
+          formatPdfCellValue(row.pnumber, "pnumber"),
+        ]),
+        theme: "grid",
+        styles: tableStyles,
+        headStyles: tableHeadStyles,
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Violations table
+    if (violationsData.length) {
+      if (y + 30 > pageHeight - 14) {
+        doc.addPage();
+        pdfAddRunningHeader(doc, pageWidth, reportTitle);
+        y = 16;
+      }
+
+      doc.setFillColor(...PDF_SLATE_100);
+      doc.setDrawColor(...PDF_BORDER);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(10, y - 1, pageWidth - 20, 8, 1, 1, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_SLATE_600);
+      doc.text("Violations", 14, y + 4.5);
+      y += 10;
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 10, right: 10 },
+        head: [["Name", "Violation", "Date"]],
+        body: violationsData.map((row) => [
+          formatPdfCellValue(row.name, "name"),
+          formatPdfCellValue(row.violation, "violation"),
+          formatPdfCellValue(row.date, "date"),
+        ]),
+        theme: "grid",
+        styles: tableStyles,
+        headStyles: tableHeadStyles,
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+  } else {
+    const head = columns.map(humanizeLabel);
+    const body = data.map((row) =>
+      columns.map((c) => formatPdfCellValue(row[c], c)),
+    );
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 10, right: 10 },
+      head: [head],
+      body,
+      theme: "grid",
+      styles: tableStyles,
+      headStyles: tableHeadStyles,
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      didParseCell: applyPdfStatusCellColor,
+    });
+  }
+
+  // ── Page footers ──
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    pdfAddPageFooter(doc, p, totalPages, pageWidth, pageHeight, reportTitle);
+  }
+
+  return doc;
+};
 
 // ─── Main Dashboard Component ─────────────────────────────────────────────────
 
@@ -1462,7 +2172,6 @@ const Dashboard = () => {
   const [violationLogs, setViolationLogs] = useState([]);
   const [violationLogsError, setViolationLogsError] = useState("");
   const [flaggedRiderAvatars, setFlaggedRiderAvatars] = useState({});
-  // ── NEW: top rider avatars + violation chart tab ──
   const [topRiderAvatars, setTopRiderAvatars] = useState({});
   const [violationChartTab, setViolationChartTab] = useState("month");
 
@@ -1531,9 +2240,6 @@ const Dashboard = () => {
   const animTopRiderCount = useAnimatedNumber(dashboardData.topRiderCount);
   const animTopMonthCount = useAnimatedNumber(dashboardData.topMonthCount);
   const animTopYearCount = useAnimatedNumber(dashboardData.topYearCount);
-  const animAvgPerDay = useAnimatedNumber(dashboardData.avgDeliveriesPerDay);
-  const animTotalRiders = useAnimatedNumber(dashboardData.totalRiders);
-  const animTotalViolations = useAnimatedNumber(dashboardData.totalViolations);
 
   const buildViolationPopup = useCallback(
     (location, level, incidents, _note, violationType) => `
@@ -1664,8 +2370,8 @@ const Dashboard = () => {
   // Effects
   useEffect(() => {
     if (reportType === "parcels") setColumnsOptions(parcelColumns);
-    else if (reportType === "riders") setColumnsOptions(riderColumns);
-    else if (reportType === "violations") setColumnsOptions(violationColumns);
+    else if (reportType === "rider_performance")
+      setColumnsOptions(riderPerfColumns);
     else setColumnsOptions([]);
     setColumn("All");
   }, [reportType]);
@@ -1759,12 +2465,45 @@ const Dashboard = () => {
         }
 
         let totalRiders = 0;
+        // Build a map from any name variant → "fname lname" (no middle name)
+        // so violation_logs.name (which may include mname) matches riderNameById format
+        const nameNormalizeMap = {};
         try {
-          const { count } = await supabaseClient
+          const { data: allUsers, count } = await supabaseClient
             .from("users")
-            .select("*", { count: "exact", head: true });
+            .select("fname, mname, lname, username", { count: "exact" });
           totalRiders = count || 0;
-        } catch {}
+          (allUsers || []).forEach((u) => {
+            const firstLast = `${u.fname || ""} ${u.lname || ""}`.trim();
+            if (!firstLast) return;
+            // Map "fname lname" → itself
+            nameNormalizeMap[firstLast.toLowerCase()] = firstLast;
+            // Map "fname mname lname" → "fname lname"
+            if (u.mname) {
+              const withMiddle =
+                `${u.fname || ""} ${u.mname} ${u.lname || ""}`.trim();
+              nameNormalizeMap[withMiddle.toLowerCase()] = firstLast;
+            }
+            // Map username → "fname lname"
+            if (u.username) {
+              nameNormalizeMap[String(u.username).toLowerCase()] = firstLast;
+            }
+          });
+        } catch {
+          try {
+            const { count } = await supabaseClient
+              .from("users")
+              .select("*", { count: "exact", head: true });
+            totalRiders = count || 0;
+          } catch {}
+        }
+
+        // Helper: normalize a raw name from violation_logs to fname+lname format
+        const normalizeRiderName = (raw) => {
+          if (!raw) return "Unknown";
+          const key = String(raw).trim().toLowerCase();
+          return nameNormalizeMap[key] || String(raw).trim();
+        };
 
         const delivered = allParcels.filter((p) =>
           isDeliveredStatus(p.status),
@@ -1852,7 +2591,8 @@ const Dashboard = () => {
         allViolations.forEach((v) => {
           const vt = String(v?.violation || "Unknown");
           violationTypeCount[vt] = (violationTypeCount[vt] || 0) + 1;
-          const rn = String(v?.name || "Unknown");
+          // Normalize the name to fname+lname to match riderNameById format
+          const rn = normalizeRiderName(v?.name);
           flaggedRiderCount[rn] = (flaggedRiderCount[rn] || 0) + 1;
         });
 
@@ -1940,76 +2680,54 @@ const Dashboard = () => {
   // ── Fetch profile pictures for most flagged riders ──
   useEffect(() => {
     if (!dashboardData.topFlaggedRiders.length) return;
-
     async function fetchFlaggedRiderAvatars() {
       try {
         const { data: allUsers, error } = await supabaseClient
           .from("users")
           .select("user_id, username, fname, lname, profile_url");
-
         if (error) throw error;
-
         const avatarMap = {};
-
         (allUsers || []).forEach((u) => {
           const profileUrl = u.profile_url || null;
-
-          if (u.username) {
-            avatarMap[u.username.toLowerCase()] = profileUrl;
-          }
-
+          if (u.username) avatarMap[u.username.toLowerCase()] = profileUrl;
           const fullName = `${u.fname || ""} ${u.lname || ""}`
             .trim()
             .toLowerCase();
           if (fullName) avatarMap[fullName] = profileUrl;
-
           if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
         });
-
         setFlaggedRiderAvatars(avatarMap);
       } catch (err) {
         console.error("Failed to fetch rider avatars:", err);
       }
     }
-
     fetchFlaggedRiderAvatars();
   }, [dashboardData.topFlaggedRiders]);
 
-  // ── NEW: Fetch profile pictures for top riders ──
+  // ── Fetch profile pictures for top riders ──
   useEffect(() => {
     if (!dashboardData.topRiders.length) return;
-
     async function fetchTopRiderAvatars() {
       try {
         const { data: allUsers, error } = await supabaseClient
           .from("users")
           .select("user_id, username, fname, lname, profile_url");
-
         if (error) throw error;
-
         const avatarMap = {};
-
         (allUsers || []).forEach((u) => {
           const profileUrl = u.profile_url || null;
-
-          if (u.username) {
-            avatarMap[u.username.toLowerCase()] = profileUrl;
-          }
-
+          if (u.username) avatarMap[u.username.toLowerCase()] = profileUrl;
           const fullName = `${u.fname || ""} ${u.lname || ""}`
             .trim()
             .toLowerCase();
           if (fullName) avatarMap[fullName] = profileUrl;
-
           if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
         });
-
         setTopRiderAvatars(avatarMap);
       } catch (err) {
         console.error("Failed to fetch top rider avatars:", err);
       }
     }
-
     fetchTopRiderAvatars();
   }, [dashboardData.topRiders]);
 
@@ -2018,48 +2736,35 @@ const Dashboard = () => {
       dashboardData.topFlaggedRiders.map((r) => {
         const label = r.label || "";
         const exactKey = label.toLowerCase();
-
-        if (flaggedRiderAvatars[exactKey] !== undefined) {
+        if (flaggedRiderAvatars[exactKey] !== undefined)
           return { ...r, avatarUrl: flaggedRiderAvatars[exactKey] };
-        }
-
         const stripped = label
           .replace(/\s+[A-Z]\.\s+/g, " ")
           .replace(/\s+[A-Z]\s+/g, " ")
           .trim()
           .toLowerCase();
-
-        if (flaggedRiderAvatars[stripped] !== undefined) {
+        if (flaggedRiderAvatars[stripped] !== undefined)
           return { ...r, avatarUrl: flaggedRiderAvatars[stripped] };
-        }
-
         const firstName = label.split(" ")[0].toLowerCase();
         return { ...r, avatarUrl: flaggedRiderAvatars[firstName] || null };
       }),
     [dashboardData.topFlaggedRiders, flaggedRiderAvatars],
   );
 
-  // ── NEW: Top riders with avatars ──
   const topRidersWithAvatars = useMemo(
     () =>
       dashboardData.topRiders.map((r) => {
         const label = r.label || "";
         const exactKey = label.toLowerCase();
-
-        if (topRiderAvatars[exactKey] !== undefined) {
+        if (topRiderAvatars[exactKey] !== undefined)
           return { ...r, avatarUrl: topRiderAvatars[exactKey] };
-        }
-
         const stripped = label
           .replace(/\s+[A-Z]\.\s+/g, " ")
           .replace(/\s+[A-Z]\s+/g, " ")
           .trim()
           .toLowerCase();
-
-        if (topRiderAvatars[stripped] !== undefined) {
+        if (topRiderAvatars[stripped] !== undefined)
           return { ...r, avatarUrl: topRiderAvatars[stripped] };
-        }
-
         const firstName = label.split(" ")[0].toLowerCase();
         return { ...r, avatarUrl: topRiderAvatars[firstName] || null };
       }),
@@ -2254,7 +2959,6 @@ const Dashboard = () => {
         },
       },
     );
-    // Force resize after a tick so the chart fills its absolute-positioned container
     setTimeout(() => {
       violationTrendInstanceRef.current?.resize();
     }, 50);
@@ -2310,7 +3014,6 @@ const Dashboard = () => {
         },
       },
     );
-    // Force resize after a tick so the chart fills its absolute-positioned container
     setTimeout(() => {
       weekdayViolationInstanceRef.current?.resize();
     }, 50);
@@ -2383,17 +3086,23 @@ const Dashboard = () => {
     analyticsSummary.cancellationRate,
   ]);
 
-  // ── Resize violation charts when tab switches ──
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (violationChartTab === "month") {
+      if (violationChartTab === "month")
         violationTrendInstanceRef.current?.resize();
-      } else {
-        weekdayViolationInstanceRef.current?.resize();
-      }
+      else weekdayViolationInstanceRef.current?.resize();
     }, 30);
     return () => clearTimeout(timer);
   }, [violationChartTab]);
+
+  useEffect(() => {
+    if (!violationLogs.length) return;
+    const timer = setTimeout(() => {
+      violationTrendInstanceRef.current?.resize();
+      weekdayViolationInstanceRef.current?.resize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [violationLogs]);
 
   // ── Map ──
   useEffect(() => {
@@ -2480,6 +3189,7 @@ const Dashboard = () => {
   const fetchReportData = async (selType, selStart, selEnd, selCol) => {
     let data = [],
       columns = [];
+
     if (selType === "parcels") {
       const parcels = await fetchAllPages(() => {
         let q = supabaseClient
@@ -2508,37 +3218,41 @@ const Dashboard = () => {
           : selCol === "delivery_attempt"
             ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
             : ["parcel_id", selCol];
-    } else if (selType === "riders") {
-      let q = supabaseClient
+    } else if (selType === "rider_performance") {
+      // Note: no date filter on users — filter by parcel/violation dates instead
+      const { data: riders, error: rErr } = await supabaseClient
         .from("users")
         .select("*")
         .order("username", { ascending: true });
-      if (selStart) q = q.gte("created_at", selStart);
-      if (selEnd) q = q.lte("created_at", `${selEnd}T23:59:59`);
-      const { data: riders, error } = await q;
-      if (error) throw error;
-      data = riders;
-      columns = [
-        "username",
-        "email",
-        "fname",
-        "mname",
-        "lname",
-        "gender",
-        "doj",
-        "pnumber",
-      ];
-    } else if (selType === "violations") {
-      let q = supabaseClient
+      if (rErr) throw rErr;
+
+      const parcels = await fetchAllPages(() => {
+        let q = supabaseClient
+          .from("parcels")
+          .select(
+            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`,
+          )
+          .order("parcel_id", { ascending: true });
+        if (selStart) q = q.gte("created_at", selStart);
+        if (selEnd) q = q.lte("created_at", `${selEnd}T23:59:59`);
+        return q;
+      });
+
+      let vq = supabaseClient
         .from("violation_logs")
         .select("violation,name,date")
         .order("date", { ascending: false });
-      if (selStart) q = q.gte("date", selStart);
-      if (selEnd) q = q.lte("date", `${selEnd}T23:59:59`);
-      const { data: violations, error } = await q;
-      if (error) throw error;
-      data = violations || [];
-      columns = ["name", "violation", "date"];
+      if (selStart) vq = vq.gte("date", selStart);
+      if (selEnd) vq = vq.lte("date", `${selEnd}T23:59:59`);
+      const { data: violations, error: vErr } = await vq;
+      if (vErr) throw vErr;
+
+      data = [
+        { section: "Riders", data: riders || [] },
+        { section: "Parcels", data: normalizeParcelsForReport(parcels) },
+        { section: "Violations", data: violations || [] },
+      ];
+      columns = null;
     } else if (selType === "overall") {
       const pq = () => {
         let q = supabaseClient
@@ -2575,377 +3289,8 @@ const Dashboard = () => {
       ];
       columns = null;
     }
+
     return { data, columns };
-  };
-
-  // ─── PDF helpers ─────────────────────────────────────────────────────────────
-
-  const pdfAddPageHeader = (doc, pageWidth, title) => {
-    doc.setFillColor(163, 0, 0);
-    doc.rect(0, 0, pageWidth, 10, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text(title, pageWidth / 2, 6.5, { align: "center" });
-    doc.setTextColor(33, 37, 41);
-  };
-
-  const pdfSectionHeading = (doc, text, y, pageWidth) => {
-    doc.setFillColor(30, 41, 59);
-    doc.rect(10, y - 4.5, pageWidth - 20, 8, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(255, 255, 255);
-    doc.text(text.toUpperCase(), 14, y);
-    doc.setTextColor(33, 37, 41);
-    return y + 6;
-  };
-
-  const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
-    const cols = 3;
-    const boxW = (pageWidth - 20 - (cols - 1) * 4) / cols;
-    const boxH = 14;
-    const gap = 4;
-    let x = 10,
-      y = startY;
-    rows.forEach(([label, value], i) => {
-      if (i > 0 && i % cols === 0) {
-        x = 10;
-        y += boxH + gap;
-      }
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(x, y, boxW, boxH, 1.5, 1.5, "FD");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(100, 116, 139);
-      doc.text(String(label), x + 3, y + 4.5);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text(String(value), x + 3, y + 10.5);
-      x += boxW + gap;
-    });
-    const totalRows = Math.ceil(rows.length / cols);
-    return startY + totalRows * (boxH + gap) + 2;
-  };
-
-  const pdfChartGrid = (
-    doc,
-    chartImages,
-    startY,
-    pageWidth,
-    pageHeight,
-    reportTitle,
-  ) => {
-    const cols = 2;
-    const marginX = 10;
-    const gap = 5;
-    const chartW = (pageWidth - marginX * 2 - gap) / cols;
-    const chartH = 58;
-    const labelH = 5;
-    const rowH = labelH + chartH + gap;
-    let y = startY;
-    chartImages.forEach((ci, i) => {
-      if (i % cols === 0) {
-        if (i > 0) y += rowH;
-        if (y + rowH > pageHeight - 14) {
-          doc.addPage();
-          pdfAddPageHeader(doc, pageWidth, reportTitle);
-          y = 16;
-        }
-      }
-      const col = i % cols;
-      const x = marginX + col * (chartW + gap);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(30, 41, 59);
-      doc.text(ci.title || "Chart", x, y + labelH - 1);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.25);
-      doc.rect(x, y + labelH, chartW, chartH);
-      doc.addImage(ci.dataUrl, "PNG", x, y + labelH, chartW, chartH);
-    });
-    const lastRowStart = Math.floor((chartImages.length - 1) / cols);
-    return y + (lastRowStart >= 0 ? rowH : 0) + 4;
-  };
-
-  const buildPdfDoc = async (
-    selType,
-    selStart,
-    selEnd,
-    selCol,
-    data,
-    columns,
-    reportAnalytics,
-    reportChartImages,
-    generatedBy,
-  ) => {
-    const doc = new jsPDF("landscape");
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const reportTitle = `${humanizeLabel(selType)} Report`;
-    const generatedAt = new Date().toLocaleString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
-    let y = 16;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(15, 23, 42);
-    doc.text(reportTitle, 14, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(100, 116, 139);
-    const dateRange =
-      selStart && selEnd
-        ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}`
-        : "All time";
-    doc.text(
-      `${dateRange}  ·  Generated by ${generatedBy || "Unknown"}  ·  ${generatedAt}`,
-      14,
-      y + 6,
-    );
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.line(14, y + 9, pageWidth - 14, y + 9);
-    y += 14;
-
-    if (selType === "overall" && reportAnalytics?.sections?.length) {
-      for (const section of reportAnalytics.sections) {
-        if (y > pageHeight - 40) {
-          doc.addPage();
-          pdfAddPageHeader(doc, pageWidth, reportTitle);
-          y = 16;
-        }
-        y = pdfSectionHeading(doc, section.title, y, pageWidth);
-        y += 2;
-        if (section.summaryRows?.length) {
-          y = pdfKpiGrid(doc, section.summaryRows, y, pageWidth);
-          y += 4;
-        }
-        if (section.charts?.length) {
-          const sectionImages = [];
-          for (const spec of section.charts.slice(0, 4)) {
-            const img = await buildChartImageFromSpec(spec, 900, 360);
-            if (img) sectionImages.push(img);
-          }
-          if (sectionImages.length) {
-            if (y + 70 > pageHeight - 14) {
-              doc.addPage();
-              pdfAddPageHeader(doc, pageWidth, reportTitle);
-              y = 16;
-            }
-            y = pdfChartGrid(
-              doc,
-              sectionImages,
-              y,
-              pageWidth,
-              pageHeight,
-              reportTitle,
-            );
-          }
-        }
-        y += 6;
-      }
-    } else {
-      if (reportAnalytics?.summaryRows?.length) {
-        y = pdfSectionHeading(doc, "Key Metrics", y, pageWidth);
-        y += 2;
-        y = pdfKpiGrid(doc, reportAnalytics.summaryRows, y, pageWidth);
-        y += 6;
-      }
-      if (reportChartImages?.length) {
-        if (y + 70 > pageHeight - 14) {
-          doc.addPage();
-          pdfAddPageHeader(doc, pageWidth, reportTitle);
-          y = 16;
-        }
-        y = pdfSectionHeading(doc, "Charts", y, pageWidth);
-        y += 2;
-        y = pdfChartGrid(
-          doc,
-          reportChartImages,
-          y,
-          pageWidth,
-          pageHeight,
-          reportTitle,
-        );
-        y += 4;
-      }
-    }
-
-    if (y + 30 > pageHeight - 14) {
-      doc.addPage();
-      pdfAddPageHeader(doc, pageWidth, reportTitle);
-      y = 16;
-    }
-    y = pdfSectionHeading(doc, "Data", y, pageWidth);
-    y += 2;
-
-    const tableStyles = {
-      font: "helvetica",
-      fontSize: 8.2,
-      textColor: [31, 41, 55],
-      lineColor: [208, 213, 221],
-      lineWidth: 0.18,
-      cellPadding: 2.2,
-      overflow: "linebreak",
-    };
-    const tableHeadStyles = {
-      fillColor: [243, 244, 246],
-      textColor: [17, 24, 39],
-      fontStyle: "bold",
-      halign: "left",
-    };
-
-    if (selType === "overall") {
-      data.forEach((section) => {
-        if (y > pageHeight - 28) {
-          doc.addPage();
-          pdfAddPageHeader(doc, pageWidth, reportTitle);
-          y = 16;
-        }
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(30, 41, 59);
-        doc.text(section.section, 10, y + 1);
-        y += 5;
-        const head =
-          section.section === "Riders"
-            ? [
-                "Username",
-                "Email",
-                "First Name",
-                "Last Name",
-                "Gender",
-                "Joined",
-                "Phone",
-              ]
-            : section.section === "Violations"
-              ? ["Name", "Violation", "Date"]
-              : [
-                  "Parcel ID",
-                  "Recipient",
-                  "Phone",
-                  "Address",
-                  "Rider",
-                  "Status",
-                  "Attempt 1",
-                  "Date 1",
-                  "Attempt 2",
-                  "Date 2",
-                  "Created",
-                ];
-        const body = section.data.map((row) =>
-          section.section === "Riders"
-            ? [
-                formatPdfCellValue(row.username, "username"),
-                formatPdfCellValue(row.email, "email"),
-                formatPdfCellValue(row.fname, "fname"),
-                formatPdfCellValue(row.lname, "lname"),
-                formatPdfCellValue(row.gender, "gender"),
-                formatPdfCellValue(row.doj, "doj"),
-                formatPdfCellValue(row.pnumber, "pnumber"),
-              ]
-            : section.section === "Violations"
-              ? [
-                  formatPdfCellValue(row.name, "name"),
-                  formatPdfCellValue(row.violation, "violation"),
-                  formatPdfCellValue(row.date, "date"),
-                ]
-              : [
-                  formatPdfCellValue(row.parcel_id, "parcel_id"),
-                  formatPdfCellValue(row.recipient_name, "recipient_name"),
-                  formatPdfCellValue(row.recipient_phone, "recipient_phone"),
-                  formatPdfCellValue(row.address, "address"),
-                  formatPdfCellValue(row.assigned_rider, "assigned_rider"),
-                  formatPdfCellValue(row.status, "status"),
-                  formatPdfCellValue(row.attempt1_status, "attempt1_status"),
-                  formatPdfCellValue(row.attempt1_date, "attempt1_date"),
-                  formatPdfCellValue(row.attempt2_status, "attempt2_status"),
-                  formatPdfCellValue(row.attempt2_date, "attempt2_date"),
-                  formatPdfCellValue(row.created_at, "created_at"),
-                ],
-        );
-        autoTable(doc, {
-          startY: y,
-          margin: { left: 10, right: 10 },
-          head: [head],
-          body,
-          theme: "grid",
-          styles: tableStyles,
-          headStyles: tableHeadStyles,
-          alternateRowStyles: { fillColor: [252, 252, 252] },
-          didParseCell: applyPdfStatusCellColor,
-        });
-        y = doc.lastAutoTable.finalY + 8;
-      });
-    } else {
-      const head = columns.map(humanizeLabel);
-      const body = data.map((row) =>
-        columns.map((c) => formatPdfCellValue(row[c], c)),
-      );
-      autoTable(doc, {
-        startY: y,
-        margin: { left: 10, right: 10 },
-        head: [head],
-        body,
-        theme: "grid",
-        styles: tableStyles,
-        headStyles: tableHeadStyles,
-        alternateRowStyles: { fillColor: [252, 252, 252] },
-        didParseCell: applyPdfStatusCellColor,
-      });
-    }
-
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) {
-      doc.setPage(p);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(148, 163, 184);
-      doc.text(
-        `Page ${p} of ${totalPages}  ·  ${reportTitle}  ·  Confidential`,
-        pageWidth / 2,
-        pageHeight - 5,
-        { align: "center" },
-      );
-    }
-    return doc;
-  };
-
-  const generateExcelReport = async (selType, selStart, selEnd, selCol) => {
-    const { data, columns } = await fetchReportData(
-      selType,
-      selStart,
-      selEnd,
-      selCol,
-    );
-    const reportAnalytics = buildReportAnalyticsBundle(selType, data);
-    const reportChartImages = await buildReportChartImages(
-      reportAnalytics.charts,
-    );
-    const generatedBy = await resolveReportGeneratedBy();
-    await exportReportAsWorkbook({
-      reportType: selType,
-      selectedColumn: selCol,
-      startDate: selStart,
-      endDate: selEnd,
-      data,
-      columns,
-      reportAnalytics,
-      reportChartImages,
-      generatedBy,
-      humanizeLabel,
-      resolveSectionColumns: resolveOverallSectionColumns,
-      fileName: `${selType}_report.xlsx`,
-    });
   };
 
   const resolveOverallSectionColumns = (sectionName) => {
@@ -2973,15 +3318,40 @@ const Dashboard = () => {
     ];
   };
 
+  const generateExcelReport = async (selType, selStart, selEnd, selCol) => {
+    const { data, columns } = await fetchReportData(
+      selType,
+      selStart,
+      selEnd,
+      selCol,
+    );
+    const reportAnalytics = buildReportAnalyticsBundle(selType, data);
+    const reportChartImages = await buildReportChartImages(
+      reportAnalytics.charts || [],
+    );
+    const generatedBy = await resolveReportGeneratedBy();
+    await exportReportAsWorkbook({
+      reportType: selType,
+      selectedColumn: selCol,
+      startDate: selStart,
+      endDate: selEnd,
+      data,
+      columns,
+      reportAnalytics,
+      reportChartImages,
+      generatedBy,
+      humanizeLabel,
+      resolveSectionColumns: resolveOverallSectionColumns,
+      fileName: `${selType}_report.xlsx`,
+    });
+  };
+
   const validateReportInput = () => {
-    const needsColumn = reportType === "parcels";
-    const needsDate = reportType === "parcels" || reportType === "overall";
-    if (
-      !reportType ||
-      (needsColumn && !column) ||
-      !format ||
-      (needsDate && (!startDate || !endDate))
-    ) {
+    const needsDate =
+      reportType === "parcels" ||
+      reportType === "overall" ||
+      reportType === "rider_performance";
+    if (!reportType || !format || (needsDate && (!startDate || !endDate))) {
       setShowReportValidation(true);
       return false;
     }
@@ -3001,9 +3371,10 @@ const Dashboard = () => {
         );
         const reportAnalytics = buildReportAnalyticsBundle(reportType, data);
         const reportChartImages = await buildReportChartImages(
-          reportAnalytics.charts,
+          reportAnalytics.charts || [],
         );
         const generatedBy = await resolveReportGeneratedBy();
+        const logoDataUrl = await loadLogoDataUrl();
         const doc = await buildPdfDoc(
           reportType,
           startDate,
@@ -3014,6 +3385,7 @@ const Dashboard = () => {
           reportAnalytics,
           reportChartImages,
           generatedBy,
+          logoDataUrl,
         );
         const pdfBlob = doc.output("blob");
         const blobUrl = URL.createObjectURL(pdfBlob);
@@ -3036,7 +3408,7 @@ const Dashboard = () => {
     }
   };
 
-  const reportNeedsDate = reportType === "parcels" || reportType === "overall";
+  const reportNeedsDate = true; // All report types now require date
 
   const trendYoY = useMemo(() => {
     const yg = dashboardData.yearGrowth;
@@ -3062,7 +3434,6 @@ const Dashboard = () => {
       ? (animDelayed / analyticsSummary.totalParcels) * 100
       : 0;
 
-  // ── Summary display values for report modal ──
   const reportSummaryType = reportType
     ? REPORT_TYPE_OPTIONS.find((o) => o.value === reportType)?.label || null
     : null;
@@ -3236,19 +3607,12 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 4: Performance rates + Top riders + Throughput ── */}
-              <div className="charts-row-mid">
-                <ChartCard title="Rate Overview" subtitle="">
-                  <div style={{ height: 190 }}>
-                    <canvas ref={delayRiskChartRef} />
-                  </div>
-                </ChartCard>
-
-                {/* ── Top Riders — now with avatars ── */}
+              {/* ── Row 4: Top Riders + Most Flagged ── */}
+              <div className="charts-row-riders">
                 <ChartCard title="Top Riders" subtitle="">
                   {topRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
-                      items={topRidersWithAvatars}
+                      items={topRidersWithAvatars.slice(0, 5)}
                       colorClass="emerald"
                       showAvatar={true}
                     />
@@ -3265,34 +3629,35 @@ const Dashboard = () => {
                     </p>
                   )}
                 </ChartCard>
-
-                <ChartCard title="Daily Throughput" subtitle="">
-                  <div className="throughput-card-body">
-                    <div className="throughput-big-number">
-                      {animAvgPerDay.toFixed(1)}
-                    </div>
-                    <div className="throughput-unit">parcels / active day</div>
-                    <div className="throughput-stat-row">
-                      <div className="throughput-stat-box ts-sky">
-                        <div className="ts-number">
-                          {Math.round(animTotalRiders)}
-                        </div>
-                        <div className="ts-label">Riders</div>
-                      </div>
-                      <div className="throughput-stat-box ts-rose">
-                        <div className="ts-number">
-                          {Math.round(animTotalViolations)}
-                        </div>
-                        <div className="ts-label">Violations</div>
-                      </div>
-                    </div>
-                  </div>
+                <ChartCard title="Most Flagged" subtitle="">
+                  {topFlaggedRidersWithAvatars.length > 0 ? (
+                    <HorizontalBarList
+                      items={topFlaggedRidersWithAvatars.slice(0, 5)}
+                      colorClass="violet"
+                      showAvatar={true}
+                    />
+                  ) : (
+                    <p
+                      style={{
+                        textAlign: "center",
+                        color: "var(--dash-muted)",
+                        padding: "2rem 0",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      No violation data
+                    </p>
+                  )}
                 </ChartCard>
               </div>
 
-              {/* ── Row 5: Violations trend (toggled) + Most Flagged ── */}
+              {/* ── Row 5: Rate Overview + Violations Trend ── */}
               <div className="charts-row-violations">
-                {/* Merged violations chart card with toggle */}
+                <ChartCard title="Rate Overview" subtitle="">
+                  <div style={{ height: 220 }}>
+                    <canvas ref={delayRiskChartRef} />
+                  </div>
+                </ChartCard>
                 <div className="chart-card violation-toggled-card">
                   <div className="violation-toggle-header">
                     <h3>Violations Trend</h3>
@@ -3313,7 +3678,7 @@ const Dashboard = () => {
                       </button>
                     </div>
                   </div>
-                  <div style={{ position: "relative", height: 190 }}>
+                  <div style={{ position: "relative", height: 220 }}>
                     <div
                       style={{
                         position: "absolute",
@@ -3340,28 +3705,6 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Most Flagged Riders */}
-                <ChartCard title="Most Flagged" subtitle="">
-                  {topFlaggedRidersWithAvatars.length > 0 ? (
-                    <HorizontalBarList
-                      items={topFlaggedRidersWithAvatars}
-                      colorClass="violet"
-                      showAvatar={true}
-                    />
-                  ) : (
-                    <p
-                      style={{
-                        textAlign: "center",
-                        color: "var(--dash-muted)",
-                        padding: "2rem 0",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      No violation data
-                    </p>
-                  )}
-                </ChartCard>
               </div>
 
               {/* ── Row 6: Map (full width) ── */}
@@ -3462,10 +3805,10 @@ const Dashboard = () => {
               {/* Left: form */}
               <div className="rpt-form-col">
                 <div className="rpt-section-card">
-                  <div className="rpt-section-label">Date Range</div>
+                  <div className="rpt-section-label">Date Range *</div>
                   <div className="rpt-date-row">
                     <div className="rpt-field">
-                      <label>Start Date{reportNeedsDate ? " *" : ""}</label>
+                      <label>Start Date</label>
                       <input
                         type="date"
                         value={startDate}
@@ -3473,7 +3816,7 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="rpt-field">
-                      <label>End Date{reportNeedsDate ? " *" : ""}</label>
+                      <label>End Date</label>
                       <input
                         type="date"
                         value={endDate}
@@ -3503,7 +3846,7 @@ const Dashboard = () => {
 
                   {reportType === "parcels" && (
                     <div className="rpt-col-field">
-                      <div className="rpt-col-field-label">Column Filter *</div>
+                      <div className="rpt-col-field-label">Column Filter</div>
                       <FloatSelect
                         variant="field"
                         value={column}
@@ -3583,6 +3926,45 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Report type description */}
+                {reportType && (
+                  <div className="rpt-type-desc-card">
+                    {reportType === "parcels" && (
+                      <>
+                        <div className="rpt-type-desc-title">
+                          Parcels Report
+                        </div>
+                        <p>
+                          Delivery statistics, status breakdown, delay &
+                          cancellation rates, and full parcel data.
+                        </p>
+                      </>
+                    )}
+                    {reportType === "rider_performance" && (
+                      <>
+                        <div className="rpt-type-desc-title">
+                          Rider Performance
+                        </div>
+                        <p>
+                          Rider delivery counts, 1st-attempt success, violation
+                          history, and performance breakdown per rider.
+                        </p>
+                      </>
+                    )}
+                    {reportType === "overall" && (
+                      <>
+                        <div className="rpt-type-desc-title">
+                          Overall Report
+                        </div>
+                        <p>
+                          Comprehensive view of parcels and rider performance —
+                          all metrics in one document.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <button
                   type="button"

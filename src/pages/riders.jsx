@@ -355,6 +355,9 @@ export default function Riders() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [recentRiderActivity, setRecentRiderActivity] = useState([]);
 
+  // ── Violations analytics tab state ──
+  const [violationsActiveTab, setViolationsActiveTab] = useState("overview");
+
   // ── Assign Parcels State ──
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignParcels, setAssignParcels] = useState([]);
@@ -369,7 +372,7 @@ export default function Riders() {
   const [assignRiderSearch, setAssignRiderSearch] = useState("");
   const [assignSortBy, setAssignSortBy] = useState("id_desc");
 
-  // ── NEW: Method selection + Auto-assign state ──
+  // ── Method selection + Auto-assign state ──
   const [assignMethodModalOpen, setAssignMethodModalOpen] = useState(false);
   const [autoAssignReviewModalOpen, setAutoAssignReviewModalOpen] =
     useState(false);
@@ -377,6 +380,14 @@ export default function Riders() {
   const [autoAssignLoading, setAutoAssignLoading] = useState(false);
   const [autoAssignError, setAutoAssignError] = useState("");
   const [autoAssigning, setAutoAssigning] = useState(false);
+
+  // ── Performance Modal: Assigned Parcels Tab ──
+  const [perfActiveTab, setPerfActiveTab] = useState("overview");
+  const [perfAssignedParcels, setPerfAssignedParcels] = useState([]);
+  const [perfParcelsLoading, setPerfParcelsLoading] = useState(false);
+  const [perfParcelsError, setPerfParcelsError] = useState("");
+  const [perfParcelsSearch, setPerfParcelsSearch] = useState("");
+  const [perfParcelsFilter, setPerfParcelsFilter] = useState("all");
 
   const tableSortOptions = useMemo(
     () => [
@@ -848,8 +859,13 @@ export default function Riders() {
     }
   };
 
+  // ── Only show online riders with valid coordinates on the map ──
   const riderLocations = useMemo(
-    () => riders.filter((r) => r.lat !== null && r.lng !== null),
+    () =>
+      riders.filter(
+        (r) =>
+          r.lat !== null && r.lng !== null && isActiveRiderStatus(r?.status),
+      ),
     [riders],
   );
 
@@ -1618,6 +1634,27 @@ export default function Riders() {
     setLoadingViolationLogs(false);
   };
 
+  // ── Fetch assigned parcels for the performance modal ──
+  const fetchAssignedParcels = useCallback(async (riderId) => {
+    if (!riderId) return;
+    setPerfParcelsLoading(true);
+    setPerfParcelsError("");
+    try {
+      const { data, error } = await supabaseClient
+        .from("parcels")
+        .select("parcel_id, recipient_name, address, status, created_at")
+        .eq("assigned_rider_id", riderId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setPerfAssignedParcels(data || []);
+    } catch (err) {
+      console.error("Failed to fetch assigned parcels:", err);
+      setPerfParcelsError("Failed to load assigned parcels.");
+    } finally {
+      setPerfParcelsLoading(false);
+    }
+  }, []);
+
   const openCreateModal = () => {
     setCreateRiderError("");
     setCreateUsername("");
@@ -1678,7 +1715,6 @@ export default function Riders() {
         return;
       }
 
-      // Build slots with remaining capacity per rider
       const plan = activeRiders.map((r) => ({
         rider: r,
         parcels: [],
@@ -1692,7 +1728,6 @@ export default function Riders() {
 
       const queue = [...unassigned];
 
-      // Round-robin until queue empty or all riders at capacity
       let changed = true;
       while (queue.length > 0 && changed) {
         changed = false;
@@ -2067,6 +2102,73 @@ export default function Riders() {
           ),
         )
       : 0;
+
+  // ── Filtered parcels for the performance modal parcels tab ──
+  const perfFilteredParcels = useMemo(() => {
+    const q = perfParcelsSearch.trim().toLowerCase();
+    return perfAssignedParcels.filter((p) => {
+      const matchSearch =
+        !q ||
+        String(p.parcel_id).includes(q) ||
+        (p.recipient_name || "").toLowerCase().includes(q) ||
+        (p.address || "").toLowerCase().includes(q);
+      const matchFilter =
+        perfParcelsFilter === "all" ||
+        normalizeStatus(p.status) === normalizeStatus(perfParcelsFilter);
+      return matchSearch && matchFilter;
+    });
+  }, [perfAssignedParcels, perfParcelsSearch, perfParcelsFilter]);
+
+  // ── Violation analytics derived values ──
+  const violationStats = useMemo(() => {
+    if (!riderViolationLogs.length) return null;
+    const byType = {};
+    riderViolationLogs.forEach((v) => {
+      const t = (v.violation || "Unknown").trim();
+      byType[t] = (byType[t] || 0) + 1;
+    });
+    const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+    const mostCommon = sorted[0]?.[0] || "—";
+    const total = riderViolationLogs.length;
+    const now = new Date();
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
+    const dayLabels = days.map((d) =>
+      d.toLocaleDateString("en-US", { weekday: "short" }),
+    );
+    const perDay = days.map((day) => {
+      const key = toLocalDayKey(day);
+      return riderViolationLogs.filter((v) => toLocalDayKey(v.date) === key)
+        .length;
+    });
+    const maxPerDay = Math.max(...perDay, 1);
+    let streak = 0;
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 30; i++) {
+      const key = toLocalDayKey(cursor);
+      const count = riderViolationLogs.filter(
+        (v) => toLocalDayKey(v.date) === key,
+      ).length;
+      if (count > 0) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else break;
+    }
+    return {
+      byType: sorted,
+      mostCommon,
+      total,
+      perDay,
+      dayLabels,
+      maxPerDay,
+      streak,
+    };
+  }, [riderViolationLogs]);
 
   return (
     <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
@@ -2834,7 +2936,16 @@ export default function Riders() {
                           <button
                             type="button"
                             className="rider-performance-btn"
-                            onClick={() => setPerformanceModalOpen(true)}
+                            onClick={() => {
+                              setPerfActiveTab("overview");
+                              setPerfAssignedParcels([]);
+                              setPerfParcelsSearch("");
+                              setPerfParcelsFilter("all");
+                              setPerformanceModalOpen(true);
+                              if (selectedRiderInfo?.user_id) {
+                                fetchAssignedParcels(selectedRiderInfo.user_id);
+                              }
+                            }}
                           >
                             <span
                               className="rider-action-icon"
@@ -2866,7 +2977,10 @@ export default function Riders() {
                           <button
                             type="button"
                             className="rider-performance-btn"
-                            onClick={() => setViolationLogsModalOpen(true)}
+                            onClick={() => {
+                              setViolationsActiveTab("overview");
+                              setViolationLogsModalOpen(true);
+                            }}
                           >
                             <span
                               className="rider-action-icon"
@@ -2954,6 +3068,7 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 960, maxWidth: "96%" }}
           >
+            {/* ── Stats strip (always visible) ── */}
             <div className="rp2-header-strip">
               <div className="rp2-header-stat">
                 <span className="rp2-header-stat-label">TOTAL PARCELS</span>
@@ -2973,179 +3088,384 @@ export default function Riders() {
               </div>
             </div>
 
-            <div className="rp2-body">
-              <div className="rp2-left">
-                <div className="rp2-section-label">
-                  <span className="rp2-section-bar" />
-                  QUOTA PROGRESS
-                </div>
-
-                <div className="rp2-donut-wrap">
-                  <svg viewBox="0 0 120 120" className="rp2-donut-svg">
-                    <circle className="rp2-donut-bg" cx="60" cy="60" r="48" />
-                    <circle
-                      className={`rp2-donut-fg ${hasMetFullQuota ? "is-met" : ""}`}
-                      cx="60"
-                      cy="60"
-                      r="48"
-                      strokeDasharray={quotaStrokeDasharray}
-                    />
-                  </svg>
-                  <div className="rp2-donut-center">
-                    <strong
-                      className={`rp2-donut-pct ${hasMetFullQuota ? "is-met" : ""}`}
-                    >
-                      {quotaPercent}%
-                    </strong>
-                    <span className="rp2-donut-sub">OF QUOTA</span>
-                  </div>
-                </div>
-
-                <p className="rp2-donut-count">
-                  <strong>{selectedRiderInfo.deliveredParcels ?? 0}</strong>
-                  {" / "}
-                  {selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA}{" "}
-                  delivered
-                </p>
-
-                <div className="rp2-status-rows">
-                  <div className="rp2-status-row">
-                    <span>Status</span>
-                    <span
-                      className={`rp2-chip ${hasMetQuota ? "rp2-chip-green" : "rp2-chip-red"}`}
-                    >
-                      {quotaStatusLabel}
-                    </span>
-                  </div>
-                  <div className="rp2-status-row">
-                    <span>Incentive</span>
-                    <span
-                      className={`rp2-chip ${isIncentiveEligible ? "rp2-chip-eligible" : "rp2-chip-pending"}`}
-                    >
-                      {isIncentiveEligible ? "ELIGIBLE" : "PENDING"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rp2-right">
-                <div className="rp2-section-label">
-                  <span className="rp2-section-bar" />
-                  DELIVERY BREAKDOWN
-                </div>
-                <div className="rp2-breakdown">
-                  {[
-                    {
-                      label: "Delivered",
-                      value: selectedRiderInfo.deliveredParcels ?? 0,
-                      cls: "rp2-bar-green",
-                    },
-                    {
-                      label: "Ongoing",
-                      value: selectedRiderInfo.ongoingParcels ?? 0,
-                      cls: "rp2-bar-amber",
-                    },
-                    {
-                      label: "Cancelled",
-                      value: selectedRiderInfo.cancelledParcels ?? 0,
-                      cls: "rp2-bar-red",
-                    },
-                  ].map(({ label, value, cls }) => {
-                    const pct = perfTotal > 0 ? (value / perfTotal) * 100 : 0;
-                    return (
-                      <div className="rp2-bar-row" key={label}>
-                        <span className="rp2-bar-label">{label}</span>
-                        <div className="rp2-bar-track">
-                          <div
-                            className={`rp2-bar-fill ${cls}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="rp2-section-label" style={{ marginTop: 12 }}>
-                  <span className="rp2-section-bar" />
-                  WEEKLY TREND
-                </div>
-                <div className="rp2-trend-cards">
-                  <div className="rp2-trend-card">
-                    <span className="rp2-trend-card-label">DELIVERIES</span>
-                    <strong className="rp2-trend-card-value rp2-green">
-                      {selectedRiderInfo.deliveredParcels ?? 0}
-                    </strong>
-                    <svg
-                      className="rp2-sparkline rp2-sparkline-green"
-                      viewBox="0 0 80 32"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <polyline
-                        points="0,24 16,18 32,22 48,10 64,14 80,8"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                      />
-                    </svg>
-                    <span className="rp2-trend-badge rp2-badge-green">
-                      {perfSuccessRate}%
-                    </span>
-                  </div>
-                  <div className="rp2-trend-card">
-                    <span className="rp2-trend-card-label">CANCELLATIONS</span>
-                    <strong className="rp2-trend-card-value rp2-red">
-                      {selectedRiderInfo.cancelledParcels ?? 0}
-                    </strong>
-                    <svg
-                      className="rp2-sparkline rp2-sparkline-red"
-                      viewBox="0 0 80 32"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <polyline
-                        points="0,10 16,8 32,14 48,10 64,20 80,24"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="rp2-section-label" style={{ marginTop: 12 }}>
-                  <span className="rp2-section-bar" />
-                  EFFICIENCY METRICS
-                </div>
-                <div className="rp2-efficiency-grid">
-                  <div className="rp2-eff-card rp2-eff-blue">
-                    <span>REMAINING</span>
-                    <strong>{perfRemaining}</strong>
-                    <small>to hit quota</small>
-                  </div>
-                  <div className="rp2-eff-card rp2-eff-amber">
-                    <span>ACTIVE LOAD</span>
-                    <strong>{selectedRiderInfo.ongoingParcels ?? 0}</strong>
-                    <small>in progress</small>
-                  </div>
-                  <div className="rp2-eff-card rp2-eff-purple">
-                    <span>AVG / DAY</span>
-                    <strong>{perfAvgPerDay}</strong>
-                    <small>est. working days</small>
-                  </div>
-                  <div className="rp2-eff-card rp2-eff-pink">
-                    <span>QUOTA GAP</span>
-                    <strong>{perfQuotaGap}%</strong>
-                    <small>remaining</small>
-                  </div>
-                </div>
-              </div>
+            {/* ── Tabs ── */}
+            <div className="rp2-tabs">
+              <button
+                type="button"
+                className={`rp2-tab ${perfActiveTab === "overview" ? "is-active" : ""}`}
+                onClick={() => setPerfActiveTab("overview")}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <rect x="1" y="1" width="5" height="5" rx="1" />
+                  <rect x="8" y="1" width="5" height="5" rx="1" />
+                  <rect x="1" y="8" width="5" height="5" rx="1" />
+                  <rect x="8" y="8" width="5" height="5" rx="1" />
+                </svg>
+                Overview
+              </button>
+              <button
+                type="button"
+                className={`rp2-tab ${perfActiveTab === "parcels" ? "is-active" : ""}`}
+                onClick={() => setPerfActiveTab("parcels")}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="1"
+                    y="2"
+                    width="8"
+                    height="10"
+                    rx="1.5"
+                    strokeWidth="1.6"
+                  />
+                  <path d="M4 5h4M4 7.5h3" />
+                </svg>
+                Assigned Parcels
+                <span className="rp2-tab-badge">
+                  {perfAssignedParcels.length}
+                </span>
+              </button>
             </div>
+
+            {/* ── TAB: Overview ── */}
+            {perfActiveTab === "overview" && (
+              <div className="rp2-body">
+                <div className="rp2-left">
+                  <div className="rp2-section-label">
+                    <span className="rp2-section-bar" />
+                    QUOTA PROGRESS
+                  </div>
+
+                  <div className="rp2-donut-wrap">
+                    <svg viewBox="0 0 120 120" className="rp2-donut-svg">
+                      <circle className="rp2-donut-bg" cx="60" cy="60" r="48" />
+                      <circle
+                        className={`rp2-donut-fg ${hasMetFullQuota ? "is-met" : ""}`}
+                        cx="60"
+                        cy="60"
+                        r="48"
+                        strokeDasharray={quotaStrokeDasharray}
+                      />
+                    </svg>
+                    <div className="rp2-donut-center">
+                      <strong
+                        className={`rp2-donut-pct ${hasMetFullQuota ? "is-met" : ""}`}
+                      >
+                        {quotaPercent}%
+                      </strong>
+                      <span className="rp2-donut-sub">OF QUOTA</span>
+                    </div>
+                  </div>
+
+                  <p className="rp2-donut-count">
+                    <strong>{selectedRiderInfo.deliveredParcels ?? 0}</strong>
+                    {" / "}
+                    {selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA}{" "}
+                    delivered
+                  </p>
+
+                  <div className="rp2-status-rows">
+                    <div className="rp2-status-row">
+                      <span>Status</span>
+                      <span
+                        className={`rp2-chip ${hasMetQuota ? "rp2-chip-green" : "rp2-chip-red"}`}
+                      >
+                        {quotaStatusLabel}
+                      </span>
+                    </div>
+                    <div className="rp2-status-row">
+                      <span>Incentive</span>
+                      <span
+                        className={`rp2-chip ${isIncentiveEligible ? "rp2-chip-eligible" : "rp2-chip-pending"}`}
+                      >
+                        {isIncentiveEligible ? "ELIGIBLE" : "PENDING"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rp2-right">
+                  <div className="rp2-section-label">
+                    <span className="rp2-section-bar" />
+                    DELIVERY BREAKDOWN
+                  </div>
+                  <div className="rp2-breakdown">
+                    {[
+                      {
+                        label: "Delivered",
+                        value: selectedRiderInfo.deliveredParcels ?? 0,
+                        cls: "rp2-bar-green",
+                      },
+                      {
+                        label: "Ongoing",
+                        value: selectedRiderInfo.ongoingParcels ?? 0,
+                        cls: "rp2-bar-amber",
+                      },
+                      {
+                        label: "Cancelled",
+                        value: selectedRiderInfo.cancelledParcels ?? 0,
+                        cls: "rp2-bar-red",
+                      },
+                    ].map(({ label, value, cls }) => {
+                      const pct = perfTotal > 0 ? (value / perfTotal) * 100 : 0;
+                      return (
+                        <div className="rp2-bar-row" key={label}>
+                          <span className="rp2-bar-label">{label}</span>
+                          <div className="rp2-bar-track">
+                            <div
+                              className={`rp2-bar-fill ${cls}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="rp2-section-label" style={{ marginTop: 12 }}>
+                    <span className="rp2-section-bar" />
+                    WEEKLY TREND
+                  </div>
+                  <div className="rp2-trend-cards">
+                    <div className="rp2-trend-card">
+                      <span className="rp2-trend-card-label">DELIVERIES</span>
+                      <strong className="rp2-trend-card-value rp2-green">
+                        {selectedRiderInfo.deliveredParcels ?? 0}
+                      </strong>
+                      <svg
+                        className="rp2-sparkline rp2-sparkline-green"
+                        viewBox="0 0 80 32"
+                        fill="none"
+                        preserveAspectRatio="none"
+                      >
+                        <polyline
+                          points="0,24 16,18 32,22 48,10 64,14 80,8"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                        />
+                      </svg>
+                      <span className="rp2-trend-badge rp2-badge-green">
+                        {perfSuccessRate}%
+                      </span>
+                    </div>
+                    <div className="rp2-trend-card">
+                      <span className="rp2-trend-card-label">
+                        CANCELLATIONS
+                      </span>
+                      <strong className="rp2-trend-card-value rp2-red">
+                        {selectedRiderInfo.cancelledParcels ?? 0}
+                      </strong>
+                      <svg
+                        className="rp2-sparkline rp2-sparkline-red"
+                        viewBox="0 0 80 32"
+                        fill="none"
+                        preserveAspectRatio="none"
+                      >
+                        <polyline
+                          points="0,10 16,8 32,14 48,10 64,20 80,24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="rp2-section-label" style={{ marginTop: 12 }}>
+                    <span className="rp2-section-bar" />
+                    EFFICIENCY METRICS
+                  </div>
+                  <div className="rp2-efficiency-grid">
+                    <div className="rp2-eff-card rp2-eff-blue">
+                      <span>REMAINING</span>
+                      <strong>{perfRemaining}</strong>
+                      <small>to hit quota</small>
+                    </div>
+                    <div className="rp2-eff-card rp2-eff-amber">
+                      <span>ACTIVE LOAD</span>
+                      <strong>{selectedRiderInfo.ongoingParcels ?? 0}</strong>
+                      <small>in progress</small>
+                    </div>
+                    <div className="rp2-eff-card rp2-eff-purple">
+                      <span>AVG / DAY</span>
+                      <strong>{perfAvgPerDay}</strong>
+                      <small>est. working days</small>
+                    </div>
+                    <div className="rp2-eff-card rp2-eff-pink">
+                      <span>QUOTA GAP</span>
+                      <strong>{perfQuotaGap}%</strong>
+                      <small>remaining</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB: Assigned Parcels ── */}
+            {perfActiveTab === "parcels" && (
+              <div className="rp2-parcels-body">
+                {/* Toolbar */}
+                <div className="rp2-parcels-toolbar">
+                  <div className="rp2-parcels-search-wrap">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    >
+                      <circle cx="6" cy="6" r="4.5" />
+                      <path d="M10 10l2.5 2.5" />
+                    </svg>
+                    <input
+                      type="text"
+                      className="rp2-parcels-search"
+                      placeholder="Search by ID or recipient..."
+                      value={perfParcelsSearch}
+                      onChange={(e) => setPerfParcelsSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="rp2-parcels-filter-pills">
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "successfully delivered", label: "Delivered" },
+                      { value: "on going", label: "Ongoing" },
+                      { value: "cancelled", label: "Cancelled" },
+                    ].map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        className={`rp2-filter-pill ${perfParcelsFilter === f.value ? "is-active" : ""}`}
+                        onClick={() => setPerfParcelsFilter(f.value)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Content */}
+                {perfParcelsLoading ? (
+                  <div className="rp2-parcels-loading">
+                    <div className="assign-spinner" />
+                    <p>Loading assigned parcels...</p>
+                  </div>
+                ) : perfParcelsError ? (
+                  <p
+                    className="rider-info-error"
+                    style={{ padding: "16px 20px" }}
+                  >
+                    {perfParcelsError}
+                  </p>
+                ) : perfAssignedParcels.length === 0 ? (
+                  <div className="rp2-parcels-empty">
+                    <svg
+                      width="40"
+                      height="40"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                    >
+                      <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+                      <path d="M16 3H8l-2 4h12l-2-4z" />
+                    </svg>
+                    <p>No parcels assigned to this rider yet.</p>
+                  </div>
+                ) : perfFilteredParcels.length === 0 ? (
+                  <div className="rp2-parcels-empty">
+                    <p>No parcels match your search or filter.</p>
+                  </div>
+                ) : (
+                  <div className="rp2-parcels-table-wrap">
+                    <table className="rp2-parcels-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Parcel ID</th>
+                          <th>Recipient</th>
+                          <th>Address</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {perfFilteredParcels.map((parcel, idx) => {
+                          const n = normalizeStatus(parcel.status);
+                          const statusClass = isDeliveredStatus(parcel.status)
+                            ? "rp2-status-delivered"
+                            : n === "on going"
+                              ? "rp2-status-ongoing"
+                              : n === "cancelled" || n === "canceled"
+                                ? "rp2-status-cancelled"
+                                : "rp2-status-default";
+                          return (
+                            <tr key={parcel.parcel_id}>
+                              <td className="rp2-parcel-idx">{idx + 1}</td>
+                              <td className="rp2-parcel-id">
+                                #{parcel.parcel_id}
+                              </td>
+                              <td>{parcel.recipient_name || "—"}</td>
+                              <td className="rp2-parcel-addr">
+                                {parcel.address || "—"}
+                              </td>
+                              <td>
+                                <span
+                                  className={`rp2-parcel-status-pill ${statusClass}`}
+                                >
+                                  {parcel.status || "Unknown"}
+                                </span>
+                              </td>
+                              <td className="rp2-parcel-date">
+                                {parcel.created_at
+                                  ? new Date(
+                                      parcel.created_at,
+                                    ).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    })
+                                  : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <p className="rp2-parcels-count">
+                      Showing {perfFilteredParcels.length} of{" "}
+                      {perfAssignedParcels.length} parcel
+                      {perfAssignedParcels.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3180,7 +3500,7 @@ export default function Riders() {
         </div>
       )}
 
-      {/* ══ VIOLATION LOGS ══ */}
+      {/* ══ VIOLATION LOGS MODAL (with analytics) ══ */}
       {violationLogsModalOpen && selectedRiderInfo && (
         <div
           className="riders-modal-overlay"
@@ -3194,46 +3514,277 @@ export default function Riders() {
           <div
             className="riders-modal-content rider-violations-modal"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 720, maxWidth: "96%" }}
+            style={{ width: 760, maxWidth: "96%" }}
           >
+            {/* Header */}
             <div className="riders-modal-header">
               <h2>{selectedRiderDisplayName} — Violations</h2>
             </div>
-            <div className="riders-modal-body rider-violations-body">
-              {loadingViolationLogs ? (
+
+            {loadingViolationLogs ? (
+              <div className="riders-modal-body">
                 <PageSpinner label="Loading violation logs..." />
-              ) : violationLogsError ? (
+              </div>
+            ) : violationLogsError ? (
+              <div className="riders-modal-body">
                 <p className="rider-info-error">{violationLogsError}</p>
-              ) : riderViolationLogs.length === 0 ? (
+              </div>
+            ) : riderViolationLogs.length === 0 ? (
+              <div className="riders-modal-body">
                 <p className="rider-violations-empty">
                   No violation logs found for this rider.
                 </p>
-              ) : (
-                <div className="rider-violations-list">
-                  {riderViolationLogs.map((log, index) => (
-                    <div
-                      className="rider-violations-item"
-                      key={`${log.date || "no-date"}-${log.violation || "no-violation"}-${index}`}
+              </div>
+            ) : (
+              <>
+                {/* Analytics Stats Strip */}
+                {/* Tabs */}
+                <div className="viol-tabs">
+                  <button
+                    type="button"
+                    className={`viol-tab ${violationsActiveTab === "overview" ? "is-active" : ""}`}
+                    onClick={() => setViolationsActiveTab("overview")}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      aria-hidden="true"
                     >
-                      <div className="rider-violations-fields">
-                        <div className="rider-violations-field">
-                          <span className="rider-violations-label">
-                            Violation Type
-                          </span>
-                          <strong>
-                            {log.violation || "Unknown violation"}
+                      <rect x="1" y="1" width="5" height="5" rx="1" />
+                      <rect x="8" y="1" width="5" height="5" rx="1" />
+                      <rect x="1" y="8" width="5" height="5" rx="1" />
+                      <rect x="8" y="8" width="5" height="5" rx="1" />
+                    </svg>
+                    Analytics
+                  </button>
+                  <button
+                    type="button"
+                    className={`viol-tab ${violationsActiveTab === "logs" ? "is-active" : ""}`}
+                    onClick={() => setViolationsActiveTab("logs")}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <rect
+                        x="1"
+                        y="2"
+                        width="8"
+                        height="10"
+                        rx="1.5"
+                        strokeWidth="1.6"
+                      />
+                      <path d="M4 5h4M4 7.5h3" />
+                    </svg>
+                    Violation Logs
+                    <span className="viol-tab-badge">
+                      {riderViolationLogs.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* TAB: Analytics */}
+                {violationsActiveTab === "overview" && (
+                  <div className="viol-analytics-body">
+                    <div className="viol-analytics-left">
+                      {/* Risk level */}
+                      <div className="viol-section-label">
+                        <span className="viol-section-bar" />
+                        RISK LEVEL
+                      </div>
+                      {(() => {
+                        const total = violationStats?.total ?? 0;
+                        const level =
+                          total >= 10
+                            ? "HIGH"
+                            : total >= 5
+                              ? "MODERATE"
+                              : "LOW";
+                        const cls =
+                          total >= 10
+                            ? "viol-risk-high"
+                            : total >= 5
+                              ? "viol-risk-mod"
+                              : "viol-risk-low";
+                        const pct = Math.min(
+                          100,
+                          Math.round((total / 15) * 100),
+                        );
+                        return (
+                          <div className="viol-risk-block">
+                            <div className="viol-risk-row">
+                              <span className={`viol-risk-chip ${cls}`}>
+                                {level}
+                              </span>
+                              <span className="viol-risk-hint">
+                                {total} Total Violation
+                                {total !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <div className="viol-risk-bar-track">
+                              <div
+                                className={`viol-risk-bar-fill ${cls}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <p className="viol-risk-desc">
+                              {level === "HIGH"
+                                ? "This rider has a high violation count. Immediate review recommended."
+                                : level === "MODERATE"
+                                  ? "Moderate violations detected. Monitor closely and provide guidance."
+                                  : "Violation count is within acceptable range. Continue monitoring."}
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="viol-analytics-right">
+                      {/* 7-day trend */}
+                      <div className="viol-section-label">
+                        <span className="viol-section-bar" />
+                        7-DAY TREND
+                      </div>
+                      <div className="viol-trend-chart">
+                        {violationStats?.perDay.map((count, i) => {
+                          const pct = Math.round(
+                            (count / (violationStats.maxPerDay || 1)) * 100,
+                          );
+                          return (
+                            <div className="viol-trend-col" key={i}>
+                              <span className="viol-trend-count">
+                                {count > 0 ? count : ""}
+                              </span>
+                              <div className="viol-trend-bar-wrap">
+                                <div
+                                  className={`viol-trend-bar ${count > 0 ? "has-data" : ""}`}
+                                  style={{
+                                    height: `${Math.max(pct, count > 0 ? 8 : 0)}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="viol-trend-day">
+                                {violationStats.dayLabels[i]}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Summary cards */}
+                      <div
+                        className="viol-section-label"
+                        style={{ marginTop: 14 }}
+                      >
+                        <span className="viol-section-bar" />
+                        SUMMARY
+                      </div>
+                      <div className="viol-summary-grid">
+                        <div className="viol-summary-card">
+                          <span>THIS WEEK</span>
+                          <strong className="viol-red">
+                            {violationStats?.perDay.reduce(
+                              (s, c) => s + c,
+                              0,
+                            ) ?? 0}
                           </strong>
+                          <small>violations</small>
                         </div>
-                        <div className="rider-violations-field">
-                          <span className="rider-violations-label">Date</span>
-                          <strong>{formatViolationLogDate(log.date)}</strong>
+                        <div className="viol-summary-card">
+                          <span>TODAY</span>
+                          <strong>{violationStats?.perDay[6] ?? 0}</strong>
+                          <small>violations</small>
+                        </div>
+                        <div className="viol-summary-card">
+                          <span>WORST DAY</span>
+                          <strong
+                            className={
+                              Math.max(...(violationStats?.perDay ?? [0])) > 0
+                                ? "viol-red"
+                                : ""
+                            }
+                          >
+                            {Math.max(...(violationStats?.perDay ?? [0]))}
+                          </strong>
+                          <small>in a day</small>
+                        </div>
+                        <div className="viol-summary-card">
+                          <span>STREAK</span>
+                          <strong
+                            className={
+                              (violationStats?.streak ?? 0) > 0
+                                ? "viol-red"
+                                : ""
+                            }
+                          >
+                            {violationStats?.streak ?? 0}
+                          </strong>
+                          <small>
+                            day{violationStats?.streak !== 1 ? "s" : ""} active
+                          </small>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+
+                {/* TAB: Logs */}
+                {violationsActiveTab === "logs" && (
+                  <div className="viol-logs-body">
+                    <div className="viol-logs-table-wrap">
+                      <table className="viol-logs-table">
+                        <thead>
+                          <tr>
+                            <th className="viol-logs-th viol-logs-th-num">#</th>
+                            <th className="viol-logs-th">Violation Type</th>
+                            <th className="viol-logs-th viol-logs-th-date">
+                              Date &amp; Time
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {riderViolationLogs.map((log, index) => (
+                            <tr
+                              className="viol-logs-row"
+                              key={`${log.date || "no-date"}-${log.violation || "no-violation"}-${index}`}
+                            >
+                              <td className="viol-logs-td viol-logs-td-num">
+                                {index + 1}
+                              </td>
+                              <td className="viol-logs-td">
+                                <span className="viol-logs-type-pill">
+                                  {(
+                                    log.violation || "Unknown violation"
+                                  ).replace(/\b\w/g, (c) => c.toUpperCase())}
+                                </span>
+                              </td>
+                              <td className="viol-logs-td viol-logs-td-date">
+                                {formatViolationLogDate(log.date)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="viol-logs-count">
+                      {riderViolationLogs.length} violation
+                      {riderViolationLogs.length !== 1 ? "s" : ""} recorded
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
