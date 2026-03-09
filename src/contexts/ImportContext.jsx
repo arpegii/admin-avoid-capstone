@@ -10,51 +10,61 @@ import {
 import { supabaseClient } from "../App";
 
 // ─────────────────────────────────────────────────────────────
-// Helpers (duplicated here so context is self-contained)
+// Helpers
 // ─────────────────────────────────────────────────────────────
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Calls YOUR Vercel serverless proxy at /api/geocode
+// instead of hitting Nominatim directly from the browser.
+// The proxy runs server-side where User-Agent is not a forbidden header,
+// so Nominatim correctly identifies the app and returns real coordinates.
 const geocodeAddress = async (address, retries = 2) => {
   if (!address || !address.trim()) return { lat: null, lng: null };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (attempt > 0) await sleep(1500 * attempt);
+      if (attempt > 0) await sleep(2000 * attempt); // back-off: 2s, 4s
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        address.trim(),
-      )}&limit=1&addressdetails=1`;
+      const encoded = encodeURIComponent(address.trim());
+      const res = await fetch(`/api/geocode?address=${encoded}`);
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Accept-Language": "en-US,en;q=0.9",
-          "User-Agent":
-            "AVOID-CapstoneApp/1.0 (admin-avoid-capstone.vercel.app)",
-        },
-      });
-
-      if (!res.ok) continue; // retry on non-200
-
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const lat = parseFloat(data[0].lat);
-        const lng = parseFloat(data[0].lon);
-        if (isFinite(lat) && isFinite(lng)) return { lat, lng };
+      if (!res.ok) {
+        console.warn(
+          `[geocode] Proxy returned HTTP ${res.status} for: "${address}"`,
+        );
+        if (attempt >= retries) return { lat: null, lng: null };
+        continue; // retry
       }
 
-      // No results found — no point retrying
-      return { lat: null, lng: null };
-    } catch {
-      // Network/parse error — retry if we have attempts left
+      const data = await res.json();
+
+      if (!data.found || data.lat == null || data.lng == null) {
+        // Address genuinely not found — no point retrying
+        console.warn(`[geocode] No result for: "${address}"`);
+        return { lat: null, lng: null };
+      }
+
+      const lat = parseFloat(data.lat);
+      const lng = parseFloat(data.lng);
+
+      if (!isFinite(lat) || !isFinite(lng)) {
+        console.warn(`[geocode] Non-finite coords for: "${address}"`, data);
+        return { lat: null, lng: null };
+      }
+
+      return { lat, lng };
+    } catch (err) {
+      console.error(
+        `[geocode] Attempt ${attempt + 1} failed for "${address}":`,
+        err.message,
+      );
       if (attempt >= retries) return { lat: null, lng: null };
       // else loop continues to next attempt
     }
   }
 
-  return { lat: null, lng: null }; // exhausted all retries
+  return { lat: null, lng: null };
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -80,7 +90,6 @@ export const ImportProvider = ({
   const [bgImport, setBgImport] = useState(null);
   const [panelMinimized, setPanelMinimized] = useState(false);
   const cancelRef = useRef(false);
-  // Callback ref so Parcel.jsx can pass a "reload parcels" fn
   const onDoneCallbackRef = useRef(null);
 
   // ── Warn on refresh/close while import is running ──
@@ -132,7 +141,7 @@ export const ImportProvider = ({
           const row = rowsSnapshot[i];
           setBgImport((prev) => (prev ? { ...prev, current: i + 1 } : null));
 
-          // Use pre-geocoded coords from CSV if available, otherwise call Nominatim
+          // Use pre-geocoded coords from CSV if available, otherwise call proxy
           let lat = parseFloat(row.r_lat);
           let lng = parseFloat(row.r_lng);
           const hasCoords = isFinite(lat) && isFinite(lng);
@@ -141,17 +150,13 @@ export const ImportProvider = ({
             const result = await geocodeAddress(row.address || "");
             lat = result.lat;
             lng = result.lng;
-            // Only sleep for rate limiting when we actually called Nominatim
+            // Rate limit: only sleep when we actually called the geocoder
             if (i < rowsSnapshot.length - 1) await sleep(1200);
           }
 
-          // Normalize status values to match database check constraints:
-          // status        → 'on-going' | 'successfully delivered' | 'cancelled'
-          // attempt_status → 'pending' | 'failed' | 'success'
           const normalizeStatus = (val, fallback) => {
             if (!val || !String(val).trim()) return fallback;
-            const s = String(val).trim().toLowerCase();
-            return s;
+            return String(val).trim().toLowerCase();
           };
 
           const rawLat = parseFloat(lat);
@@ -185,7 +190,7 @@ export const ImportProvider = ({
           return;
         }
 
-        // Batch insert
+        // Batch insert in chunks of 50
         const chunkSize = 50;
         for (let i = 0; i < enriched.length; i += chunkSize) {
           if (cancelRef.current) {
@@ -203,7 +208,6 @@ export const ImportProvider = ({
                 ? { ...prev, status: "error", errorMsg: error.message }
                 : null,
             );
-            // Fire notification with parsed reason
             if (onImportFailed) onImportFailed(error.message, fileName);
             return;
           }
@@ -213,15 +217,14 @@ export const ImportProvider = ({
           prev ? { ...prev, status: "done", current: total } : null,
         );
 
-        // Notify + reload
         if (onImportComplete) onImportComplete(total, fileName);
         if (onDoneCallbackRef.current) onDoneCallbackRef.current();
 
-        // Auto-dismiss after 6 s
+        // Auto-dismiss after 6s
         setTimeout(() => setBgImport(null), 6000);
       })();
     },
-    [onImportComplete],
+    [onImportComplete, onImportFailed],
   );
 
   const cancelImport = useCallback(() => {

@@ -3293,22 +3293,31 @@ const Dashboard = () => {
                       </button>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      height: 190,
-                      display: violationChartTab === "month" ? "block" : "none",
-                    }}
-                  >
-                    <canvas ref={violationTrendChartRef} />
-                  </div>
-                  <div
-                    style={{
-                      height: 190,
-                      display:
-                        violationChartTab === "weekday" ? "block" : "none",
-                    }}
-                  >
-                    <canvas ref={weekdayViolationChartRef} />
+                  <div style={{ position: "relative", height: 190 }}>
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        opacity: violationChartTab === "month" ? 1 : 0,
+                        pointerEvents:
+                          violationChartTab === "month" ? "auto" : "none",
+                        transition: "opacity 0.2s ease",
+                      }}
+                    >
+                      <canvas ref={violationTrendChartRef} />
+                    </div>
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        opacity: violationChartTab === "weekday" ? 1 : 0,
+                        pointerEvents:
+                          violationChartTab === "weekday" ? "auto" : "none",
+                        transition: "opacity 0.2s ease",
+                      }}
+                    >
+                      <canvas ref={weekdayViolationChartRef} />
+                    </div>
                   </div>
                 </div>
 
