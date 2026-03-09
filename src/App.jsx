@@ -10,7 +10,11 @@ import { createClient } from "@supabase/supabase-js";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { NotificationProvider } from "./contexts/NotificationContext";
+import {
+  NotificationProvider,
+  useNotification,
+} from "./contexts/NotificationContext";
+import { ImportProvider } from "./contexts/ImportContext";
 import { useEffect } from "react";
 
 // Pages
@@ -217,23 +221,37 @@ function AppContent() {
   );
 }
 
+// ── Inner wrapper that has access to NotificationContext ──
+// This lets ImportProvider call notifyImportComplete/notifyImportFailed on finish.
+function AppWithImport({ children }) {
+  const { notifyImportComplete, notifyImportFailed } = useNotification();
+
+  return (
+    <ImportProvider
+      onImportComplete={notifyImportComplete}
+      onImportFailed={notifyImportFailed}
+    >
+      {children}
+    </ImportProvider>
+  );
+}
+
 function App() {
   return (
     <Router>
       <AuthProvider>
-        {/* supabaseClient is passed so NotificationProvider can set up
-            its own Realtime channel for violation_logs without depending
-            on any page component to open modals first. */}
         <NotificationProvider supabase={supabaseClient}>
-          <Toaster
-            position="top-right"
-            reverseOrder={false}
-            gutter={8}
-            toastOptions={{
-              duration: 3000,
-            }}
-          />
-          <AppContent />
+          <AppWithImport>
+            <Toaster
+              position="top-right"
+              reverseOrder={false}
+              gutter={8}
+              toastOptions={{
+                duration: 3000,
+              }}
+            />
+            <AppContent />
+          </AppWithImport>
         </NotificationProvider>
       </AuthProvider>
     </Router>

@@ -622,3 +622,132 @@
     width: calc(100vw - 20px);
   }
 }
+/* ═══════════════════════════════════════════════════════════════
+   IMPORT COMPLETE notification type
+   Append these rules to the bottom of notifications.css
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Dropdown item ── */
+.nc-item--import_complete.is-unread {
+  background: #f5f3ff;
+  border-left-color: #8b5cf6;
+}
+.nc-item--import_complete .nc-item-icon {
+  background: rgba(139, 92, 246, 0.09);
+}
+.nc-item--import_complete .nc-item-title {
+  color: #7c3aed;
+}
+.nc-item--import_complete.is-read .nc-item-title {
+  color: #475569;
+}
+
+/* ── Toast card ── */
+.nc-toast--import::before {
+  background: #8b5cf6;
+}
+.nc-toast--import .nc-toast-icon {
+  background: rgba(139, 92, 246, 0.08);
+}
+.nc-toast--import .nc-toast-title {
+  color: #7c3aed;
+}
+.nc-toast--import .nc-toast-progress {
+  background: rgba(139, 92, 246, 0.1);
+}
+.nc-toast--import .nc-toast-fill {
+  background: #8b5cf6;
+}
+/* ═══════════════════════════════════════════════════════════════
+   IMPORT COMPLETE notification type
+   Append these rules to the bottom of notifications.css
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Dropdown item ── */
+.nc-item--import_complete.is-unread {
+  background: #f5f3ff;
+  border-left-color: #8b5cf6;
+}
+.nc-item--import_complete .nc-item-icon {
+  background: rgba(139, 92, 246, 0.09);
+}
+.nc-item--import_complete .nc-item-title {
+  color: #7c3aed;
+}
+.nc-item--import_complete.is-read .nc-item-title {
+  color: #475569;
+}
+
+/* ── Toast card ── */
+.nc-toast--import::before {
+  background: #8b5cf6;
+}
+.nc-toast--import .nc-toast-icon {
+  background: rgba(139, 92, 246, 0.08);
+}
+.nc-toast--import .nc-toast-title {
+  color: #7c3aed;
+}
+.nc-toast--import .nc-toast-progress {
+  background: rgba(139, 92, 246, 0.1);
+}
+.nc-toast--import .nc-toast-fill {
+  background: #8b5cf6;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   IMPORT FAILED notification type
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Dropdown item ── */
+.nc-item--import_failed.is-unread {
+  background: #fff5f5;
+  border-left-color: #e8192c;
+}
+.nc-item--import_failed .nc-item-icon {
+  background: rgba(232, 25, 44, 0.08);
+}
+.nc-item--import_failed .nc-item-title {
+  color: #c0152a;
+}
+.nc-item--import_failed.is-read .nc-item-title {
+  color: #475569;
+}
+/* Show full reason text (don't truncate like other notifications) */
+.nc-item--import_failed .nc-item-msg {
+  white-space: normal;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  max-height: none;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* ── Toast card ── */
+.nc-toast--import-fail::before {
+  background: #e8192c;
+}
+.nc-toast--import-fail .nc-toast-icon {
+  background: rgba(232, 25, 44, 0.08);
+}
+.nc-toast--import-fail .nc-toast-title {
+  color: #c0152a;
+}
+.nc-toast--import-fail .nc-toast-progress {
+  background: rgba(232, 25, 44, 0.1);
+}
+.nc-toast--import-fail .nc-toast-fill {
+  background: #e8192c;
+}
+/* Allow the error reason to wrap in the toast too */
+.nc-toast--import-fail .nc-toast-msg {
+  white-space: normal;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  max-height: none;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}

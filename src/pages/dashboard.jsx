@@ -1462,6 +1462,9 @@ const Dashboard = () => {
   const [violationLogs, setViolationLogs] = useState([]);
   const [violationLogsError, setViolationLogsError] = useState("");
   const [flaggedRiderAvatars, setFlaggedRiderAvatars] = useState({});
+  // ── NEW: top rider avatars + violation chart tab ──
+  const [topRiderAvatars, setTopRiderAvatars] = useState({});
+  const [violationChartTab, setViolationChartTab] = useState("month");
 
   // ── Refs ──
   const yearFilterRef = useRef(null);
@@ -1972,6 +1975,44 @@ const Dashboard = () => {
     fetchFlaggedRiderAvatars();
   }, [dashboardData.topFlaggedRiders]);
 
+  // ── NEW: Fetch profile pictures for top riders ──
+  useEffect(() => {
+    if (!dashboardData.topRiders.length) return;
+
+    async function fetchTopRiderAvatars() {
+      try {
+        const { data: allUsers, error } = await supabaseClient
+          .from("users")
+          .select("user_id, username, fname, lname, profile_url");
+
+        if (error) throw error;
+
+        const avatarMap = {};
+
+        (allUsers || []).forEach((u) => {
+          const profileUrl = u.profile_url || null;
+
+          if (u.username) {
+            avatarMap[u.username.toLowerCase()] = profileUrl;
+          }
+
+          const fullName = `${u.fname || ""} ${u.lname || ""}`
+            .trim()
+            .toLowerCase();
+          if (fullName) avatarMap[fullName] = profileUrl;
+
+          if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
+        });
+
+        setTopRiderAvatars(avatarMap);
+      } catch (err) {
+        console.error("Failed to fetch top rider avatars:", err);
+      }
+    }
+
+    fetchTopRiderAvatars();
+  }, [dashboardData.topRiders]);
+
   const topFlaggedRidersWithAvatars = useMemo(
     () =>
       dashboardData.topFlaggedRiders.map((r) => {
@@ -1996,6 +2037,33 @@ const Dashboard = () => {
         return { ...r, avatarUrl: flaggedRiderAvatars[firstName] || null };
       }),
     [dashboardData.topFlaggedRiders, flaggedRiderAvatars],
+  );
+
+  // ── NEW: Top riders with avatars ──
+  const topRidersWithAvatars = useMemo(
+    () =>
+      dashboardData.topRiders.map((r) => {
+        const label = r.label || "";
+        const exactKey = label.toLowerCase();
+
+        if (topRiderAvatars[exactKey] !== undefined) {
+          return { ...r, avatarUrl: topRiderAvatars[exactKey] };
+        }
+
+        const stripped = label
+          .replace(/\s+[A-Z]\.\s+/g, " ")
+          .replace(/\s+[A-Z]\s+/g, " ")
+          .trim()
+          .toLowerCase();
+
+        if (topRiderAvatars[stripped] !== undefined) {
+          return { ...r, avatarUrl: topRiderAvatars[stripped] };
+        }
+
+        const firstName = label.split(" ")[0].toLowerCase();
+        return { ...r, avatarUrl: topRiderAvatars[firstName] || null };
+      }),
+    [dashboardData.topRiders, topRiderAvatars],
   );
 
   // ── Charts ──
@@ -3155,11 +3223,14 @@ const Dashboard = () => {
                     <canvas ref={delayRiskChartRef} />
                   </div>
                 </ChartCard>
+
+                {/* ── Top Riders — now with avatars ── */}
                 <ChartCard title="Top Riders" subtitle="">
-                  {dashboardData.topRiders.length > 0 ? (
+                  {topRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
-                      items={dashboardData.topRiders}
+                      items={topRidersWithAvatars}
                       colorClass="emerald"
+                      showAvatar={true}
                     />
                   ) : (
                     <p
@@ -3174,6 +3245,7 @@ const Dashboard = () => {
                     </p>
                   )}
                 </ChartCard>
+
                 <ChartCard title="Daily Throughput" subtitle="">
                   <div className="throughput-card-body">
                     <div className="throughput-big-number">
@@ -3198,23 +3270,55 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 5: Violations ── */}
+              {/* ── Row 5: Violations trend (toggled) + Most Flagged ── */}
               <div className="charts-row-violations">
-                <ChartCard title="Violations by Month" subtitle="">
-                  <div style={{ height: 190 }}>
+                {/* Merged violations chart card with toggle */}
+                <div className="chart-card violation-toggled-card">
+                  <div className="violation-toggle-header">
+                    <h3>Violations Trend</h3>
+                    <div className="violation-tab-toggle">
+                      <button
+                        type="button"
+                        className={`vtab-btn${violationChartTab === "month" ? " vtab-active" : ""}`}
+                        onClick={() => setViolationChartTab("month")}
+                      >
+                        By Month
+                      </button>
+                      <button
+                        type="button"
+                        className={`vtab-btn${violationChartTab === "weekday" ? " vtab-active" : ""}`}
+                        onClick={() => setViolationChartTab("weekday")}
+                      >
+                        By Weekday
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      height: 190,
+                      display: violationChartTab === "month" ? "block" : "none",
+                    }}
+                  >
                     <canvas ref={violationTrendChartRef} />
                   </div>
-                </ChartCard>
-                <ChartCard title="Violations by Weekday" subtitle="">
-                  <div style={{ height: 190 }}>
+                  <div
+                    style={{
+                      height: 190,
+                      display:
+                        violationChartTab === "weekday" ? "block" : "none",
+                    }}
+                  >
                     <canvas ref={weekdayViolationChartRef} />
                   </div>
-                </ChartCard>
-                <ChartCard title="Top Violations" subtitle="">
-                  {dashboardData.topViolationTypes.length > 0 ? (
+                </div>
+
+                {/* Most Flagged Riders */}
+                <ChartCard title="Most Flagged" subtitle="">
+                  {topFlaggedRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
-                      items={dashboardData.topViolationTypes}
-                      colorClass="rose"
+                      items={topFlaggedRidersWithAvatars}
+                      colorClass="violet"
+                      showAvatar={true}
                     />
                   ) : (
                     <p
@@ -3231,8 +3335,8 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 6: Map + Most flagged riders ── */}
-              <div className="charts-row-map">
+              {/* ── Row 6: Map (full width) ── */}
+              <div className="charts-row-map-solo">
                 <div className="chart-card">
                   <div className="analytics-map-header">
                     <div>
@@ -3263,27 +3367,6 @@ const Dashboard = () => {
                     style={{ height: 300 }}
                   />
                 </div>
-
-                <ChartCard title="Most Flagged" subtitle="">
-                  {topFlaggedRidersWithAvatars.length > 0 ? (
-                    <HorizontalBarList
-                      items={topFlaggedRidersWithAvatars}
-                      colorClass="violet"
-                      showAvatar={true}
-                    />
-                  ) : (
-                    <p
-                      style={{
-                        textAlign: "center",
-                        color: "var(--dash-muted)",
-                        padding: "2rem 0",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      No violation data
-                    </p>
-                  )}
-                </ChartCard>
               </div>
             </div>
           </>

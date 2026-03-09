@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   FaChartBar,
@@ -10,11 +11,20 @@ import {
   FaChevronDown,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
+import { useImport } from "../contexts/ImportContext";
 import { supabaseClient } from "../App";
 import NotificationCenter from "./NotificationCenter";
 
 export default function Sidebar() {
   const { user, openLogoutModal } = useAuth();
+  const {
+    bgImport,
+    panelMinimized,
+    setPanelMinimized,
+    cancelImport,
+    dismissPanel,
+  } = useImport();
+
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -140,10 +150,7 @@ export default function Sidebar() {
     };
 
     const handleScroll = () => {
-      // Don't hide nav if no scroll containers are bound yet (page still loading)
       if (!scrollEls.length) return;
-
-      // Don't hide header if a modal is open
       const isModalOpen = !!document.querySelector(
         ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
       );
@@ -152,7 +159,6 @@ export default function Sidebar() {
         document.body.classList.remove("tnav-hidden");
         return;
       }
-
       const currentY = getCurrentScrollY();
       const shouldHide = currentY > 2;
       nav.classList.toggle("tnav--hidden", shouldHide);
@@ -160,10 +166,7 @@ export default function Sidebar() {
     };
 
     const handleWheel = (event) => {
-      // Don't hide nav if no scroll containers are bound yet (page still loading)
       if (!scrollEls.length) return;
-
-      // Don't hide header if a modal is open
       const isModalOpen = !!document.querySelector(
         ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
       );
@@ -172,7 +175,6 @@ export default function Sidebar() {
         document.body.classList.remove("tnav-hidden");
         return;
       }
-
       const currentY = getCurrentScrollY();
       if (event.deltaY > 0) {
         nav.classList.add("tnav--hidden");
@@ -204,7 +206,6 @@ export default function Sidebar() {
       return true;
     };
 
-    // Always ensure nav is visible on route change
     nav.classList.remove("tnav--hidden");
     document.body.classList.remove("tnav-hidden");
 
@@ -250,129 +251,252 @@ export default function Sidebar() {
     { label: "Parcels", href: "/parcels", icon: <FaBox /> },
   ];
 
-  return (
-    <header className="tnav" role="navigation" aria-label="Primary navigation">
-      <div className="tnav-inner">
-        {/* ── Logo only ── */}
-        <button
-          type="button"
-          className="tnav-brand"
-          onClick={() => navigate("/dashboard")}
-          aria-label="Go to dashboard"
-        >
-          <img src="/images/logo.png" alt="AVID" className="tnav-brand-logo" />
-        </button>
+  // ─────────────────────────────────────────────────────────────
+  // Background import floating panel — rendered via portal so it
+  // sits at document.body and is never clipped by any page layout.
+  // ─────────────────────────────────────────────────────────────
+  const renderBgImportPanel = () => {
+    if (!bgImport) return null;
 
-        {/* ── Divider ── */}
-        <span className="tnav-divider" aria-hidden="true" />
+    const { status, current, total, fileName, errorMsg } = bgImport;
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    const isRunning = status === "running";
+    const isDone = status === "done";
+    const isError = status === "error";
+    const isCancelled = status === "cancelled";
 
-        {/* ── Nav links ── */}
-        <nav className="tnav-nav" aria-label="Main menu">
-          <ul className="tnav-list">
-            {menuItems.map((item) => (
-              <li key={item.href}>
+    const panel = (
+      <div
+        className={[
+          "parcel-bg-import-panel",
+          panelMinimized ? "is-minimized" : "",
+          isDone ? "is-done" : "",
+          isError ? "is-error" : "",
+          isCancelled ? "is-cancelled" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        role="status"
+        aria-live="polite"
+      >
+        {/* Header */}
+        <div className="parcel-bg-import-header">
+          <div className="parcel-bg-import-icon" aria-hidden="true">
+            {isDone ? "✓" : isError || isCancelled ? "✕" : "📦"}
+          </div>
+          <div className="parcel-bg-import-title-wrap">
+            <p className="parcel-bg-import-title">
+              {isDone
+                ? "Import Complete"
+                : isError
+                  ? "Import Failed"
+                  : isCancelled
+                    ? "Import Cancelled"
+                    : "Importing Parcels…"}
+            </p>
+            <p className="parcel-bg-import-sub">
+              {isDone
+                ? `${total} parcel${total !== 1 ? "s" : ""} added successfully`
+                : isError
+                  ? errorMsg || "An error occurred"
+                  : isCancelled
+                    ? "Import was stopped"
+                    : `${current} / ${total} — geocoding addresses`}
+            </p>
+          </div>
+          <div className="parcel-bg-import-actions">
+            {isRunning && (
+              <button
+                type="button"
+                className="parcel-bg-import-minimize-btn"
+                onClick={() => setPanelMinimized((p) => !p)}
+                title={panelMinimized ? "Expand" : "Minimize"}
+                aria-label={panelMinimized ? "Expand panel" : "Minimize panel"}
+              >
+                {panelMinimized ? "▲" : "▼"}
+              </button>
+            )}
+            {(isDone || isError || isCancelled) && (
+              <button
+                type="button"
+                className="parcel-bg-import-dismiss-btn"
+                onClick={dismissPanel}
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Body — hidden when minimized */}
+        {!panelMinimized && (
+          <div className="parcel-bg-import-body">
+            {(isRunning || isDone) && (
+              <div className="parcel-bg-progress-track">
+                <div
+                  className="parcel-bg-progress-fill"
+                  style={{ width: `${isDone ? 100 : pct}%` }}
+                />
+              </div>
+            )}
+            {isRunning && (
+              <div className="parcel-bg-progress-meta">
+                <span className="parcel-bg-progress-pct">{pct}%</span>
+                <span className="parcel-bg-progress-file">{fileName}</span>
                 <button
                   type="button"
-                  className={`tnav-link ${isActive(item.href) ? "tnav-link--active" : ""}`}
-                  onClick={() => navigate(item.href)}
+                  className="parcel-bg-cancel-btn"
+                  onClick={cancelImport}
                 >
-                  <span className="tnav-link-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span className="tnav-link-label">{item.label}</span>
+                  Cancel
                 </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
 
-        {/* ── Spacer ── */}
-        <span className="tnav-spacer" />
+    return createPortal(panel, document.body);
+  };
 
-        {/* ── Notifications ── */}
-        <NotificationCenter />
-
-        {/* ── Profile dropdown ── */}
-        <div className="tnav-profile-wrap" ref={profileRef}>
+  return (
+    <>
+      <header
+        className="tnav"
+        role="navigation"
+        aria-label="Primary navigation"
+      >
+        <div className="tnav-inner">
+          {/* ── Logo ── */}
           <button
             type="button"
-            className={`tnav-profile-trigger ${profileOpen ? "is-open" : ""} ${isActive("/profile") ? "tnav-profile-trigger--active" : ""}`}
-            onClick={() => setProfileOpen((p) => !p)}
-            aria-haspopup="true"
-            aria-expanded={profileOpen}
+            className="tnav-brand"
+            onClick={() => navigate("/dashboard")}
+            aria-label="Go to dashboard"
           >
-            <span
-              className="tnav-avatar"
-              style={{
-                backgroundImage: profilePictureUrl
-                  ? `url(${profilePictureUrl})`
-                  : undefined,
-              }}
-            >
-              {!profilePictureUrl && (
-                <span className="tnav-avatar-initials">{getInitials()}</span>
-              )}
-            </span>
-            <span className="tnav-profile-meta">
-              <span className="tnav-profile-name">
-                {displayName || user?.email || "Administrator"}
-              </span>
-              <span className="tnav-profile-role">Admin</span>
-            </span>
-            <FaChevronDown
-              className={`tnav-chevron ${profileOpen ? "rotated" : ""}`}
-              aria-hidden="true"
+            <img
+              src="/images/logo.png"
+              alt="AVID"
+              className="tnav-brand-logo"
             />
           </button>
 
-          {profileOpen && (
-            <div className="tnav-dropdown" role="menu">
-              <div className="tnav-dropdown-header">
-                <span className="tnav-dropdown-email">{user?.email}</span>
+          {/* ── Divider ── */}
+          <span className="tnav-divider" aria-hidden="true" />
+
+          {/* ── Nav links ── */}
+          <nav className="tnav-nav" aria-label="Main menu">
+            <ul className="tnav-list">
+              {menuItems.map((item) => (
+                <li key={item.href}>
+                  <button
+                    type="button"
+                    className={`tnav-link ${isActive(item.href) ? "tnav-link--active" : ""}`}
+                    onClick={() => navigate(item.href)}
+                  >
+                    <span className="tnav-link-icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                    <span className="tnav-link-label">{item.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* ── Spacer ── */}
+          <span className="tnav-spacer" />
+
+          {/* ── Notifications ── */}
+          <NotificationCenter />
+
+          {/* ── Profile dropdown ── */}
+          <div className="tnav-profile-wrap" ref={profileRef}>
+            <button
+              type="button"
+              className={`tnav-profile-trigger ${profileOpen ? "is-open" : ""} ${isActive("/profile") ? "tnav-profile-trigger--active" : ""}`}
+              onClick={() => setProfileOpen((p) => !p)}
+              aria-haspopup="true"
+              aria-expanded={profileOpen}
+            >
+              <span
+                className="tnav-avatar"
+                style={{
+                  backgroundImage: profilePictureUrl
+                    ? `url(${profilePictureUrl})`
+                    : undefined,
+                }}
+              >
+                {!profilePictureUrl && (
+                  <span className="tnav-avatar-initials">{getInitials()}</span>
+                )}
+              </span>
+              <span className="tnav-profile-meta">
+                <span className="tnav-profile-name">
+                  {displayName || user?.email || "Administrator"}
+                </span>
+                <span className="tnav-profile-role">Admin</span>
+              </span>
+              <FaChevronDown
+                className={`tnav-chevron ${profileOpen ? "rotated" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+
+            {profileOpen && (
+              <div className="tnav-dropdown" role="menu">
+                <div className="tnav-dropdown-header">
+                  <span className="tnav-dropdown-email">{user?.email}</span>
+                </div>
+                <div className="tnav-dropdown-body">
+                  <button
+                    type="button"
+                    className="tnav-dropdown-item"
+                    role="menuitem"
+                    onClick={() => {
+                      navigate("/profile");
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <FaPen className="tnav-dropdown-item-icon" />
+                    Edit Profile
+                  </button>
+                  <button
+                    type="button"
+                    className="tnav-dropdown-item"
+                    role="menuitem"
+                    onClick={() => {
+                      navigate("/settings");
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <FaCog className="tnav-dropdown-item-icon" />
+                    Settings
+                  </button>
+                  <div className="tnav-dropdown-sep" />
+                  <button
+                    type="button"
+                    className="tnav-dropdown-item tnav-dropdown-item--danger"
+                    role="menuitem"
+                    onClick={() => {
+                      openLogoutModal?.();
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <FaSignOutAlt className="tnav-dropdown-item-icon" />
+                    Log out
+                  </button>
+                </div>
               </div>
-              <div className="tnav-dropdown-body">
-                <button
-                  type="button"
-                  className="tnav-dropdown-item"
-                  role="menuitem"
-                  onClick={() => {
-                    navigate("/profile");
-                    setProfileOpen(false);
-                  }}
-                >
-                  <FaPen className="tnav-dropdown-item-icon" />
-                  Edit Profile
-                </button>
-                <button
-                  type="button"
-                  className="tnav-dropdown-item"
-                  role="menuitem"
-                  onClick={() => {
-                    navigate("/settings");
-                    setProfileOpen(false);
-                  }}
-                >
-                  <FaCog className="tnav-dropdown-item-icon" />
-                  Settings
-                </button>
-                <div className="tnav-dropdown-sep" />
-                <button
-                  type="button"
-                  className="tnav-dropdown-item tnav-dropdown-item--danger"
-                  role="menuitem"
-                  onClick={() => {
-                    openLogoutModal?.();
-                    setProfileOpen(false);
-                  }}
-                >
-                  <FaSignOutAlt className="tnav-dropdown-item-icon" />
-                  Log out
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Floating background import panel — persists across all pages */}
+      {renderBgImportPanel()}
+    </>
   );
 }

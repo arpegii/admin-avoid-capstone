@@ -361,14 +361,22 @@ export default function Riders() {
   const [assignLoadingParcels, setAssignLoadingParcels] = useState(false);
   const [assignParcelsError, setAssignParcelsError] = useState("");
   const [assignSelectedParcels, setAssignSelectedParcels] = useState(new Set());
-  const [assignStep, setAssignStep] = useState("parcels"); // "parcels" | "rider"
+  const [assignStep, setAssignStep] = useState("parcels");
   const [assigningRider, setAssigningRider] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [assignSuccess, setAssignSuccess] = useState("");
   const [assignSearchTerm, setAssignSearchTerm] = useState("");
   const [assignRiderSearch, setAssignRiderSearch] = useState("");
-  // ── NEW: sort state for assign parcels modal ──
   const [assignSortBy, setAssignSortBy] = useState("id_desc");
+
+  // ── NEW: Method selection + Auto-assign state ──
+  const [assignMethodModalOpen, setAssignMethodModalOpen] = useState(false);
+  const [autoAssignReviewModalOpen, setAutoAssignReviewModalOpen] =
+    useState(false);
+  const [autoAssignPlan, setAutoAssignPlan] = useState([]);
+  const [autoAssignLoading, setAutoAssignLoading] = useState(false);
+  const [autoAssignError, setAutoAssignError] = useState("");
+  const [autoAssigning, setAutoAssigning] = useState(false);
 
   const tableSortOptions = useMemo(
     () => [
@@ -389,7 +397,6 @@ export default function Riders() {
     [],
   );
 
-  // ── Sort options for assign parcels modal ──
   const assignSortOptions = useMemo(
     () => [
       { value: "id_desc", label: "ID: Newest" },
@@ -495,7 +502,6 @@ export default function Riders() {
     [location.search],
   );
 
-  // Summary stats
   const totalDelivered = useMemo(
     () => riders.reduce((s, r) => s + Number(r?.deliveredParcels || 0), 0),
     [riders],
@@ -1628,7 +1634,139 @@ export default function Riders() {
     setCreatePassword("");
   };
 
-  // ── Assign Parcels Handlers ──
+  // ── Assign Method Handlers ──
+  const openAssignMethodModal = () => {
+    setAssignMethodModalOpen(true);
+  };
+
+  const closeAssignMethodModal = () => {
+    setAssignMethodModalOpen(false);
+  };
+
+  const handleChooseManual = () => {
+    setAssignMethodModalOpen(false);
+    openAssignModal();
+  };
+
+  const handleChooseAutomatic = async () => {
+    setAssignMethodModalOpen(false);
+    setAutoAssignLoading(true);
+    setAutoAssignError("");
+    setAutoAssignPlan([]);
+    setAutoAssignReviewModalOpen(true);
+
+    try {
+      const { data: unassigned, error: parcelErr } = await supabaseClient
+        .from("parcels")
+        .select("parcel_id, recipient_name, address, status, created_at")
+        .is("assigned_rider_id", null)
+        .order("created_at", { ascending: true });
+      if (parcelErr) throw parcelErr;
+
+      if (!unassigned || unassigned.length === 0) {
+        setAutoAssignError("No unassigned parcels available.");
+        setAutoAssignLoading(false);
+        return;
+      }
+
+      const activeRiders = riders.filter((r) => isActiveRiderStatus(r?.status));
+      if (activeRiders.length === 0) {
+        setAutoAssignError(
+          "No active (online) riders available for automatic assignment.",
+        );
+        setAutoAssignLoading(false);
+        return;
+      }
+
+      // Build slots with remaining capacity per rider
+      const plan = activeRiders.map((r) => ({
+        rider: r,
+        parcels: [],
+        capacity: Math.max(
+          0,
+          RIDER_DELIVERY_QUOTA -
+            Number(r.ongoingParcels || 0) -
+            Number(r.deliveredParcels || 0),
+        ),
+      }));
+
+      const queue = [...unassigned];
+
+      // Round-robin until queue empty or all riders at capacity
+      let changed = true;
+      while (queue.length > 0 && changed) {
+        changed = false;
+        for (const slot of plan) {
+          if (queue.length === 0) break;
+          if (slot.capacity <= 0) continue;
+          slot.parcels.push(queue.shift());
+          slot.capacity--;
+          changed = true;
+        }
+      }
+
+      const finalPlan = plan.filter((s) => s.parcels.length > 0);
+
+      if (finalPlan.length === 0) {
+        setAutoAssignError(
+          "All active riders have reached their daily quota (150 parcels). No parcels can be assigned automatically.",
+        );
+        setAutoAssignLoading(false);
+        return;
+      }
+
+      setAutoAssignPlan(finalPlan);
+    } catch (err) {
+      console.error("Auto-assign calculation failed:", err);
+      setAutoAssignError(
+        "Failed to generate assignment plan. Please try again.",
+      );
+    } finally {
+      setAutoAssignLoading(false);
+    }
+  };
+
+  const handleConfirmAutoAssign = async () => {
+    if (autoAssigning || autoAssignPlan.length === 0) return;
+    setAutoAssigning(true);
+    setAutoAssignError("");
+    try {
+      for (const slot of autoAssignPlan) {
+        const ids = slot.parcels
+          .map((p) => Number(p.parcel_id))
+          .filter(Number.isFinite);
+        if (ids.length === 0) continue;
+        const { error } = await supabaseClient
+          .from("parcels")
+          .update({ assigned_rider_id: slot.rider.user_id })
+          .in("parcel_id", ids);
+        if (error) throw error;
+      }
+      const totalAssigned = autoAssignPlan.reduce(
+        (s, sl) => s + sl.parcels.length,
+        0,
+      );
+      const riderCount = autoAssignPlan.length;
+      setAutoAssignPlan([]);
+      setAutoAssignReviewModalOpen(false);
+      setCreateSuccessMessage(
+        `Auto-assigned ${totalAssigned} parcel${totalAssigned !== 1 ? "s" : ""} across ${riderCount} rider${riderCount !== 1 ? "s" : ""}.`,
+      );
+      setShowCreateSuccessModal(true);
+      const data = await refreshRiders();
+      if (data) {
+        setRiders(data);
+        setLastUpdatedAt(new Date());
+      }
+    } catch (err) {
+      console.error("Auto-assign confirm failed:", err);
+      setAutoAssignError("Failed to save assignments. Please try again.");
+    } finally {
+      setAutoAssigning(false);
+    }
+  };
+
+  // ── Manual Assign Parcels Handlers ──
   const openAssignModal = async () => {
     setAssignModalOpen(true);
     setAssignStep("parcels");
@@ -1637,7 +1775,6 @@ export default function Riders() {
     setAssignRiderSearch("");
     setAssignError("");
     setAssignSuccess("");
-    // ── NEW: reset sort on open ──
     setAssignSortBy("id_desc");
     setAssignLoadingParcels(true);
     setAssignParcelsError("");
@@ -1675,7 +1812,6 @@ export default function Riders() {
     });
   };
 
-  // ── UPDATED: filteredAssignParcels now also sorts ──
   const filteredAssignParcels = useMemo(() => {
     const q = assignSearchTerm.trim().toLowerCase();
     let result = assignParcels.filter((p) =>
@@ -1949,7 +2085,7 @@ export default function Riders() {
                   <button
                     type="button"
                     className="assign-parcels-btn"
-                    onClick={openAssignModal}
+                    onClick={openAssignMethodModal}
                   >
                     <svg
                       width="13"
@@ -2818,7 +2954,6 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 960, maxWidth: "96%" }}
           >
-            {/* ── Dark header stats strip ── */}
             <div className="rp2-header-strip">
               <div className="rp2-header-stat">
                 <span className="rp2-header-stat-label">TOTAL PARCELS</span>
@@ -2838,9 +2973,7 @@ export default function Riders() {
               </div>
             </div>
 
-            {/* ── Body ── */}
             <div className="rp2-body">
-              {/* Left — quota donut */}
               <div className="rp2-left">
                 <div className="rp2-section-label">
                   <span className="rp2-section-bar" />
@@ -2895,9 +3028,7 @@ export default function Riders() {
                 </div>
               </div>
 
-              {/* Right — breakdown + trend + efficiency */}
               <div className="rp2-right">
-                {/* Delivery Breakdown */}
                 <div className="rp2-section-label">
                   <span className="rp2-section-bar" />
                   DELIVERY BREAKDOWN
@@ -2935,7 +3066,6 @@ export default function Riders() {
                   })}
                 </div>
 
-                {/* Weekly Trend */}
                 <div className="rp2-section-label" style={{ marginTop: 12 }}>
                   <span className="rp2-section-bar" />
                   WEEKLY TREND
@@ -2988,7 +3118,6 @@ export default function Riders() {
                   </div>
                 </div>
 
-                {/* Efficiency Metrics */}
                 <div className="rp2-section-label" style={{ marginTop: 12 }}>
                   <span className="rp2-section-bar" />
                   EFFICIENCY METRICS
@@ -3295,7 +3424,364 @@ export default function Riders() {
         </div>
       )}
 
-      {/* ══ ASSIGN PARCELS MODAL ══ */}
+      {/* ══ ASSIGN METHOD MODAL ══ */}
+      {assignMethodModalOpen && (
+        <div
+          className="riders-modal-overlay"
+          onClick={closeAssignMethodModal}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="riders-modal-content assign-method-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 540, maxWidth: "94%" }}
+          >
+            <div className="riders-modal-header">
+              <h2>Assign Parcels</h2>
+            </div>
+            <div className="assign-method-body">
+              <p className="assign-method-lead">
+                Choose how you'd like to assign unassigned parcels to riders.
+              </p>
+              <div className="assign-method-cards">
+                {/* Automatic */}
+                <button
+                  type="button"
+                  className="assign-method-card assign-method-auto"
+                  onClick={handleChooseAutomatic}
+                >
+                  <span className="assign-method-icon" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+                  </span>
+                  <span className="assign-method-card-title">Automatic</span>
+                  <span className="assign-method-card-desc">
+                    Smart round-robin distribution to online riders based on
+                    their 150-parcel daily quota. Skips riders who've hit
+                    capacity.
+                  </span>
+                  <span className="assign-method-badge assign-method-badge-auto">
+                    Recommended
+                  </span>
+                </button>
+
+                {/* Manual */}
+                <button
+                  type="button"
+                  className="assign-method-card assign-method-manual"
+                  onClick={handleChooseManual}
+                >
+                  <span className="assign-method-icon" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="7" height="7" rx="1" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" />
+                      <path d="M17.5 14v7M14 17.5h7" />
+                    </svg>
+                  </span>
+                  <span className="assign-method-card-title">Manual</span>
+                  <span className="assign-method-card-desc">
+                    Hand-pick specific parcels and choose exactly which rider
+                    receives them. Full control over every assignment.
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ AUTO-ASSIGN REVIEW MODAL ══ */}
+      {autoAssignReviewModalOpen && (
+        <div
+          className="riders-modal-overlay"
+          onClick={() => {
+            if (!autoAssigning) setAutoAssignReviewModalOpen(false);
+          }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="riders-modal-content auto-review-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 780, maxWidth: "96%" }}
+          >
+            {/* Header */}
+            <div className="riders-modal-header auto-review-header">
+              <div>
+                <h2 style={{ margin: 0 }}>Review Auto-Assignment</h2>
+                {!autoAssignLoading && autoAssignPlan.length > 0 && (
+                  <p className="assign-modal-subtitle" style={{ marginTop: 3 }}>
+                    {autoAssignPlan.reduce((s, sl) => s + sl.parcels.length, 0)}{" "}
+                    parcels across {autoAssignPlan.length} rider
+                    {autoAssignPlan.length !== 1 ? "s" : ""} — review before
+                    confirming
+                  </p>
+                )}
+              </div>
+              {!autoAssigning && (
+                <button
+                  type="button"
+                  className="assign-back-btn"
+                  onClick={() => setAutoAssignReviewModalOpen(false)}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {/* Error */}
+            {autoAssignError && (
+              <div className="assign-error-banner">{autoAssignError}</div>
+            )}
+
+            {/* Body */}
+            <div className="riders-modal-body auto-review-body">
+              {autoAssignLoading ? (
+                <div
+                  className="assign-loading-state"
+                  style={{ padding: "56px 20px" }}
+                >
+                  <div className="assign-spinner" />
+                  <p>Calculating optimal assignment plan…</p>
+                </div>
+              ) : autoAssignError && autoAssignPlan.length === 0 ? (
+                <div
+                  className="assign-empty-state"
+                  style={{ padding: "48px 20px" }}
+                >
+                  <svg
+                    width="44"
+                    height="44"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v4M12 16h.01" />
+                  </svg>
+                  <p>{autoAssignError}</p>
+                </div>
+              ) : (
+                <div className="auto-review-list">
+                  {autoAssignPlan.map((slot, idx) => (
+                    <div
+                      key={slot.rider.user_id || idx}
+                      className="auto-review-rider-block"
+                    >
+                      {/* Rider header row */}
+                      <div className="auto-review-rider-row">
+                        <div className="auto-review-rider-avatar">
+                          {slot.rider.profile_url ? (
+                            <img
+                              src={slot.rider.profile_url}
+                              alt={getRiderDisplayName(slot.rider)}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                borderRadius: "50%",
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <span>
+                              {(
+                                slot.rider.fname?.[0] ||
+                                slot.rider.username?.[0] ||
+                                "R"
+                              ).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="auto-review-rider-info">
+                          <span className="auto-review-rider-name">
+                            {getRiderDisplayName(slot.rider)}
+                          </span>
+                          <span className="auto-review-rider-meta">
+                            {slot.rider.ongoingParcels ?? 0} ongoing ·{" "}
+                            {slot.rider.deliveredParcels ?? 0} delivered
+                          </span>
+                        </div>
+                        <div className="auto-review-rider-badge">
+                          <span className="auto-review-count-badge">
+                            +{slot.parcels.length} parcel
+                            {slot.parcels.length !== 1 ? "s" : ""}
+                          </span>
+                          <span
+                            className="auto-review-quota-bar-wrap"
+                            title={`New total: ${(slot.rider.ongoingParcels ?? 0) + (slot.rider.deliveredParcels ?? 0) + slot.parcels.length} / ${RIDER_DELIVERY_QUOTA}`}
+                          >
+                            <span
+                              className="auto-review-quota-bar-fill"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.round(
+                                    (((slot.rider.ongoingParcels ?? 0) +
+                                      (slot.rider.deliveredParcels ?? 0) +
+                                      slot.parcels.length) /
+                                      RIDER_DELIVERY_QUOTA) *
+                                      100,
+                                  ),
+                                )}%`,
+                              }}
+                            />
+                          </span>
+                          <span className="auto-review-quota-label">
+                            {Math.min(
+                              100,
+                              Math.round(
+                                (((slot.rider.ongoingParcels ?? 0) +
+                                  (slot.rider.deliveredParcels ?? 0) +
+                                  slot.parcels.length) /
+                                  RIDER_DELIVERY_QUOTA) *
+                                  100,
+                              ),
+                            )}
+                            % of quota
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Parcel list for this rider */}
+                      <div className="auto-review-parcel-table">
+                        <div className="auto-review-parcel-head">
+                          <span>ID</span>
+                          <span>Recipient</span>
+                          <span>Address</span>
+                          <span>Date</span>
+                        </div>
+                        <div className="auto-review-parcel-rows">
+                          {slot.parcels.slice(0, 5).map((p) => (
+                            <div
+                              key={p.parcel_id}
+                              className="auto-review-parcel-row"
+                            >
+                              <span className="auto-review-parcel-id">
+                                #{p.parcel_id}
+                              </span>
+                              <span>{p.recipient_name || "—"}</span>
+                              <span className="auto-review-parcel-addr">
+                                {p.address || "—"}
+                              </span>
+                              <span className="auto-review-parcel-date">
+                                {p.created_at
+                                  ? new Date(p.created_at).toLocaleDateString(
+                                      "en-US",
+                                      { month: "short", day: "numeric" },
+                                    )
+                                  : "—"}
+                              </span>
+                            </div>
+                          ))}
+                          {slot.parcels.length > 5 && (
+                            <div className="auto-review-parcel-more">
+                              +{slot.parcels.length - 5} more parcel
+                              {slot.parcels.length - 5 !== 1 ? "s" : ""}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer confirm */}
+            {!autoAssignLoading && autoAssignPlan.length > 0 && (
+              <div className="auto-review-footer">
+                <div className="auto-review-footer-summary">
+                  <span>
+                    Total:{" "}
+                    <strong>
+                      {autoAssignPlan.reduce(
+                        (s, sl) => s + sl.parcels.length,
+                        0,
+                      )}
+                    </strong>{" "}
+                    parcels to <strong>{autoAssignPlan.length}</strong> rider
+                    {autoAssignPlan.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="auto-review-footer-actions">
+                  <button
+                    type="button"
+                    className="assign-back-btn"
+                    onClick={() => setAutoAssignReviewModalOpen(false)}
+                    disabled={autoAssigning}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="auto-review-confirm-btn"
+                    onClick={handleConfirmAutoAssign}
+                    disabled={autoAssigning}
+                  >
+                    {autoAssigning ? (
+                      <>
+                        <span
+                          className="auto-assign-spinner"
+                          aria-hidden="true"
+                        />
+                        Assigning…
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M2 7l3.5 3.5L12 3" />
+                        </svg>
+                        Confirm &amp; Assign Parcels
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ MANUAL ASSIGN PARCELS MODAL ══ */}
       {assignModalOpen && (
         <div
           className="riders-modal-overlay"
@@ -3405,12 +3891,8 @@ export default function Riders() {
               {/* ── STEP 1: Parcel Selection ── */}
               {assignStep === "parcels" && (
                 <div className="assign-parcels-shell">
-                  {/* ── UPDATED: Search + Sort row ── */}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 2 }}>
-                    <div
-                      className="assign-search-bar"
-                      style={{ flex: 1, marginBottom: 0 }}
-                    >
+                  <div className="assign-search-sort-row">
+                    <div className="assign-search-bar">
                       <svg
                         width="13"
                         height="13"
@@ -3441,6 +3923,7 @@ export default function Riders() {
                       onChange={setAssignSortBy}
                       options={assignSortOptions}
                       ariaLabel="Sort parcels"
+                      className="assign-sort-select"
                     />
                   </div>
 
@@ -3558,7 +4041,6 @@ export default function Riders() {
               {/* ── STEP 2: Rider Selection ── */}
               {assignStep === "rider" && (
                 <div className="assign-rider-shell">
-                  {/* Search bar */}
                   <div className="assign-search-bar">
                     <svg
                       width="13"
@@ -3588,7 +4070,6 @@ export default function Riders() {
                     </span>
                   </div>
 
-                  {/* Rider list */}
                   <div className="assign-rider-list">
                     {filteredAssignRiders.length === 0 ? (
                       <div

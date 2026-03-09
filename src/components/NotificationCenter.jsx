@@ -62,6 +62,8 @@ const ToastStack = ({ notifications }) => {
 
   const variant = (type) => {
     if (type === "parcel_delivered") return "nc-toast--success";
+    if (type === "import_complete") return "nc-toast--import";
+    if (type === "import_failed") return "nc-toast--import-fail";
     if (type === "info") return "nc-toast--info";
     if (type === "rider_flood") return "nc-toast--flood";
     return "nc-toast--violation";

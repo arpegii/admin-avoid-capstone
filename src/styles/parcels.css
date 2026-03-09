@@ -1949,3 +1949,352 @@ body.dark .view-parcel-modal .parcels-modal-body::-webkit-scrollbar-thumb {
 .parcel-table tbody tr[style*="height"]:hover {
   background: transparent !important;
 }
+/* ═══════════════════════════════════════════════════════
+   BACKGROUND IMPORT FLOATING PANEL
+   Add this block to the bottom of parcels.css
+═══════════════════════════════════════════════════════ */
+
+/* ── CSV background note in modal ── */
+.parcel-csv-bg-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef9e7;
+  border: 1px solid #fde68a;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #92610a;
+  line-height: 1.4;
+}
+
+/* ── Floating background import panel ── */
+.parcel-bg-import-panel {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
+  width: 340px;
+  background: #fff;
+  border: 1px solid #e8e3dd;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 48px rgba(20, 13, 13, 0.18),
+    0 4px 12px rgba(20, 13, 13, 0.08);
+  overflow: hidden;
+  animation: p-panel-slidein 0.38s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  font-family: "DM Sans", sans-serif;
+}
+
+@keyframes p-panel-slidein {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.parcel-bg-import-panel.is-minimized .parcel-bg-import-body {
+  display: none;
+}
+
+/* Status color accents on left border */
+.parcel-bg-import-panel {
+  border-left: 4px solid #e8192c;
+}
+.parcel-bg-import-panel.is-done {
+  border-left-color: #22c55e;
+}
+.parcel-bg-import-panel.is-error {
+  border-left-color: #ef4444;
+}
+.parcel-bg-import-panel.is-cancelled {
+  border-left-color: #94a3b8;
+}
+
+/* ── Panel header ── */
+.parcel-bg-import-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+}
+
+.parcel-bg-import-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #fdf0ee;
+  border: 1px solid #e8b4ae;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.parcel-bg-import-panel.is-done .parcel-bg-import-icon {
+  background: #edf7f2;
+  border-color: #bbf7d0;
+  color: #16a34a;
+  font-size: 17px;
+  font-weight: 800;
+}
+.parcel-bg-import-panel.is-error .parcel-bg-import-icon {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  font-size: 17px;
+  font-weight: 800;
+}
+.parcel-bg-import-panel.is-cancelled .parcel-bg-import-icon {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.parcel-bg-import-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.parcel-bg-import-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #140d0d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parcel-bg-import-sub {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #9e9089;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parcel-bg-import-panel.is-done .parcel-bg-import-title {
+  color: #16a34a;
+}
+.parcel-bg-import-panel.is-error .parcel-bg-import-title {
+  color: #dc2626;
+}
+.parcel-bg-import-panel.is-cancelled .parcel-bg-import-title {
+  color: #64748b;
+}
+
+/* ── Header action buttons ── */
+.parcel-bg-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.parcel-bg-import-minimize-btn,
+.parcel-bg-import-dismiss-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid #e3ddd8;
+  background: #faf8f6;
+  color: #9e9089;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  transition:
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s;
+  line-height: 1;
+}
+
+.parcel-bg-import-minimize-btn:hover,
+.parcel-bg-import-dismiss-btn:hover {
+  background: #fdf0ee;
+  color: #e8192c;
+  border-color: #e8b4ae;
+}
+
+/* ── Panel body ── */
+.parcel-bg-import-body {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Progress bar */
+.parcel-bg-progress-track {
+  width: 100%;
+  height: 5px;
+  background: #f0ebe6;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.parcel-bg-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e8192c, #ff4d61);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.parcel-bg-import-panel.is-done .parcel-bg-progress-fill {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+/* Progress meta row */
+.parcel-bg-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.parcel-bg-progress-pct {
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #e8192c;
+  min-width: 30px;
+  flex-shrink: 0;
+}
+
+.parcel-bg-progress-file {
+  flex: 1;
+  font-size: 11px;
+  color: #9e9089;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.parcel-bg-cancel-btn {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 10px;
+  background: transparent;
+  color: #9e9089;
+  border: 1px solid #e3ddd8;
+  border-radius: 6px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.13s,
+    color 0.13s,
+    border-color 0.13s;
+}
+
+.parcel-bg-cancel-btn:hover {
+  background: #fdf0ee;
+  color: #e8192c;
+  border-color: #e8b4ae;
+}
+
+/* ── Dark mode ── */
+body.dark .parcel-csv-bg-note {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+body.dark .parcel-bg-import-panel {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .parcel-bg-import-icon {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+body.dark .parcel-bg-import-panel.is-done .parcel-bg-import-icon {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+body.dark .parcel-bg-import-panel.is-error .parcel-bg-import-icon {
+  background: rgba(244, 63, 94, 0.1);
+  border-color: rgba(244, 63, 94, 0.2);
+}
+body.dark .parcel-bg-import-panel.is-cancelled .parcel-bg-import-icon {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+body.dark .parcel-bg-import-title {
+  color: #e2e8f0;
+}
+body.dark .parcel-bg-import-sub {
+  color: #64748b;
+}
+body.dark .parcel-bg-import-panel.is-done .parcel-bg-import-title {
+  color: #4ade80;
+}
+body.dark .parcel-bg-import-panel.is-error .parcel-bg-import-title {
+  color: #fb7185;
+}
+body.dark .parcel-bg-import-panel.is-cancelled .parcel-bg-import-title {
+  color: #94a3b8;
+}
+
+body.dark .parcel-bg-import-minimize-btn,
+body.dark .parcel-bg-import-dismiss-btn {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #64748b;
+}
+body.dark .parcel-bg-import-minimize-btn:hover,
+body.dark .parcel-bg-import-dismiss-btn:hover {
+  background: rgba(232, 25, 44, 0.08);
+  color: #fb7185;
+  border-color: rgba(232, 25, 44, 0.25);
+}
+
+body.dark .parcel-bg-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+}
+body.dark .parcel-bg-progress-pct {
+  color: #fb7185;
+}
+body.dark .parcel-bg-progress-file {
+  color: #64748b;
+}
+body.dark .parcel-bg-cancel-btn {
+  background: transparent;
+  color: #64748b;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+body.dark .parcel-bg-cancel-btn:hover {
+  background: rgba(232, 25, 44, 0.08);
+  color: #fb7185;
+  border-color: rgba(232, 25, 44, 0.25);
+}
+
+/* ── Responsive: shift panel on small screens ── */
+@media (max-width: 480px) {
+  .parcel-bg-import-panel {
+    bottom: 16px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}

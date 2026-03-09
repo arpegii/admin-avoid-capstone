@@ -7,8 +7,6 @@ import {
   useEffect,
   useRef,
 } from "react";
-// react-hot-toast is intentionally NOT imported here anymore.
-// Custom toast rendering is handled entirely by NotificationCenter.jsx.
 
 const NotificationContext = createContext({});
 
@@ -27,7 +25,6 @@ export const NotificationProvider = ({ children, supabase }) => {
   const parcelChannelRef = useRef(null);
 
   // ── showToast kept as a no-op so existing call-sites don't break ───────
-  // Custom floating toasts are rendered by ToastStack inside NotificationCenter.
   const showToast = useCallback(() => {}, []);
 
   // ── Add notification to notification center ────────────────────────────
@@ -75,6 +72,62 @@ export const NotificationProvider = ({ children, supabase }) => {
         parcelId,
         recipientName,
         icon: "📦",
+      });
+    },
+    [addNotification],
+  );
+
+  // ── CSV import complete notification ──────────────────────────────────
+  const notifyImportComplete = useCallback(
+    (rowCount, fileName) => {
+      addNotification({
+        type: "import_complete",
+        title: "CSV Import Complete",
+        message: `${rowCount} parcel${rowCount !== 1 ? "s" : ""} imported successfully${fileName ? ` from "${fileName}"` : ""}.`,
+        rowCount,
+        fileName,
+        icon: "✅",
+      });
+    },
+    [addNotification],
+  );
+
+  // ── CSV import failed notification ─────────────────────────────────────
+  const notifyImportFailed = useCallback(
+    (errorMsg, fileName) => {
+      // Parse the error message into something human-readable
+      let reason = errorMsg || "An unknown error occurred.";
+
+      // Detect common Postgres constraint violations and give a clear reason
+      if (reason.includes("violates check constraint")) {
+        const colMatch = reason.match(/column\s+"?(\w+)"?\s+of\s+relation/i);
+        const col = colMatch ? colMatch[1] : null;
+        if (col) {
+          reason = `The value in "${col}" is not allowed by the database. Check that status values are lowercase (e.g. "on-going", "cancelled").`;
+        } else {
+          reason = `A value violates the database's allowed values. Ensure status fields use: "on-going", "successfully delivered", or "cancelled".`;
+        }
+      } else if (reason.includes("violates not-null constraint")) {
+        const colMatch = reason.match(/column\s+"?(\w+)"?/i);
+        const col = colMatch ? colMatch[1] : "a required field";
+        reason = `"${col}" cannot be empty. Make sure all required columns have values.`;
+      } else if (
+        reason.includes("duplicate key") ||
+        reason.includes("unique constraint")
+      ) {
+        reason =
+          "One or more rows already exist in the database (duplicate entry).";
+      } else if (reason.includes("foreign key constraint")) {
+        reason = "A referenced record does not exist (foreign key violation).";
+      }
+
+      addNotification({
+        type: "import_failed",
+        title: "CSV Import Failed",
+        message: `${fileName ? `"${fileName}" — ` : ""}${reason}`,
+        errorMsg,
+        fileName,
+        icon: "❌",
       });
     },
     [addNotification],
@@ -141,11 +194,9 @@ export const NotificationProvider = ({ children, supabase }) => {
           const log = payload.new;
           if (!log) return;
 
-          // Use the name column directly — it's already stored on the row
           let riderName = log.name || "Unknown Rider";
           const riderId = log.user_id || null;
 
-          // Fall back to users table if name is missing
           if (riderId && !log.name) {
             try {
               const { data } = await supabase
@@ -187,7 +238,7 @@ export const NotificationProvider = ({ children, supabase }) => {
     };
   }, [supabase, notifyRiderFloodAffected]);
 
-  // ── Real-time violation listener via Supabase Realtime ─────────────────
+  // ── Real-time violation listener ───────────────────────────────────────
   useEffect(() => {
     if (!supabase) return;
 
@@ -262,7 +313,6 @@ export const NotificationProvider = ({ children, supabase }) => {
   }, [supabase, notifyRiderViolation]);
 
   // ── Real-time parcel delivery listener ────────────────────────────────
-  // Fires when a rider updates a parcel status to delivered/completed.
   useEffect(() => {
     if (!supabase) return;
 
@@ -271,7 +321,6 @@ export const NotificationProvider = ({ children, supabase }) => {
       parcelChannelRef.current = null;
     }
 
-    // Statuses that count as a successful delivery (mirrors isDeliveredStatus in Riders.jsx)
     const DELIVERED_STATUSES = [
       "successfully delivered",
       "delivered",
@@ -298,15 +347,13 @@ export const NotificationProvider = ({ children, supabase }) => {
           const previous = payload.old;
           if (!updated) return;
 
-          // Only fire if status just changed TO delivered (not already delivered before)
           if (!isDelivered(updated.status)) return;
-          if (isDelivered(previous?.status)) return; // already was delivered — skip
+          if (isDelivered(previous?.status)) return;
 
           const parcelId = updated.parcel_id || "—";
           const recipientName = updated.recipient_name || "recipient";
           let riderName = null;
 
-          // Resolve rider name from assigned_rider_id
           if (updated.assigned_rider_id) {
             try {
               const { data } = await supabase
@@ -326,7 +373,6 @@ export const NotificationProvider = ({ children, supabase }) => {
             }
           }
 
-          // parcel_id is int4 — show full number prefixed with #
           const displayParcel = `#${parcelId}`;
           const deliveredTo = riderName
             ? `${recipientName} · by ${riderName}`
@@ -365,6 +411,8 @@ export const NotificationProvider = ({ children, supabase }) => {
         markAsRead,
         markAllAsRead,
         notifyParcelDelivered,
+        notifyImportComplete,
+        notifyImportFailed,
         notifyRiderViolation,
         notifyRiderFloodAffected,
         notifyGeneralInfo,
