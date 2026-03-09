@@ -2254,6 +2254,10 @@ const Dashboard = () => {
         },
       },
     );
+    // Force resize after a tick so the chart fills its absolute-positioned container
+    setTimeout(() => {
+      violationTrendInstanceRef.current?.resize();
+    }, 50);
     return () => {
       if (violationTrendInstanceRef.current) {
         violationTrendInstanceRef.current.destroy();
@@ -2306,6 +2310,10 @@ const Dashboard = () => {
         },
       },
     );
+    // Force resize after a tick so the chart fills its absolute-positioned container
+    setTimeout(() => {
+      weekdayViolationInstanceRef.current?.resize();
+    }, 50);
     return () => {
       if (weekdayViolationInstanceRef.current) {
         weekdayViolationInstanceRef.current.destroy();
@@ -2374,6 +2382,18 @@ const Dashboard = () => {
     analyticsSummary.delayRate,
     analyticsSummary.cancellationRate,
   ]);
+
+  // ── Resize violation charts when tab switches ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (violationChartTab === "month") {
+        violationTrendInstanceRef.current?.resize();
+      } else {
+        weekdayViolationInstanceRef.current?.resize();
+      }
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [violationChartTab]);
 
   // ── Map ──
   useEffect(() => {
