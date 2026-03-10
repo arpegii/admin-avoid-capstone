@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
@@ -301,6 +307,522 @@ const getRizalFloodData = () => {
   return rizalFloodFetchPromise;
 };
 
+// ── Assign Parcels Modal — fully isolated so checkbox ticks never re-render Riders ──
+const ASSIGN_SORT_OPTIONS = [
+  { value: "id_desc", label: "ID: Newest" },
+  { value: "id_asc", label: "ID: Oldest" },
+  { value: "name_asc", label: "Name: A–Z" },
+  { value: "name_desc", label: "Name: Z–A" },
+  { value: "date_desc", label: "Date: Newest" },
+  { value: "date_asc", label: "Date: Oldest" },
+];
+const DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
+  const [parcels, setParcels] = useState([]);
+  const [loadingParcels, setLoadingParcels] = useState(false);
+  const [parcelsError, setParcelsError] = useState("");
+  // Use a plain object as a selection map for O(1) reads without new Set() churn
+  const [selected, setSelected] = useState({});
+  const [step, setStep] = useState("parcels");
+  const [assigning, setAssigning] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [riderSearch, setRiderSearch] = useState("");
+  const [sortBy, setSortBy] = useState("id_desc");
+
+  // Fetch unassigned parcels on mount
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingParcels(true);
+    setParcelsError("");
+    supabaseClient
+      .from("parcels")
+      .select("parcel_id, recipient_name, address, status, created_at")
+      .is("assigned_rider_id", null)
+      .order("created_at", { ascending: false })
+      .then(({ data, error: err }) => {
+        if (cancelled) return;
+        if (err) {
+          setParcelsError("Failed to load unassigned parcels.");
+        } else {
+          setParcels(data || []);
+        }
+        setLoadingParcels(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedCount = useMemo(() => Object.keys(selected).length, [selected]);
+
+  const filteredParcels = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    let result = q
+      ? parcels.filter((p) => String(p.parcel_id || "").includes(q))
+      : parcels;
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "id_asc":
+          return Number(a.parcel_id) - Number(b.parcel_id);
+        case "id_desc":
+          return Number(b.parcel_id) - Number(a.parcel_id);
+        case "name_asc":
+          return (a.recipient_name || "").localeCompare(b.recipient_name || "");
+        case "name_desc":
+          return (b.recipient_name || "").localeCompare(a.recipient_name || "");
+        case "date_asc":
+          return new Date(a.created_at) - new Date(b.created_at);
+        case "date_desc":
+          return new Date(b.created_at) - new Date(a.created_at);
+        default:
+          return 0;
+      }
+    });
+    return result.map((p) => ({
+      ...p,
+      _formattedDate: p.created_at
+        ? DATE_FORMATTER.format(new Date(p.created_at))
+        : "—",
+    }));
+  }, [parcels, searchTerm, sortBy]);
+
+  const allVisibleSelected = useMemo(
+    () =>
+      filteredParcels.length > 0 &&
+      filteredParcels.every((p) => selected[p.parcel_id]),
+    [filteredParcels, selected],
+  );
+
+  const toggle = useCallback((parcelId) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[parcelId]) delete next[parcelId];
+      else next[parcelId] = true;
+      return next;
+    });
+  }, []);
+
+  const selectAllVisible = useCallback(
+    (checked) => {
+      setSelected((prev) => {
+        const next = { ...prev };
+        filteredParcels.forEach((p) => {
+          if (checked) next[p.parcel_id] = true;
+          else delete next[p.parcel_id];
+        });
+        return next;
+      });
+    },
+    [filteredParcels],
+  );
+
+  const filteredRiders = useMemo(() => {
+    const q = riderSearch.trim().toLowerCase();
+    if (!q) return riders;
+    return riders.filter((r) =>
+      getRiderDisplayName(r).toLowerCase().includes(q),
+    );
+  }, [riders, riderSearch]);
+
+  const handleAssign = async (rider) => {
+    const parcelIds = Object.keys(selected).map(Number).filter(Number.isFinite);
+    if (parcelIds.length === 0 || assigning) return;
+    setAssigning(true);
+    setError("");
+    try {
+      const { error: err } = await supabaseClient
+        .from("parcels")
+        .update({ assigned_rider_id: rider.user_id })
+        .in("parcel_id", parcelIds);
+      if (err) throw err;
+      setSuccess(
+        `${parcelIds.length} parcel${parcelIds.length > 1 ? "s" : ""} assigned to ${getRiderDisplayName(rider)}.`,
+      );
+      setParcels((prev) =>
+        prev.filter((p) => !parcelIds.includes(Number(p.parcel_id))),
+      );
+      setSelected({});
+      setStep("parcels");
+      setRiderSearch("");
+      const data = await refreshRiders();
+      if (data) onAssigned(data);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch {
+      setError("Failed to assign parcels. Please try again.");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <div
+      className="riders-modal-overlay"
+      onClick={() => {
+        if (!assigning) onClose();
+      }}
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <div
+        className="riders-modal-content assign-parcels-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 740, maxWidth: "96%" }}
+      >
+        {/* Header */}
+        <div className="riders-modal-header assign-modal-header">
+          <div className="assign-modal-header-left">
+            {step === "rider" && (
+              <button
+                type="button"
+                className="assign-back-btn"
+                onClick={() => {
+                  setStep("parcels");
+                  setRiderSearch("");
+                  setError("");
+                }}
+                disabled={assigning}
+                aria-label="Back to parcel selection"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M9 2L4 7l5 5" />
+                </svg>
+                Back
+              </button>
+            )}
+            <div>
+              <h2 style={{ margin: 0 }}>
+                {step === "parcels" ? "Assign Parcels" : "Select Rider"}
+              </h2>
+              <p className="assign-modal-subtitle">
+                {step === "parcels"
+                  ? "Select unassigned parcels to assign to a rider"
+                  : `Assigning ${selectedCount} parcel${selectedCount !== 1 ? "s" : ""} — choose a rider`}
+              </p>
+            </div>
+          </div>
+          {step === "parcels" && selectedCount > 0 && (
+            <button
+              type="button"
+              className="assign-next-btn"
+              onClick={() => {
+                setStep("rider");
+                setRiderSearch("");
+              }}
+            >
+              Assign {selectedCount} Parcel{selectedCount !== 1 ? "s" : ""}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              >
+                <path d="M2 7h10M7 2l5 5-5 5" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Banners */}
+        {success && (
+          <div className="assign-success-banner">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M2 7l3.5 3.5L12 3" />
+            </svg>
+            {success}
+          </div>
+        )}
+        {error && <div className="assign-error-banner">{error}</div>}
+
+        {/* Body */}
+        <div className="riders-modal-body assign-modal-body">
+          {/* ── STEP 1: Parcel Selection ── */}
+          {step === "parcels" && (
+            <div className="assign-parcels-shell">
+              <div className="assign-search-sort-row">
+                <div className="assign-search-bar">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  >
+                    <circle cx="6" cy="6" r="4.5" />
+                    <path d="M10 10l2.5 2.5" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search by parcel ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="assign-search-input"
+                  />
+                  {selectedCount > 0 && (
+                    <span className="assign-selected-badge">
+                      {selectedCount} selected
+                    </span>
+                  )}
+                </div>
+                <RiderTableSelect
+                  value={sortBy}
+                  onChange={setSortBy}
+                  options={ASSIGN_SORT_OPTIONS}
+                  ariaLabel="Sort parcels"
+                  className="assign-sort-select"
+                />
+              </div>
+
+              {loadingParcels ? (
+                <div className="assign-loading-state">
+                  <div className="assign-spinner" />
+                  <p>Loading unassigned parcels...</p>
+                </div>
+              ) : parcelsError ? (
+                <div style={{ padding: "16px" }}>
+                  <p className="rider-info-error">{parcelsError}</p>
+                </div>
+              ) : parcels.length === 0 ? (
+                <div className="assign-empty-state">
+                  <svg
+                    width="44"
+                    height="44"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+                    <path d="M16 3H8l-2 4h12l-2-4z" />
+                  </svg>
+                  <p>All parcels are currently assigned.</p>
+                  <span>There are no unassigned parcels at this time.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="assign-select-all-row">
+                    <label className="assign-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={(e) => selectAllVisible(e.target.checked)}
+                      />
+                      <span>Select all visible</span>
+                    </label>
+                    <span className="assign-count-hint">
+                      {filteredParcels.length} parcel
+                      {filteredParcels.length !== 1 ? "s" : ""} shown
+                      {searchTerm && ` · ${parcels.length} total`}
+                    </span>
+                  </div>
+                  <div className="assign-parcel-list">
+                    {filteredParcels.length === 0 ? (
+                      <div
+                        className="assign-empty-state"
+                        style={{ padding: "32px 16px" }}
+                      >
+                        <p style={{ margin: 0 }}>
+                          No parcels match your search.
+                        </p>
+                      </div>
+                    ) : (
+                      filteredParcels.map((parcel) => (
+                        <ParcelRow
+                          key={parcel.parcel_id}
+                          parcel={parcel}
+                          isSelected={!!selected[parcel.parcel_id]}
+                          onToggle={toggle}
+                        />
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 2: Rider Selection ── */}
+          {step === "rider" && (
+            <div className="assign-rider-shell">
+              <div className="assign-search-bar">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                >
+                  <circle cx="6" cy="6" r="4.5" />
+                  <path d="M10 10l2.5 2.5" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search riders..."
+                  value={riderSearch}
+                  onChange={(e) => setRiderSearch(e.target.value)}
+                  className="assign-search-input"
+                />
+                <span className="assign-count-hint" style={{ flexShrink: 0 }}>
+                  {filteredRiders.length} rider
+                  {filteredRiders.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="assign-rider-list">
+                {filteredRiders.length === 0 ? (
+                  <div
+                    className="assign-empty-state"
+                    style={{ padding: "32px 16px" }}
+                  >
+                    <p style={{ margin: 0 }}>No riders match your search.</p>
+                  </div>
+                ) : (
+                  filteredRiders.map((rider) => {
+                    const online = isActiveRiderStatus(rider.status);
+                    return (
+                      <button
+                        key={rider.user_id || rider.username}
+                        type="button"
+                        className={`assign-rider-item ${online ? "is-online" : ""}`}
+                        onClick={() => handleAssign(rider)}
+                        disabled={assigning}
+                      >
+                        <div
+                          className="assign-rider-avatar"
+                          style={{ overflow: "hidden", padding: 0 }}
+                        >
+                          {rider.profile_url ? (
+                            <img
+                              src={rider.profile_url}
+                              alt={getRiderDisplayName(rider)}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                borderRadius: "50%",
+                                display: "block",
+                              }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                display: "flex",
+                                width: "100%",
+                                height: "100%",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {(
+                                rider.fname?.[0] ||
+                                rider.username?.[0] ||
+                                "R"
+                              ).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="assign-rider-details">
+                          <span className="assign-rider-name">
+                            {getRiderDisplayName(rider)}
+                          </span>
+                          <span className="assign-rider-stats">
+                            {rider.ongoingParcels ?? 0} ongoing ·{" "}
+                            {rider.deliveredParcels ?? 0} delivered
+                          </span>
+                        </div>
+                        <div className="assign-rider-right">
+                          <span
+                            className={`assign-rider-status-dot ${online ? "online" : "offline"}`}
+                          />
+                          <span className="assign-rider-status-text">
+                            {online ? "Online" : "Offline"}
+                          </span>
+                        </div>
+                        {assigning && (
+                          <div className="assign-rider-loading-indicator" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ParcelRow = React.memo(function ParcelRow({
+  parcel,
+  isSelected,
+  onToggle,
+}) {
+  return (
+    <label className={`assign-parcel-item ${isSelected ? "is-selected" : ""}`}>
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggle(parcel.parcel_id)}
+        className="assign-parcel-checkbox"
+      />
+      <div className="assign-parcel-info">
+        <div className="assign-parcel-tracking">
+          {`#${String(parcel.parcel_id)}`}
+        </div>
+        <div className="assign-parcel-recipient">
+          {parcel.recipient_name || "—"}
+        </div>
+        <div className="assign-parcel-address">
+          {parcel.address || "No address provided"}
+        </div>
+      </div>
+      <div className="assign-parcel-meta">
+        <span className="assign-parcel-status">
+          {parcel.status || "Unassigned"}
+        </span>
+        <span className="assign-parcel-date">{parcel._formattedDate}</span>
+      </div>
+    </label>
+  );
+});
+
 export default function Riders() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -360,26 +882,6 @@ export default function Riders() {
 
   // ── Assign Parcels State ──
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignParcels, setAssignParcels] = useState([]);
-  const [assignLoadingParcels, setAssignLoadingParcels] = useState(false);
-  const [assignParcelsError, setAssignParcelsError] = useState("");
-  const [assignSelectedParcels, setAssignSelectedParcels] = useState(new Set());
-  const [assignStep, setAssignStep] = useState("parcels");
-  const [assigningRider, setAssigningRider] = useState(false);
-  const [assignError, setAssignError] = useState("");
-  const [assignSuccess, setAssignSuccess] = useState("");
-  const [assignSearchTerm, setAssignSearchTerm] = useState("");
-  const [assignRiderSearch, setAssignRiderSearch] = useState("");
-  const [assignSortBy, setAssignSortBy] = useState("id_desc");
-
-  // ── Method selection + Auto-assign state ──
-  const [assignMethodModalOpen, setAssignMethodModalOpen] = useState(false);
-  const [autoAssignReviewModalOpen, setAutoAssignReviewModalOpen] =
-    useState(false);
-  const [autoAssignPlan, setAutoAssignPlan] = useState([]);
-  const [autoAssignLoading, setAutoAssignLoading] = useState(false);
-  const [autoAssignError, setAutoAssignError] = useState("");
-  const [autoAssigning, setAutoAssigning] = useState(false);
 
   // ── Performance Modal: Assigned Parcels Tab ──
   const [perfActiveTab, setPerfActiveTab] = useState("overview");
@@ -404,18 +906,6 @@ export default function Riders() {
       { value: "all", label: "All Riders" },
       { value: "has_deliveries", label: "Has Deliveries" },
       { value: "high_cancelled", label: "High Cancelled (5+)" },
-    ],
-    [],
-  );
-
-  const assignSortOptions = useMemo(
-    () => [
-      { value: "id_desc", label: "ID: Newest" },
-      { value: "id_asc", label: "ID: Oldest" },
-      { value: "name_asc", label: "Name: A–Z" },
-      { value: "name_desc", label: "Name: Z–A" },
-      { value: "date_desc", label: "Date: Newest" },
-      { value: "date_asc", label: "Date: Oldest" },
     ],
     [],
   );
@@ -1023,7 +1513,7 @@ export default function Riders() {
       );
   }, [riderLocations]);
 
-  // Main map
+  // ── Main map ──
   useEffect(() => {
     if (loading || !allMapRef.current) return;
     if (
@@ -1071,23 +1561,6 @@ export default function Riders() {
       allMarkersRef.current.push(marker);
       allMarkersByRiderRef.current.set(rider.username, marker);
     });
-    riderLocations.forEach((rider) => {
-      if (!FORCE_POLYLINE_PREVIEW && !isActiveRiderStatus(rider?.status))
-        return;
-      const key = rider.username || String(rider.user_id || "");
-      if (!key) return;
-      const trailFromHistory = riderTrailsRef.current.get(key) || [];
-      const trail = FORCE_POLYLINE_PREVIEW
-        ? buildRoutePreviewTrail(rider, trailFromHistory)
-        : trailFromHistory;
-      if (trail.length < 2) return;
-      const layers = drawStyledRoute(map, trail, {
-        mainWeight: 3,
-        casingWeight: 6,
-        isPreview: FORCE_POLYLINE_PREVIEW && trailFromHistory.length < 2,
-      });
-      allRouteLinesRef.current.push(...layers);
-    });
     if (!hasAutoCenteredAllMapRef.current && allMarkersRef.current.length > 1) {
       map.fitBounds(L.featureGroup(allMarkersRef.current).getBounds().pad(0.2));
       hasAutoCenteredAllMapRef.current = true;
@@ -1132,7 +1605,7 @@ export default function Riders() {
     navigate,
   ]);
 
-  // Fullscreen map modal
+  // ── Fullscreen map ──
   useEffect(() => {
     if (!fullMapModalOpen) {
       if (fullWeatherOverlayRef.current && fullLeafletMapRef.current) {
@@ -1201,23 +1674,6 @@ export default function Riders() {
       bindRiderPopupClick(marker, rider.username);
       fullMarkersRef.current.push(marker);
       fullMarkersByRiderRef.current.set(rider.username, marker);
-    });
-    riderLocations.forEach((rider) => {
-      if (!FORCE_POLYLINE_PREVIEW && !isActiveRiderStatus(rider?.status))
-        return;
-      const key = rider.username || String(rider.user_id || "");
-      if (!key) return;
-      const trailFromHistory = riderTrailsRef.current.get(key) || [];
-      const trail = FORCE_POLYLINE_PREVIEW
-        ? buildRoutePreviewTrail(rider, trailFromHistory)
-        : trailFromHistory;
-      if (trail.length < 2) return;
-      const layers = drawStyledRoute(map, trail, {
-        mainWeight: 4,
-        casingWeight: 7,
-        isPreview: FORCE_POLYLINE_PREVIEW && trailFromHistory.length < 2,
-      });
-      fullRouteLinesRef.current.push(...layers);
     });
     if (
       !hasAutoCenteredFullMapRef.current &&
@@ -1671,272 +2127,9 @@ export default function Riders() {
     setCreatePassword("");
   };
 
-  // ── Assign Method Handlers ──
-  const openAssignMethodModal = () => {
-    setAssignMethodModalOpen(true);
-  };
-
-  const closeAssignMethodModal = () => {
-    setAssignMethodModalOpen(false);
-  };
-
-  const handleChooseManual = () => {
-    setAssignMethodModalOpen(false);
-    openAssignModal();
-  };
-
-  const handleChooseAutomatic = async () => {
-    setAssignMethodModalOpen(false);
-    setAutoAssignLoading(true);
-    setAutoAssignError("");
-    setAutoAssignPlan([]);
-    setAutoAssignReviewModalOpen(true);
-
-    try {
-      const { data: unassigned, error: parcelErr } = await supabaseClient
-        .from("parcels")
-        .select("parcel_id, recipient_name, address, status, created_at")
-        .is("assigned_rider_id", null)
-        .order("created_at", { ascending: true });
-      if (parcelErr) throw parcelErr;
-
-      if (!unassigned || unassigned.length === 0) {
-        setAutoAssignError("No unassigned parcels available.");
-        setAutoAssignLoading(false);
-        return;
-      }
-
-      const activeRiders = riders.filter((r) => isActiveRiderStatus(r?.status));
-      if (activeRiders.length === 0) {
-        setAutoAssignError(
-          "No active (online) riders available for automatic assignment.",
-        );
-        setAutoAssignLoading(false);
-        return;
-      }
-
-      const plan = activeRiders.map((r) => ({
-        rider: r,
-        parcels: [],
-        capacity: Math.max(
-          0,
-          RIDER_DELIVERY_QUOTA -
-            Number(r.ongoingParcels || 0) -
-            Number(r.deliveredParcels || 0),
-        ),
-      }));
-
-      const queue = [...unassigned];
-
-      let changed = true;
-      while (queue.length > 0 && changed) {
-        changed = false;
-        for (const slot of plan) {
-          if (queue.length === 0) break;
-          if (slot.capacity <= 0) continue;
-          slot.parcels.push(queue.shift());
-          slot.capacity--;
-          changed = true;
-        }
-      }
-
-      const finalPlan = plan.filter((s) => s.parcels.length > 0);
-
-      if (finalPlan.length === 0) {
-        setAutoAssignError(
-          "All active riders have reached their daily quota (150 parcels). No parcels can be assigned automatically.",
-        );
-        setAutoAssignLoading(false);
-        return;
-      }
-
-      setAutoAssignPlan(finalPlan);
-    } catch (err) {
-      console.error("Auto-assign calculation failed:", err);
-      setAutoAssignError(
-        "Failed to generate assignment plan. Please try again.",
-      );
-    } finally {
-      setAutoAssignLoading(false);
-    }
-  };
-
-  const handleConfirmAutoAssign = async () => {
-    if (autoAssigning || autoAssignPlan.length === 0) return;
-    setAutoAssigning(true);
-    setAutoAssignError("");
-    try {
-      for (const slot of autoAssignPlan) {
-        const ids = slot.parcels
-          .map((p) => Number(p.parcel_id))
-          .filter(Number.isFinite);
-        if (ids.length === 0) continue;
-        const { error } = await supabaseClient
-          .from("parcels")
-          .update({ assigned_rider_id: slot.rider.user_id })
-          .in("parcel_id", ids);
-        if (error) throw error;
-      }
-      const totalAssigned = autoAssignPlan.reduce(
-        (s, sl) => s + sl.parcels.length,
-        0,
-      );
-      const riderCount = autoAssignPlan.length;
-      setAutoAssignPlan([]);
-      setAutoAssignReviewModalOpen(false);
-      setCreateSuccessMessage(
-        `Auto-assigned ${totalAssigned} parcel${totalAssigned !== 1 ? "s" : ""} across ${riderCount} rider${riderCount !== 1 ? "s" : ""}.`,
-      );
-      setShowCreateSuccessModal(true);
-      const data = await refreshRiders();
-      if (data) {
-        setRiders(data);
-        setLastUpdatedAt(new Date());
-      }
-    } catch (err) {
-      console.error("Auto-assign confirm failed:", err);
-      setAutoAssignError("Failed to save assignments. Please try again.");
-    } finally {
-      setAutoAssigning(false);
-    }
-  };
-
   // ── Manual Assign Parcels Handlers ──
-  const openAssignModal = async () => {
-    setAssignModalOpen(true);
-    setAssignStep("parcels");
-    setAssignSelectedParcels(new Set());
-    setAssignSearchTerm("");
-    setAssignRiderSearch("");
-    setAssignError("");
-    setAssignSuccess("");
-    setAssignSortBy("id_desc");
-    setAssignLoadingParcels(true);
-    setAssignParcelsError("");
-    try {
-      const { data, error } = await supabaseClient
-        .from("parcels")
-        .select("parcel_id, recipient_name, address, status, created_at")
-        .is("assigned_rider_id", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setAssignParcels(data || []);
-    } catch (err) {
-      console.error("Failed to load unassigned parcels:", err);
-      setAssignParcelsError("Failed to load unassigned parcels.");
-    } finally {
-      setAssignLoadingParcels(false);
-    }
-  };
-
-  const closeAssignModal = () => {
-    if (assigningRider) return;
-    setAssignModalOpen(false);
-    setAssignSelectedParcels(new Set());
-    setAssignStep("parcels");
-    setAssignError("");
-    setAssignSuccess("");
-  };
-
-  const toggleParcelSelection = (parcelId) => {
-    const id = Number(parcelId);
-    setAssignSelectedParcels((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const filteredAssignParcels = useMemo(() => {
-    const q = assignSearchTerm.trim().toLowerCase();
-    let result = assignParcels.filter((p) =>
-      q ? String(p.parcel_id || "").includes(q) : true,
-    );
-    result = [...result].sort((a, b) => {
-      switch (assignSortBy) {
-        case "id_asc":
-          return Number(a.parcel_id) - Number(b.parcel_id);
-        case "id_desc":
-          return Number(b.parcel_id) - Number(a.parcel_id);
-        case "name_asc":
-          return (a.recipient_name || "").localeCompare(b.recipient_name || "");
-        case "name_desc":
-          return (b.recipient_name || "").localeCompare(a.recipient_name || "");
-        case "date_asc":
-          return new Date(a.created_at) - new Date(b.created_at);
-        case "date_desc":
-          return new Date(b.created_at) - new Date(a.created_at);
-        default:
-          return 0;
-      }
-    });
-    return result;
-  }, [assignParcels, assignSearchTerm, assignSortBy]);
-
-  const filteredAssignRiders = useMemo(() => {
-    const q = assignRiderSearch.trim().toLowerCase();
-    if (!q) return riders;
-    return riders.filter((r) =>
-      getRiderDisplayName(r).toLowerCase().includes(q),
-    );
-  }, [riders, assignRiderSearch]);
-
-  const allVisibleSelected =
-    filteredAssignParcels.length > 0 &&
-    filteredAssignParcels.every((p) =>
-      assignSelectedParcels.has(Number(p.parcel_id)),
-    );
-
-  const handleSelectAllVisible = (checked) => {
-    setAssignSelectedParcels((prev) => {
-      const next = new Set(prev);
-      filteredAssignParcels.forEach((p) =>
-        checked
-          ? next.add(Number(p.parcel_id))
-          : next.delete(Number(p.parcel_id)),
-      );
-      return next;
-    });
-  };
-
-  const handleAssignToRider = async (rider) => {
-    if (assignSelectedParcels.size === 0 || assigningRider) return;
-    setAssigningRider(true);
-    setAssignError("");
-    try {
-      const parcelIds = [...assignSelectedParcels]
-        .map(Number)
-        .filter(Number.isFinite);
-      if (parcelIds.length === 0)
-        throw new Error("No valid parcel IDs selected.");
-      const { error } = await supabaseClient
-        .from("parcels")
-        .update({ assigned_rider_id: rider.user_id })
-        .in("parcel_id", parcelIds);
-      if (error) throw error;
-      const count = parcelIds.length;
-      setAssignSuccess(
-        `${count} parcel${count > 1 ? "s" : ""} assigned to ${getRiderDisplayName(rider)}.`,
-      );
-      setAssignParcels((prev) =>
-        prev.filter((p) => !parcelIds.includes(Number(p.parcel_id))),
-      );
-      setAssignSelectedParcels(new Set());
-      setAssignStep("parcels");
-      setAssignRiderSearch("");
-      const data = await refreshRiders();
-      if (data) {
-        setRiders(data);
-        setLastUpdatedAt(new Date());
-      }
-      setTimeout(() => setAssignSuccess(""), 4000);
-    } catch (err) {
-      console.error("Failed to assign parcels:", err);
-      setAssignError("Failed to assign parcels. Please try again.");
-    } finally {
-      setAssigningRider(false);
-    }
-  };
+  const openAssignModal = () => setAssignModalOpen(true);
+  const closeAssignModal = () => setAssignModalOpen(false);
 
   const handleCreateRider = async (e) => {
     e.preventDefault();
@@ -2187,27 +2380,22 @@ export default function Riders() {
                   <button
                     type="button"
                     className="assign-parcels-btn"
-                    onClick={openAssignMethodModal}
+                    onClick={openAssignModal}
                   >
                     <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 14 14"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2.2"
+                      strokeWidth="2"
                       strokeLinecap="round"
+                      strokeLinejoin="round"
                       aria-hidden="true"
                     >
-                      <rect
-                        x="1"
-                        y="2"
-                        width="8"
-                        height="10"
-                        rx="1.5"
-                        strokeWidth="1.8"
-                      />
-                      <path d="M4 5h4M4 7.5h3M10 8l2.5 2.5M12.5 8L10 10.5" />
+                      <path d="M4 6h10M4 10h8M4 14h6" />
+                      <path d="M16 14l3 3 3-3" />
+                      <path d="M19 17V9" />
                     </svg>
                     Assign Parcels
                   </button>
@@ -2633,8 +2821,9 @@ export default function Riders() {
                                   className={`rider-activity-dot ${online ? "is-online" : "is-offline"}`}
                                   aria-hidden="true"
                                 />
-                                {online ? "Online" : "Offline"} ·{" "}
-                                {formatRelativeTime(timeSource)}
+                                {online
+                                  ? "Active now"
+                                  : `Offline · ${formatRelativeTime(timeSource)}`}
                               </small>
                             </li>
                           );
@@ -2691,12 +2880,36 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="rider-full-map-header">
-              <h2>Live Rider Map</h2>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="rider-full-map-header-left">
+                <div className="rider-full-map-live-badge">
+                  <span className="rider-live-dot" />
+                  <span>LIVE</span>
+                </div>
+                <div className="rider-full-map-title-block">
+                  <h2>Live Rider Map</h2>
+                  <span className="rider-full-map-subtitle">
+                    {riderLocations.length} rider
+                    {riderLocations.length !== 1 ? "s" : ""} active ·
+                    auto-refreshes every 5s
+                  </span>
+                </div>
+              </div>
+              <div className="rider-full-map-header-right">
                 <label
-                  className={`rider-layer-pill ${activeMapLayer === "weather" ? "is-active" : ""}`}
+                  className={`rider-layer-pill rider-layer-pill-light ${activeMapLayer === "weather" ? "is-active" : ""}`}
                   aria-label="Toggle weather"
                 >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  >
+                    <path d="M4 15a4 4 0 010-8 5 5 0 019.9 1H14a3 3 0 010 6H4z" />
+                  </svg>
                   Weather
                   <input
                     type="checkbox"
@@ -2708,9 +2921,20 @@ export default function Riders() {
                   />
                 </label>
                 <label
-                  className={`rider-layer-pill ${activeMapLayer === "flood" ? "is-active" : ""}`}
+                  className={`rider-layer-pill rider-layer-pill-light ${activeMapLayer === "flood" ? "is-active" : ""}`}
                   aria-label="Toggle flood"
                 >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  >
+                    <path d="M2 10c2-4 5-4 6 0s4 4 6 0M2 14c2-3 5-3 6 0s4 3 6 0" />
+                  </svg>
                   Flood
                   <input
                     type="checkbox"
@@ -2721,11 +2945,24 @@ export default function Riders() {
                     }}
                   />
                 </label>
+                <div className="rider-full-map-divider" />
                 <button
                   type="button"
                   className="rider-full-map-close"
                   onClick={() => setFullMapModalOpen(false)}
                 >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M2 2l10 10M12 2L2 12" />
+                  </svg>
                   Close
                 </button>
               </div>
@@ -2834,7 +3071,29 @@ export default function Riders() {
             </div>
             <div className="riders-modal-body rider-info-body">
               {loadingInfo ? (
-                <PageSpinner label="Loading rider information..." />
+                <div className="rider-info-skeleton">
+                  <div className="ris-hero">
+                    <div className="ris-avatar-wrap">
+                      <div className="ris-skeleton ris-avatar" />
+                    </div>
+                    <div className="ris-details">
+                      <div className="ris-skeleton ris-name" />
+                      <div className="ris-skeleton ris-email" />
+                      <div className="ris-pills">
+                        <div className="ris-skeleton ris-pill" />
+                        <div className="ris-skeleton ris-pill" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ris-grid">
+                    {[...Array(6)].map((_, i) => (
+                      <div className="ris-field" key={i}>
+                        <div className="ris-skeleton ris-field-label" />
+                        <div className="ris-skeleton ris-field-value" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : infoError ? (
                 <p className="rider-info-error">{infoError}</p>
               ) : (
@@ -3537,7 +3796,6 @@ export default function Riders() {
               </div>
             ) : (
               <>
-                {/* Analytics Stats Strip */}
                 {/* Tabs */}
                 <div className="viol-tabs">
                   <button
@@ -3801,82 +4059,190 @@ export default function Riders() {
           }}
         >
           <div
-            className="riders-modal-content rider-create-modal"
+            className="rider-create-modal-wrap"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 520, maxWidth: "92%" }}
           >
-            <div className="riders-modal-header">
-              <h2>Create Rider Account</h2>
-            </div>
-            <div className="riders-modal-body rider-create-body">
-              <form className="rider-create-form" onSubmit={handleCreateRider}>
-                <div className="rider-create-field">
-                  <label htmlFor="create-rider-date-join">Date of Join</label>
-                  <input
-                    id="create-rider-date-join"
-                    type="date"
-                    value={joinDateToday}
-                    readOnly
-                    aria-readonly="true"
-                  />
+            {/* ── Left brand panel ── */}
+            <div className="rcm-brand">
+              <div className="rcm-brand-top">
+                <div className="rcm-brand-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="5.5" cy="17.5" r="2.5" />
+                    <circle cx="18.5" cy="17.5" r="2.5" />
+                    <path d="M8 17.5h7M15 17.5l-1-5H9l-2 3.5" />
+                    <path d="M12 12.5V7l4 2-4 3.5z" />
+                    <path d="M7 9l2 3.5" />
+                  </svg>
                 </div>
-                <div className="rider-create-field">
-                  <label htmlFor="create-rider-username">Username</label>
+                <h3 className="rcm-brand-title">New Rider</h3>
+                <p className="rcm-brand-sub">
+                  Register a delivery rider to the fleet. They'll receive login
+                  credentials once the account is created.
+                </p>
+              </div>
+              <div className="rcm-brand-info">
+                <div className="rcm-info-row">
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span>Auto-assigned to available routes</span>
+                </div>
+                <div className="rcm-info-row">
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span>Tracked in real-time on the map</span>
+                </div>
+                <div className="rcm-info-row">
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span>Performance analytics enabled</span>
+                </div>
+              </div>
+              <div className="rcm-brand-date">
+                <span className="rcm-date-label">Date of Join</span>
+                <span className="rcm-date-value">{joinDateToday}</span>
+              </div>
+            </div>
+
+            {/* ── Right form panel ── */}
+            <div className="rcm-form-panel">
+              <div className="rcm-form-header">
+                <h2>Create Rider Account</h2>
+                <button
+                  type="button"
+                  className="rcm-close-btn"
+                  onClick={closeCreateModal}
+                  aria-label="Close"
+                  disabled={creatingRider}
+                >
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    width="16"
+                    height="16"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <form className="rcm-form" onSubmit={handleCreateRider}>
+                {/* Username */}
+                <div className="rcm-field">
+                  <label htmlFor="create-rider-username" className="rcm-label">
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      width="13"
+                      height="13"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Username
+                  </label>
                   <input
                     id="create-rider-username"
+                    className="rcm-input"
                     type="text"
                     value={createUsername}
                     onChange={(e) => setCreateUsername(e.target.value)}
-                    placeholder="Enter Username"
+                    placeholder="e.g. rider_juan"
                     required
                     autoComplete="username"
                     disabled={creatingRider}
                   />
-                  <div className="rider-rules-box" aria-live="polite">
-                    <p className="rider-rules-title">Username requirements</p>
-                    <div className="rider-create-rules">
-                      <label
-                        className={`rider-rule-item ${usernameLengthValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={usernameLengthValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>At least 3 characters</span>
-                      </label>
-                      <label
-                        className={`rider-rule-item ${usernamePatternValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={usernamePatternValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>Letters, numbers, underscore only</span>
-                      </label>
+                  <div className="rcm-rules" aria-live="polite">
+                    <div
+                      className={`rcm-rule ${usernameLengthValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      At least 3 characters
+                    </div>
+                    <div
+                      className={`rcm-rule ${usernamePatternValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      Letters, numbers, underscore only
                     </div>
                   </div>
                 </div>
-                <div className="rider-create-field">
-                  <label htmlFor="create-rider-email">Email</label>
+
+                {/* Email */}
+                <div className="rcm-field">
+                  <label htmlFor="create-rider-email" className="rcm-label">
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      width="13"
+                      height="13"
+                    >
+                      <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                      <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                    </svg>
+                    Email Address
+                  </label>
                   <input
                     id="create-rider-email"
+                    className="rcm-input"
                     type="email"
                     value={createEmail}
                     onChange={(e) => setCreateEmail(e.target.value)}
-                    placeholder="Enter Rider Email"
+                    placeholder="rider@example.com"
                     required
                     autoComplete="email"
                     disabled={creatingRider}
                   />
                 </div>
-                <div className="rider-create-field">
-                  <label htmlFor="create-rider-password">Password</label>
+
+                {/* Password */}
+                <div className="rcm-field">
+                  <label htmlFor="create-rider-password" className="rcm-label">
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      width="13"
+                      height="13"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Password
+                  </label>
                   <input
                     id="create-rider-password"
+                    className="rcm-input"
                     type="password"
                     value={createPassword}
                     onChange={(e) => setCreatePassword(e.target.value)}
@@ -3886,74 +4252,89 @@ export default function Riders() {
                     autoComplete="new-password"
                     disabled={creatingRider}
                   />
-                  <div className="rider-rules-box" aria-live="polite">
-                    <p className="rider-rules-title">Password requirements</p>
-                    <div className="rider-create-rules">
-                      <label
-                        className={`rider-rule-item ${passwordLengthValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={passwordLengthValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>At least 8 characters</span>
-                      </label>
-                      <label
-                        className={`rider-rule-item ${passwordUpperValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={passwordUpperValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>Has uppercase letter</span>
-                      </label>
-                      <label
-                        className={`rider-rule-item ${passwordLowerValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={passwordLowerValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>Has lowercase letter</span>
-                      </label>
-                      <label
-                        className={`rider-rule-item ${passwordNumberValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={passwordNumberValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>Has number</span>
-                      </label>
-                      <label
-                        className={`rider-rule-item ${passwordSpecialValid ? "met" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={passwordSpecialValid}
-                          readOnly
-                          tabIndex={-1}
-                        />
-                        <span>Has special character</span>
-                      </label>
+                  {/* Password strength bar */}
+                  <div className="rcm-strength-bar">
+                    <div
+                      className="rcm-strength-fill"
+                      style={{
+                        width: `${([passwordLengthValid, passwordUpperValid, passwordLowerValid, passwordNumberValid, passwordSpecialValid].filter(Boolean).length / 5) * 100}%`,
+                        background:
+                          [
+                            passwordLengthValid,
+                            passwordUpperValid,
+                            passwordLowerValid,
+                            passwordNumberValid,
+                            passwordSpecialValid,
+                          ].filter(Boolean).length <= 2
+                            ? "#ef4444"
+                            : [
+                                  passwordLengthValid,
+                                  passwordUpperValid,
+                                  passwordLowerValid,
+                                  passwordNumberValid,
+                                  passwordSpecialValid,
+                                ].filter(Boolean).length <= 4
+                              ? "#f59e0b"
+                              : "#22c55e",
+                      }}
+                    />
+                  </div>
+                  <div className="rcm-rules rcm-rules--grid" aria-live="polite">
+                    <div
+                      className={`rcm-rule ${passwordLengthValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      8+ characters
+                    </div>
+                    <div
+                      className={`rcm-rule ${passwordUpperValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      Uppercase
+                    </div>
+                    <div
+                      className={`rcm-rule ${passwordLowerValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      Lowercase
+                    </div>
+                    <div
+                      className={`rcm-rule ${passwordNumberValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      Number
+                    </div>
+                    <div
+                      className={`rcm-rule ${passwordSpecialValid ? "rcm-rule--met" : ""}`}
+                    >
+                      <span className="rcm-rule-dot" />
+                      Special char
                     </div>
                   </div>
                 </div>
+
                 {createRiderError && (
-                  <p className="rider-create-error">{createRiderError}</p>
+                  <div className="rcm-error">
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      width="14"
+                      height="14"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    {createRiderError}
+                  </div>
                 )}
-                <div className="rider-create-actions">
+
+                <div className="rcm-actions">
                   <button
                     type="button"
-                    className="rider-create-cancel"
+                    className="rcm-btn-cancel"
                     onClick={closeCreateModal}
                     disabled={creatingRider}
                   >
@@ -3961,12 +4342,33 @@ export default function Riders() {
                   </button>
                   <button
                     type="submit"
-                    className="rider-create-submit"
+                    className="rcm-btn-submit"
                     disabled={
                       creatingRider || !isUsernameValid || !isPasswordValid
                     }
                   >
-                    {creatingRider ? "Creating..." : "Create Account"}
+                    {creatingRider ? (
+                      <>
+                        <span className="rcm-spinner" />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          width="15"
+                          height="15"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Create Account
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -3975,740 +4377,17 @@ export default function Riders() {
         </div>
       )}
 
-      {/* ══ ASSIGN METHOD MODAL ══ */}
-      {assignMethodModalOpen && (
-        <div
-          className="riders-modal-overlay"
-          onClick={closeAssignMethodModal}
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            className="riders-modal-content assign-method-modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 540, maxWidth: "94%" }}
-          >
-            <div className="riders-modal-header">
-              <h2>Assign Parcels</h2>
-            </div>
-            <div className="assign-method-body">
-              <p className="assign-method-lead">
-                Choose how you'd like to assign unassigned parcels to riders.
-              </p>
-              <div className="assign-method-cards">
-                {/* Automatic */}
-                <button
-                  type="button"
-                  className="assign-method-card assign-method-auto"
-                  onClick={handleChooseAutomatic}
-                >
-                  <span className="assign-method-icon" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5" />
-                      <path d="M2 12l10 5 10-5" />
-                    </svg>
-                  </span>
-                  <span className="assign-method-card-title">Automatic</span>
-                  <span className="assign-method-card-desc">
-                    Smart round-robin distribution to online riders based on
-                    their 150-parcel daily quota. Skips riders who've hit
-                    capacity.
-                  </span>
-                  <span className="assign-method-badge assign-method-badge-auto">
-                    Recommended
-                  </span>
-                </button>
-
-                {/* Manual */}
-                <button
-                  type="button"
-                  className="assign-method-card assign-method-manual"
-                  onClick={handleChooseManual}
-                >
-                  <span className="assign-method-icon" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="3" width="7" height="7" rx="1" />
-                      <rect x="14" y="3" width="7" height="7" rx="1" />
-                      <rect x="3" y="14" width="7" height="7" rx="1" />
-                      <path d="M17.5 14v7M14 17.5h7" />
-                    </svg>
-                  </span>
-                  <span className="assign-method-card-title">Manual</span>
-                  <span className="assign-method-card-desc">
-                    Hand-pick specific parcels and choose exactly which rider
-                    receives them. Full control over every assignment.
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══ AUTO-ASSIGN REVIEW MODAL ══ */}
-      {autoAssignReviewModalOpen && (
-        <div
-          className="riders-modal-overlay"
-          onClick={() => {
-            if (!autoAssigning) setAutoAssignReviewModalOpen(false);
-          }}
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            className="riders-modal-content auto-review-modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 780, maxWidth: "96%" }}
-          >
-            {/* Header */}
-            <div className="riders-modal-header auto-review-header">
-              <div>
-                <h2 style={{ margin: 0 }}>Review Auto-Assignment</h2>
-                {!autoAssignLoading && autoAssignPlan.length > 0 && (
-                  <p className="assign-modal-subtitle" style={{ marginTop: 3 }}>
-                    {autoAssignPlan.reduce((s, sl) => s + sl.parcels.length, 0)}{" "}
-                    parcels across {autoAssignPlan.length} rider
-                    {autoAssignPlan.length !== 1 ? "s" : ""} — review before
-                    confirming
-                  </p>
-                )}
-              </div>
-              {!autoAssigning && (
-                <button
-                  type="button"
-                  className="assign-back-btn"
-                  onClick={() => setAutoAssignReviewModalOpen(false)}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-
-            {/* Error */}
-            {autoAssignError && (
-              <div className="assign-error-banner">{autoAssignError}</div>
-            )}
-
-            {/* Body */}
-            <div className="riders-modal-body auto-review-body">
-              {autoAssignLoading ? (
-                <div
-                  className="assign-loading-state"
-                  style={{ padding: "56px 20px" }}
-                >
-                  <div className="assign-spinner" />
-                  <p>Calculating optimal assignment plan…</p>
-                </div>
-              ) : autoAssignError && autoAssignPlan.length === 0 ? (
-                <div
-                  className="assign-empty-state"
-                  style={{ padding: "48px 20px" }}
-                >
-                  <svg
-                    width="44"
-                    height="44"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4M12 16h.01" />
-                  </svg>
-                  <p>{autoAssignError}</p>
-                </div>
-              ) : (
-                <div className="auto-review-list">
-                  {autoAssignPlan.map((slot, idx) => (
-                    <div
-                      key={slot.rider.user_id || idx}
-                      className="auto-review-rider-block"
-                    >
-                      {/* Rider header row */}
-                      <div className="auto-review-rider-row">
-                        <div className="auto-review-rider-avatar">
-                          {slot.rider.profile_url ? (
-                            <img
-                              src={slot.rider.profile_url}
-                              alt={getRiderDisplayName(slot.rider)}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                borderRadius: "50%",
-                              }}
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <span>
-                              {(
-                                slot.rider.fname?.[0] ||
-                                slot.rider.username?.[0] ||
-                                "R"
-                              ).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <div className="auto-review-rider-info">
-                          <span className="auto-review-rider-name">
-                            {getRiderDisplayName(slot.rider)}
-                          </span>
-                          <span className="auto-review-rider-meta">
-                            {slot.rider.ongoingParcels ?? 0} ongoing ·{" "}
-                            {slot.rider.deliveredParcels ?? 0} delivered
-                          </span>
-                        </div>
-                        <div className="auto-review-rider-badge">
-                          <span className="auto-review-count-badge">
-                            +{slot.parcels.length} parcel
-                            {slot.parcels.length !== 1 ? "s" : ""}
-                          </span>
-                          <span
-                            className="auto-review-quota-bar-wrap"
-                            title={`New total: ${(slot.rider.ongoingParcels ?? 0) + (slot.rider.deliveredParcels ?? 0) + slot.parcels.length} / ${RIDER_DELIVERY_QUOTA}`}
-                          >
-                            <span
-                              className="auto-review-quota-bar-fill"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.round(
-                                    (((slot.rider.ongoingParcels ?? 0) +
-                                      (slot.rider.deliveredParcels ?? 0) +
-                                      slot.parcels.length) /
-                                      RIDER_DELIVERY_QUOTA) *
-                                      100,
-                                  ),
-                                )}%`,
-                              }}
-                            />
-                          </span>
-                          <span className="auto-review-quota-label">
-                            {Math.min(
-                              100,
-                              Math.round(
-                                (((slot.rider.ongoingParcels ?? 0) +
-                                  (slot.rider.deliveredParcels ?? 0) +
-                                  slot.parcels.length) /
-                                  RIDER_DELIVERY_QUOTA) *
-                                  100,
-                              ),
-                            )}
-                            % of quota
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Parcel list for this rider */}
-                      <div className="auto-review-parcel-table">
-                        <div className="auto-review-parcel-head">
-                          <span>ID</span>
-                          <span>Recipient</span>
-                          <span>Address</span>
-                          <span>Date</span>
-                        </div>
-                        <div className="auto-review-parcel-rows">
-                          {slot.parcels.slice(0, 5).map((p) => (
-                            <div
-                              key={p.parcel_id}
-                              className="auto-review-parcel-row"
-                            >
-                              <span className="auto-review-parcel-id">
-                                #{p.parcel_id}
-                              </span>
-                              <span>{p.recipient_name || "—"}</span>
-                              <span className="auto-review-parcel-addr">
-                                {p.address || "—"}
-                              </span>
-                              <span className="auto-review-parcel-date">
-                                {p.created_at
-                                  ? new Date(p.created_at).toLocaleDateString(
-                                      "en-US",
-                                      { month: "short", day: "numeric" },
-                                    )
-                                  : "—"}
-                              </span>
-                            </div>
-                          ))}
-                          {slot.parcels.length > 5 && (
-                            <div className="auto-review-parcel-more">
-                              +{slot.parcels.length - 5} more parcel
-                              {slot.parcels.length - 5 !== 1 ? "s" : ""}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer confirm */}
-            {!autoAssignLoading && autoAssignPlan.length > 0 && (
-              <div className="auto-review-footer">
-                <div className="auto-review-footer-summary">
-                  <span>
-                    Total:{" "}
-                    <strong>
-                      {autoAssignPlan.reduce(
-                        (s, sl) => s + sl.parcels.length,
-                        0,
-                      )}
-                    </strong>{" "}
-                    parcels to <strong>{autoAssignPlan.length}</strong> rider
-                    {autoAssignPlan.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="auto-review-footer-actions">
-                  <button
-                    type="button"
-                    className="assign-back-btn"
-                    onClick={() => setAutoAssignReviewModalOpen(false)}
-                    disabled={autoAssigning}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="auto-review-confirm-btn"
-                    onClick={handleConfirmAutoAssign}
-                    disabled={autoAssigning}
-                  >
-                    {autoAssigning ? (
-                      <>
-                        <span
-                          className="auto-assign-spinner"
-                          aria-hidden="true"
-                        />
-                        Assigning…
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M2 7l3.5 3.5L12 3" />
-                        </svg>
-                        Confirm &amp; Assign Parcels
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ══ MANUAL ASSIGN PARCELS MODAL ══ */}
       {assignModalOpen && (
-        <div
-          className="riders-modal-overlay"
-          onClick={closeAssignModal}
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
+        <AssignParcelsModal
+          riders={riders}
+          onClose={closeAssignModal}
+          onAssigned={(data) => {
+            setRiders(data);
+            setLastUpdatedAt(new Date());
           }}
-        >
-          <div
-            className="riders-modal-content assign-parcels-modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 740, maxWidth: "96%" }}
-          >
-            {/* Header */}
-            <div className="riders-modal-header assign-modal-header">
-              <div className="assign-modal-header-left">
-                {assignStep === "rider" && (
-                  <button
-                    type="button"
-                    className="assign-back-btn"
-                    onClick={() => {
-                      setAssignStep("parcels");
-                      setAssignRiderSearch("");
-                      setAssignError("");
-                    }}
-                    disabled={assigningRider}
-                    aria-label="Back to parcel selection"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 14 14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    >
-                      <path d="M9 2L4 7l5 5" />
-                    </svg>
-                    Back
-                  </button>
-                )}
-                <div>
-                  <h2 style={{ margin: 0 }}>
-                    {assignStep === "parcels"
-                      ? "Assign Parcels"
-                      : "Select Rider"}
-                  </h2>
-                  <p className="assign-modal-subtitle">
-                    {assignStep === "parcels"
-                      ? "Select unassigned parcels to assign to a rider"
-                      : `Assigning ${assignSelectedParcels.size} parcel${assignSelectedParcels.size !== 1 ? "s" : ""} — choose a rider`}
-                  </p>
-                </div>
-              </div>
-              {assignStep === "parcels" && assignSelectedParcels.size > 0 && (
-                <button
-                  type="button"
-                  className="assign-next-btn"
-                  onClick={() => {
-                    setAssignStep("rider");
-                    setAssignRiderSearch("");
-                  }}
-                >
-                  Assign {assignSelectedParcels.size} Parcel
-                  {assignSelectedParcels.size !== 1 ? "s" : ""}
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 14 14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                  >
-                    <path d="M2 7h10M7 2l5 5-5 5" />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* Banners */}
-            {assignSuccess && (
-              <div className="assign-success-banner">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 7l3.5 3.5L12 3" />
-                </svg>
-                {assignSuccess}
-              </div>
-            )}
-            {assignError && (
-              <div className="assign-error-banner">{assignError}</div>
-            )}
-
-            {/* Body */}
-            <div className="riders-modal-body assign-modal-body">
-              {/* ── STEP 1: Parcel Selection ── */}
-              {assignStep === "parcels" && (
-                <div className="assign-parcels-shell">
-                  <div className="assign-search-sort-row">
-                    <div className="assign-search-bar">
-                      <svg
-                        width="13"
-                        height="13"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                      >
-                        <circle cx="6" cy="6" r="4.5" />
-                        <path d="M10 10l2.5 2.5" />
-                      </svg>
-                      <input
-                        type="text"
-                        placeholder="Search by parcel ID..."
-                        value={assignSearchTerm}
-                        onChange={(e) => setAssignSearchTerm(e.target.value)}
-                        className="assign-search-input"
-                      />
-                      {assignSelectedParcels.size > 0 && (
-                        <span className="assign-selected-badge">
-                          {assignSelectedParcels.size} selected
-                        </span>
-                      )}
-                    </div>
-                    <RiderTableSelect
-                      value={assignSortBy}
-                      onChange={setAssignSortBy}
-                      options={assignSortOptions}
-                      ariaLabel="Sort parcels"
-                      className="assign-sort-select"
-                    />
-                  </div>
-
-                  {assignLoadingParcels ? (
-                    <div className="assign-loading-state">
-                      <div className="assign-spinner" />
-                      <p>Loading unassigned parcels...</p>
-                    </div>
-                  ) : assignParcelsError ? (
-                    <div style={{ padding: "16px" }}>
-                      <p className="rider-info-error">{assignParcelsError}</p>
-                    </div>
-                  ) : assignParcels.length === 0 ? (
-                    <div className="assign-empty-state">
-                      <svg
-                        width="44"
-                        height="44"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                      >
-                        <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
-                        <path d="M16 3H8l-2 4h12l-2-4z" />
-                      </svg>
-                      <p>All parcels are currently assigned.</p>
-                      <span>There are no unassigned parcels at this time.</span>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Select all row */}
-                      <div className="assign-select-all-row">
-                        <label className="assign-checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={allVisibleSelected}
-                            onChange={(e) =>
-                              handleSelectAllVisible(e.target.checked)
-                            }
-                          />
-                          <span>Select all visible</span>
-                        </label>
-                        <span className="assign-count-hint">
-                          {filteredAssignParcels.length} parcel
-                          {filteredAssignParcels.length !== 1 ? "s" : ""} shown
-                          {assignSearchTerm &&
-                            ` · ${assignParcels.length} total`}
-                        </span>
-                      </div>
-
-                      {/* Parcel list */}
-                      <div className="assign-parcel-list">
-                        {filteredAssignParcels.length === 0 ? (
-                          <div
-                            className="assign-empty-state"
-                            style={{ padding: "32px 16px" }}
-                          >
-                            <p style={{ margin: 0 }}>
-                              No parcels match your search.
-                            </p>
-                          </div>
-                        ) : (
-                          filteredAssignParcels.map((parcel) => (
-                            <label
-                              key={parcel.parcel_id}
-                              className={`assign-parcel-item ${assignSelectedParcels.has(Number(parcel.parcel_id)) ? "is-selected" : ""}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={assignSelectedParcels.has(
-                                  parcel.parcel_id,
-                                )}
-                                onChange={() =>
-                                  toggleParcelSelection(parcel.parcel_id)
-                                }
-                                className="assign-parcel-checkbox"
-                              />
-                              <div className="assign-parcel-info">
-                                <div className="assign-parcel-tracking">
-                                  {`#${String(parcel.parcel_id)}`}
-                                </div>
-                                <div className="assign-parcel-recipient">
-                                  {parcel.recipient_name || "—"}
-                                </div>
-                                <div className="assign-parcel-address">
-                                  {parcel.address || "No address provided"}
-                                </div>
-                              </div>
-                              <div className="assign-parcel-meta">
-                                <span className="assign-parcel-status">
-                                  {parcel.status || "Unassigned"}
-                                </span>
-                                <span className="assign-parcel-date">
-                                  {parcel.created_at
-                                    ? new Date(
-                                        parcel.created_at,
-                                      ).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })
-                                    : "—"}
-                                </span>
-                              </div>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* ── STEP 2: Rider Selection ── */}
-              {assignStep === "rider" && (
-                <div className="assign-rider-shell">
-                  <div className="assign-search-bar">
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 14 14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    >
-                      <circle cx="6" cy="6" r="4.5" />
-                      <path d="M10 10l2.5 2.5" />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search riders..."
-                      value={assignRiderSearch}
-                      onChange={(e) => setAssignRiderSearch(e.target.value)}
-                      className="assign-search-input"
-                    />
-                    <span
-                      className="assign-count-hint"
-                      style={{ flexShrink: 0 }}
-                    >
-                      {filteredAssignRiders.length} rider
-                      {filteredAssignRiders.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  <div className="assign-rider-list">
-                    {filteredAssignRiders.length === 0 ? (
-                      <div
-                        className="assign-empty-state"
-                        style={{ padding: "32px 16px" }}
-                      >
-                        <p style={{ margin: 0 }}>
-                          No riders match your search.
-                        </p>
-                      </div>
-                    ) : (
-                      filteredAssignRiders.map((rider) => {
-                        const online = isActiveRiderStatus(rider.status);
-                        return (
-                          <button
-                            key={rider.user_id || rider.username}
-                            type="button"
-                            className={`assign-rider-item ${online ? "is-online" : ""}`}
-                            onClick={() => handleAssignToRider(rider)}
-                            disabled={assigningRider}
-                          >
-                            <div
-                              className="assign-rider-avatar"
-                              style={{ overflow: "hidden", padding: 0 }}
-                            >
-                              {rider.profile_url ? (
-                                <img
-                                  src={rider.profile_url}
-                                  alt={getRiderDisplayName(rider)}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    borderRadius: "50%",
-                                    display: "block",
-                                  }}
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                  }}
-                                />
-                              ) : (
-                                <span
-                                  style={{
-                                    display: "flex",
-                                    width: "100%",
-                                    height: "100%",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  {(
-                                    rider.fname?.[0] ||
-                                    rider.username?.[0] ||
-                                    "R"
-                                  ).toUpperCase()}
-                                </span>
-                              )}
-                            </div>
-                            <div className="assign-rider-details">
-                              <span className="assign-rider-name">
-                                {getRiderDisplayName(rider)}
-                              </span>
-                              <span className="assign-rider-stats">
-                                {rider.ongoingParcels ?? 0} ongoing ·{" "}
-                                {rider.deliveredParcels ?? 0} delivered
-                              </span>
-                            </div>
-                            <div className="assign-rider-right">
-                              <span
-                                className={`assign-rider-status-dot ${online ? "online" : "offline"}`}
-                              />
-                              <span className="assign-rider-status-text">
-                                {online ? "Online" : "Offline"}
-                              </span>
-                            </div>
-                            {assigningRider && (
-                              <div className="assign-rider-loading-indicator" />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+          refreshRiders={refreshRiders}
+        />
       )}
 
       {/* ══ TOASTS ══ */}
