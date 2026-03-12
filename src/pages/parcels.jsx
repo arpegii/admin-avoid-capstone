@@ -139,13 +139,19 @@ const ModernSelect = ({
 // CSV HELPERS
 // ─────────────────────────────────────────────────────────────
 
+// Columns that must be present as headers AND non-empty in every row
 const CSV_REQUIRED_COLS = [
   "recipient_name",
   "recipient_phone",
   "address",
   "sender_name",
   "sender_phone",
+  "status",
+  "attempt1_status",
 ];
+
+// Columns that are fully optional — header and values may both be absent
+const CSV_HEADER_ONLY_COLS = [];
 
 const parseCsvText = (text) => {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -182,14 +188,24 @@ const parseCsvText = (text) => {
 
 const validateCsvRows = (rows, headers) => {
   const errors = [];
-  const missing = CSV_REQUIRED_COLS.filter((c) => !headers.includes(c));
-  if (missing.length > 0) {
+
+  // Check all required-value columns exist as headers
+  const missingRequired = CSV_REQUIRED_COLS.filter((c) => !headers.includes(c));
+  // Check header-only columns exist as headers (values may be empty)
+  const missingHeaderOnly = CSV_HEADER_ONLY_COLS.filter(
+    (c) => !headers.includes(c),
+  );
+
+  const allMissing = [...missingRequired, ...missingHeaderOnly];
+  if (allMissing.length > 0) {
     errors.push({
       row: "Header",
-      message: `Missing required columns: ${missing.join(", ")}`,
+      message: `Missing required columns: ${allMissing.join(", ")}`,
     });
     return errors;
   }
+
+  // Validate that required-value columns are non-empty per row
   rows.forEach((row) => {
     CSV_REQUIRED_COLS.forEach((col) => {
       if (!row[col] || !String(row[col]).trim()) {
@@ -200,6 +216,7 @@ const validateCsvRows = (rows, headers) => {
       }
     });
   });
+
   return errors;
 };
 

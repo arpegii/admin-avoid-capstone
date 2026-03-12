@@ -95,10 +95,8 @@ export const NotificationProvider = ({ children, supabase }) => {
   // ── CSV import failed notification ─────────────────────────────────────
   const notifyImportFailed = useCallback(
     (errorMsg, fileName) => {
-      // Parse the error message into something human-readable
       let reason = errorMsg || "An unknown error occurred.";
 
-      // Detect common Postgres constraint violations and give a clear reason
       if (reason.includes("violates check constraint")) {
         const colMatch = reason.match(/column\s+"?(\w+)"?\s+of\s+relation/i);
         const col = colMatch ? colMatch[1] : null;
@@ -138,7 +136,7 @@ export const NotificationProvider = ({ children, supabase }) => {
       addNotification({
         type: "rider_violation",
         title: "Rider Violation Alert",
-        message: `Rider ${riderName} exceeded speed limit: ${speed} km/h`,
+        message: `Rider ${riderName} exceeded the speed limit`,
         riderId,
         riderName,
         violationType,
@@ -149,21 +147,16 @@ export const NotificationProvider = ({ children, supabase }) => {
     [addNotification],
   );
 
+  // ── Flood icon changed from 🌊 (tsunami) to 🌧️ (rain/flood) ──────────
   const notifyRiderFloodAffected = useCallback(
-    (riderId, riderName, lat, lng) => {
-      const coords =
-        lat && lng
-          ? ` (${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)})`
-          : "";
+    (riderId, riderName) => {
       addNotification({
         type: "rider_flood",
         title: "Flood Zone Alert",
-        message: `Rider ${riderName} is in a flood-affected area${coords}`,
+        message: `Rider ${riderName} is in a flood-affected area`,
         riderId,
         riderName,
-        lat,
-        lng,
-        icon: "🌊",
+        icon: "🌧️",
       });
     },
     [addNotification],
@@ -216,7 +209,7 @@ export const NotificationProvider = ({ children, supabase }) => {
             }
           }
 
-          notifyRiderFloodAffected(riderId, riderName, log.lat, log.lng);
+          notifyRiderFloodAffected(riderId, riderName);
         },
       )
       .subscribe((status) => {
