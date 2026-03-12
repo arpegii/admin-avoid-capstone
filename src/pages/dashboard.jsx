@@ -2,9 +2,24 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
-import Chart from "chart.js/auto";
+import Chart from "chart.js/auto"; // used by PDF chart image builder
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+} from "recharts";
 import {
   FaDownload,
   FaCheckCircle,
@@ -79,7 +94,6 @@ const formatPdfCellValue = (value, columnKey = "") => {
   }
   const raw = String(value).trim();
   if (!raw) return "-";
-  // Always return email as-is (lowercase), never title-case it
   if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw))
     return raw.toLowerCase();
   if (/phone|_id$|^id$/i.test(columnKey)) return raw;
@@ -532,14 +546,11 @@ const buildParcelsAnalytics = (parcels = []) => {
   };
 };
 
-// ─── Rider Performance Analytics ──────────────────────────────────────────────
-
 const buildRiderPerformanceAnalytics = (
   riders = [],
   parcels = [],
   violations = [],
 ) => {
-  // Deliveries per rider
   const deliveredParcels = parcels.filter((p) => isDeliveredStatus(p?.status));
   const riderDeliveryMap = countBy(
     deliveredParcels,
@@ -563,40 +574,27 @@ const buildRiderPerformanceAnalytics = (
   );
 
   const topDeliverers = topEntries(riderDeliveryMap, 8);
-
-  // Violations per rider
   const violationByRider = countBy(violations, (v) =>
     String(v?.name || "Unknown"),
   );
   const topFlaggedRiders = topEntries(violationByRider, 8);
-
-  // Violation type breakdown
   const violationByType = countBy(violations, (v) =>
     String(v?.violation || "Unknown"),
   );
   const topViolationTypes = topEntries(violationByType, 8);
-
-  // Monthly violations trend
   const monthlyViolations = buildMonthlyCounts(violations, "date");
   const weekdayViolations = buildWeekdayCounts(violations, "date");
-
-  // Monthly joins
   const monthlyJoins = buildMonthlyCounts(riders, "created_at");
   const yearlyJoins = buildYearlyCounts(riders, "created_at");
-
   const genderMap = countBy(riders, (r) => String(r?.gender || "Unknown"));
   const activeRiders = riders.filter(
     (r) => r?.status === "active" || r?.status === "Active",
   ).length;
-
-  // Avg deliveries per rider
   const riderNames = Object.keys(riderDeliveryMap);
   const avgDeliveriesPerRider = riderNames.length
     ? Object.values(riderDeliveryMap).reduce((a, b) => a + b, 0) /
       riderNames.length
     : 0;
-
-  // First attempt success per rider (top 5)
   const firstAttemptByRider = {};
   deliveredParcels.forEach((p) => {
     const name = getAssignedRiderDisplay(p);
@@ -1246,7 +1244,7 @@ const FloatSelect = ({
   );
 };
 
-// ─── Mini stat card ───────────────────────────────────────────────────────────
+// ─── REDESIGNED Stat Card ─────────────────────────────────────────────────────
 
 const StatCard = ({
   icon,
@@ -1260,16 +1258,22 @@ const StatCard = ({
   const trendUp = trend && trend.startsWith("+");
   return (
     <div className={`stat-card accent-${accent}`}>
-      <div className="stat-accent-bar" />
-      <div className="stat-icon">{icon}</div>
-      <div className="stat-body">
-        <div className="stat-label">{label}</div>
+      <div className="stat-inner">
+        {/* Header: label (top-left) + icon (top-right) */}
+        <div className="stat-header">
+          <span className="stat-label">{label}</span>
+          <div className="stat-icon">{icon}</div>
+        </div>
+
+        {/* Big number */}
         <div
           key={animKey}
           className={`stat-value${animKey !== undefined ? " stat-value-anim" : ""}`}
         >
           {value}
         </div>
+
+        {/* Sub-text + trend badge */}
         <div className="stat-footer">
           {sub && (
             <span
@@ -1283,7 +1287,7 @@ const StatCard = ({
             <span
               className={`stat-trend ${trendUp ? "stat-trend-up" : "stat-trend-down"}`}
             >
-              {trend}
+              {trendUp ? "↑" : "↓"} {trend.replace(/^[+-]/, "")}
             </span>
           )}
         </div>
@@ -1413,8 +1417,6 @@ const IconOverall = () => (
   </svg>
 );
 
-// ─── Report type options ───────────────────────────────────────────────────────
-
 const REPORT_TYPE_OPTIONS = [
   { value: "parcels", label: "Parcels", Icon: IconParcel },
   {
@@ -1424,6 +1426,517 @@ const REPORT_TYPE_OPTIONS = [
   },
   { value: "overall", label: "Overall Reports", Icon: IconOverall },
 ];
+
+// ─── Recharts: Shared custom tooltip ─────────────────────────────────────────
+
+const RcTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #e8eaf0",
+        borderRadius: 10,
+        padding: "10px 14px",
+        boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
+        fontFamily: "inherit",
+        fontSize: 13,
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 6px",
+          color: "#6b7280",
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.6px",
+        }}
+      >
+        {label}
+      </p>
+      {payload.map((entry, i) => (
+        <p
+          key={i}
+          style={{
+            margin: "3px 0",
+            color: entry.color,
+            fontWeight: 600,
+            fontSize: 13,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: entry.color,
+              marginRight: 7,
+              verticalAlign: "middle",
+            }}
+          />
+          {entry.name}: <strong>{entry.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ─── Recharts Chart 1: Deliveries vs Delays Line Chart ───────────────────────
+
+const DeliveriesLineChart = ({
+  monthGrowth = [],
+  monthDelayGrowth = [],
+  selectedYear = "All",
+  years = [],
+  yearGrowth = [],
+  yearDelayGrowth = [],
+}) => {
+  const isAll = selectedYear === "All";
+  const labels = isAll ? years : MONTH_SHORT;
+  const delivData = isAll ? yearGrowth : monthGrowth;
+  const delayData = isAll ? yearDelayGrowth : monthDelayGrowth;
+
+  const data = labels.map((label, i) => ({
+    label,
+    Deliveries: delivData[i] || 0,
+    Delays: delayData[i] || 0,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart
+        data={data}
+        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+      >
+        <CartesianGrid
+          strokeDasharray="4 4"
+          stroke="#f0f2f7"
+          vertical={false}
+        />
+        <XAxis
+          dataKey="label"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
+          dy={8}
+        />
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
+        />
+        <Tooltip
+          content={<RcTooltip />}
+          cursor={{
+            stroke: "#e8eaf0",
+            strokeWidth: 1.5,
+            strokeDasharray: "4 4",
+          }}
+        />
+        <Legend
+          wrapperStyle={{ paddingTop: 12, fontFamily: "inherit", fontSize: 12 }}
+          formatter={(value) => (
+            <span style={{ color: "#374151", fontSize: 12, fontWeight: 500 }}>
+              {value}
+            </span>
+          )}
+        />
+        <Line
+          type="monotone"
+          dataKey="Deliveries"
+          stroke="#16a34a"
+          strokeWidth={2.5}
+          dot={false}
+          activeDot={{ r: 5, fill: "#16a34a", stroke: "#fff", strokeWidth: 2 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="Delays"
+          stroke="#f59e0b"
+          strokeWidth={2}
+          strokeDasharray="5 3"
+          dot={false}
+          activeDot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+};
+
+// ─── Recharts Chart 2: Status Breakdown Donut Chart ──────────────────────────
+
+const DONUT_COLORS = ["#16a34a", "#ef4444", "#94a3b8"];
+const DONUT_LABELS = ["Delivered", "Cancelled", "In Progress"];
+
+const StatusDonutChart = ({
+  parcelStatusMix = { delivered: 0, cancelled: 0, inProgress: 0 },
+}) => {
+  const [activeIndex, setActiveIndex] = useState(null);
+  const total =
+    (parcelStatusMix.delivered || 0) +
+    (parcelStatusMix.cancelled || 0) +
+    (parcelStatusMix.inProgress || 0);
+  const donutData = [
+    { name: "Delivered", value: parcelStatusMix.delivered || 0 },
+    { name: "Cancelled", value: parcelStatusMix.cancelled || 0 },
+    { name: "In Progress", value: parcelStatusMix.inProgress || 0 },
+  ];
+
+  const renderCenterLabel = ({ cx, cy }) => (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
+      <tspan
+        x={cx}
+        dy="-6"
+        fontSize="20"
+        fontWeight="700"
+        fill="#1a1d2e"
+        fontFamily="inherit"
+      >
+        {total.toLocaleString()}
+      </tspan>
+      <tspan
+        x={cx}
+        dy="20"
+        fontSize="11"
+        fill="#9ca3af"
+        fontFamily="inherit"
+        fontWeight="500"
+      >
+        Total
+      </tspan>
+    </text>
+  );
+
+  return (
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 16, height: 220 }}
+    >
+      <ResponsiveContainer width="55%" height="100%">
+        <PieChart>
+          <Pie
+            data={donutData}
+            cx="50%"
+            cy="50%"
+            innerRadius={60}
+            outerRadius={activeIndex !== null ? 88 : 82}
+            paddingAngle={2}
+            dataKey="value"
+            labelLine={false}
+            label={renderCenterLabel}
+            onMouseEnter={(_, index) => setActiveIndex(index)}
+            onMouseLeave={() => setActiveIndex(null)}
+          >
+            {donutData.map((entry, index) => (
+              <Cell
+                key={index}
+                fill={DONUT_COLORS[index]}
+                opacity={
+                  activeIndex === null || activeIndex === index ? 1 : 0.5
+                }
+                style={{ cursor: "pointer", transition: "opacity 0.2s" }}
+              />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value, name) => [
+              `${value} (${total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)`,
+              name,
+            ]}
+            contentStyle={{
+              background: "#fff",
+              border: "1px solid #e8eaf0",
+              borderRadius: 10,
+              fontFamily: "inherit",
+              fontSize: 13,
+              boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+
+      <div
+        style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}
+      >
+        {donutData.map((entry, i) => (
+          <div
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: 10 }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: DONUT_COLORS[i],
+                flexShrink: 0,
+                boxShadow: `0 0 0 3px ${DONUT_COLORS[i]}22`,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#374151",
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                }}
+              >
+                {DONUT_LABELS[i]}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#9ca3af",
+                  fontFamily: "inherit",
+                }}
+              >
+                {total > 0 ? ((entry.value / total) * 100).toFixed(1) : 0}%
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: DONUT_COLORS[i],
+                fontFamily: "inherit",
+              }}
+            >
+              {entry.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Recharts Chart 3: Violations Trend Bar Chart ────────────────────────────
+
+const ViolationsTrendChart = ({
+  violationLogs = [],
+  violationsByWeekday = [],
+}) => {
+  const [tab, setTab] = useState("month");
+
+  const byMonth = useMemo(() => {
+    const counts = Array(12).fill(0);
+    (violationLogs || []).forEach((v) => {
+      const d = new Date(v?.date);
+      if (!Number.isNaN(d.getTime())) counts[d.getMonth()] += 1;
+    });
+    return MONTH_SHORT.map((label, i) => ({ label, Violations: counts[i] }));
+  }, [violationLogs]);
+
+  const byWeekday = useMemo(
+    () =>
+      WEEKDAY_LABELS.map((label, i) => ({
+        label,
+        Violations: violationsByWeekday[i] || 0,
+      })),
+    [violationsByWeekday],
+  );
+
+  const chartData = tab === "month" ? byMonth : byWeekday;
+  const maxVal = Math.max(...chartData.map((d) => d.Violations), 1);
+
+  const CustomBar = (props) => {
+    const { x, y, width, height, value } = props;
+    const isMax = value === maxVal;
+    return (
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={isMax ? "#ef4444" : "rgba(239,68,68,0.35)"}
+        rx={5}
+        ry={5}
+        style={{ transition: "fill 0.2s" }}
+      />
+    );
+  };
+
+  return (
+    <div style={{ height: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <div />
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            background: "#f4f6fb",
+            borderRadius: 8,
+            padding: 3,
+          }}
+        >
+          {["month", "weekday"].map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                background: tab === t ? "#ffffff" : "transparent",
+                color: tab === t ? "#1a1d2e" : "#9ca3af",
+                boxShadow: tab === t ? "0 1px 4px rgba(30,40,80,0.1)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              {t === "month" ? "By Month" : "By Weekday"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={188}>
+        <BarChart
+          data={chartData}
+          margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+          barCategoryGap="30%"
+        >
+          <CartesianGrid
+            strokeDasharray="4 4"
+            stroke="#f0f2f7"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
+            dy={8}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
+          />
+          <Tooltip
+            content={<RcTooltip />}
+            cursor={{ fill: "#f4f6fb", rx: 6 }}
+          />
+          <Bar dataKey="Violations" shape={<CustomBar />} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// ─── Recharts Chart 4: Rate Overview Bar Chart ───────────────────────────────
+
+const RateOverviewBar = (props) => {
+  const { x, y, width, height, fill } = props;
+  return (
+    <rect x={x} y={y} width={width} height={height} fill={fill} rx={8} ry={8} />
+  );
+};
+
+const RateOverviewTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #e8eaf0",
+        borderRadius: 10,
+        padding: "10px 14px",
+        boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
+        fontFamily: "inherit",
+        fontSize: 13,
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 4px",
+          color: "#6b7280",
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.6px",
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          margin: 0,
+          fontWeight: 700,
+          color: payload[0]?.fill,
+          fontSize: 14,
+        }}
+      >
+        {payload[0]?.value?.toFixed(1)}%
+      </p>
+    </div>
+  );
+};
+
+const RateOverviewChart = ({
+  deliveryRate = 0,
+  delayRate = 0,
+  cancellationRate = 0,
+}) => {
+  const data = [
+    { label: "Delivery", value: deliveryRate, fill: "rgba(22,163,74,0.82)" },
+    { label: "Delay", value: delayRate, fill: "rgba(245,158,11,0.82)" },
+    { label: "Cancel", value: cancellationRate, fill: "rgba(239,68,68,0.82)" },
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart
+        data={data}
+        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+        barCategoryGap="38%"
+      >
+        <CartesianGrid
+          strokeDasharray="4 4"
+          stroke="#f0f2f7"
+          vertical={false}
+        />
+        <XAxis
+          dataKey="label"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+          dy={8}
+        />
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
+          tickFormatter={(v) => `${v}%`}
+          domain={[0, 100]}
+        />
+        <Tooltip
+          content={<RateOverviewTooltip />}
+          cursor={{ fill: "#f4f6fb", rx: 8 }}
+        />
+        <Bar
+          dataKey="value"
+          shape={(props) => (
+            <RateOverviewBar {...props} fill={data[props.index]?.fill} />
+          )}
+          isAnimationActive={true}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
 
 // ─── PDF Generation Helpers ───────────────────────────────────────────────────
 
@@ -1444,32 +1957,20 @@ const pdfAddCoverHeader = (
   generatedAt,
   logoDataUrl,
 ) => {
-  // Top red band
   doc.setFillColor(...PDF_BRAND_RED);
   doc.rect(0, 0, pageWidth, 38, "F");
-
-  // Decorative accent stripe
   doc.setFillColor(200, 16, 46);
   doc.rect(0, 34, pageWidth, 4, "F");
-
-  // Logo
   if (logoDataUrl) {
     try {
       doc.addImage(logoDataUrl, "PNG", 10, 7, 24, 24);
-    } catch (_) {
-      /* skip if logo fails */
-    }
+    } catch (_) {}
   }
-
   const textX = logoDataUrl ? 40 : 14;
-
-  // Report title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...PDF_WHITE);
   doc.text(reportTitle, textX, 20);
-
-  // Sub-info line
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(255, 200, 200);
@@ -1478,7 +1979,6 @@ const pdfAddCoverHeader = (
     textX,
     28,
   );
-
   doc.setTextColor(...PDF_BRAND_DARK);
 };
 
@@ -1519,13 +2019,11 @@ const pdfAddPageFooter = (
   pageHeight,
   reportTitle,
 ) => {
-  // Bottom bar
   doc.setFillColor(...PDF_SLATE_100);
   doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
   doc.setDrawColor(...PDF_BORDER);
   doc.setLineWidth(0.3);
   doc.line(0, pageHeight - 10, pageWidth, pageHeight - 10);
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_SLATE_400);
@@ -1536,14 +2034,10 @@ const pdfAddPageFooter = (
 };
 
 const pdfSectionHeading = (doc, text, y, pageWidth) => {
-  // Left accent bar + dark bg
   doc.setFillColor(...PDF_BRAND_DARK);
   doc.roundedRect(10, y - 5, pageWidth - 20, 9, 1, 1, "F");
-
-  // Red left accent
   doc.setFillColor(...PDF_BRAND_RED);
   doc.roundedRect(10, y - 5, 3, 9, 1, 1, "F");
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(...PDF_WHITE);
@@ -1565,25 +2059,18 @@ const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
       x = 10;
       y += boxH + gap;
     }
-
-    // Card background
     doc.setFillColor(252, 252, 253);
     doc.setDrawColor(...PDF_BORDER);
     doc.setLineWidth(0.3);
     doc.roundedRect(x, y, boxW, boxH, 2, 2, "FD");
-
-    // Label
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(...PDF_SLATE_400);
     doc.text(String(label), x + 4, y + 6);
-
-    // Value
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(...PDF_BRAND_DARK);
     doc.text(String(value), x + 4, y + 13);
-
     x += boxW + gap;
   });
 
@@ -1619,19 +2106,14 @@ const pdfChartGrid = (
       }
     }
     const x = marginX + col * (chartW + gap);
-
-    // Chart label
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(...PDF_SLATE_600);
     doc.text(ci.title || "Chart", x, y + labelH - 1);
-
-    // Chart border + bg
     doc.setFillColor(252, 252, 253);
     doc.setDrawColor(...PDF_BORDER);
     doc.setLineWidth(0.25);
     doc.roundedRect(x, y + labelH, chartW, chartH, 2, 2, "FD");
-
     doc.addImage(
       ci.dataUrl,
       "PNG",
@@ -1645,8 +2127,6 @@ const pdfChartGrid = (
   const lastRow = Math.floor((chartImages.length - 1) / cols);
   return y + (lastRow >= 0 ? rowH : 0) + 6;
 };
-
-// ─── PDF: Rider Performance Table ─────────────────────────────────────────────
 
 const pdfRiderPerfTable = (
   doc,
@@ -1740,8 +2220,6 @@ const pdfRiderPerfTable = (
   return doc.lastAutoTable.finalY + 8;
 };
 
-// ─── Main PDF Builder ──────────────────────────────────────────────────────────
-
 const buildPdfDoc = async (
   selType,
   selStart,
@@ -1778,7 +2256,6 @@ const buildPdfDoc = async (
       ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}`
       : "All time";
 
-  // ── Cover header ──
   pdfAddCoverHeader(
     doc,
     pageWidth,
@@ -1791,7 +2268,6 @@ const buildPdfDoc = async (
 
   let y = 46;
 
-  // ── OVERALL: multi-section layout ──
   if (selType === "overall" && reportAnalytics?.sections?.length) {
     for (const section of reportAnalytics.sections) {
       if (y > pageHeight - 40) {
@@ -1830,7 +2306,6 @@ const buildPdfDoc = async (
         }
       }
 
-      // Rider perf table for the "Rider Performance" section in overall
       if (section.riderPerfRows?.length) {
         y = pdfRiderPerfTable(
           doc,
@@ -1845,9 +2320,6 @@ const buildPdfDoc = async (
       y += 6;
     }
   } else {
-    // ── SINGLE REPORT TYPE ──
-
-    // KPIs
     if (reportAnalytics?.summaryRows?.length) {
       y = pdfSectionHeading(doc, "Key Metrics", y, pageWidth);
       y += 3;
@@ -1855,7 +2327,6 @@ const buildPdfDoc = async (
       y += 6;
     }
 
-    // Charts
     if (reportChartImages?.length) {
       if (y + 78 > pageHeight - 14) {
         doc.addPage();
@@ -1874,7 +2345,6 @@ const buildPdfDoc = async (
       );
     }
 
-    // Rider Performance breakdown table (rider_performance report only)
     if (
       selType === "rider_performance" &&
       reportAnalytics?.riderPerfRows?.length
@@ -1890,7 +2360,6 @@ const buildPdfDoc = async (
     }
   }
 
-  // ── DATA TABLE ──
   if (y + 30 > pageHeight - 14) {
     doc.addPage();
     pdfAddRunningHeader(doc, pageWidth, reportTitle);
@@ -1924,7 +2393,6 @@ const buildPdfDoc = async (
         y = 16;
       }
 
-      // Section sub-label
       doc.setFillColor(...PDF_SLATE_100);
       doc.setDrawColor(...PDF_BORDER);
       doc.setLineWidth(0.3);
@@ -2012,7 +2480,6 @@ const buildPdfDoc = async (
       y = doc.lastAutoTable.finalY + 10;
     });
   } else if (selType === "rider_performance") {
-    // For rider_performance raw data: show riders list + violations list
     const ridersData = Array.isArray(data)
       ? data.find?.((s) => s?.section === "Riders")?.data || []
       : [];
@@ -2020,7 +2487,6 @@ const buildPdfDoc = async (
       ? data.find?.((s) => s?.section === "Violations")?.data || []
       : [];
 
-    // Riders table
     if (ridersData.length) {
       doc.setFillColor(...PDF_SLATE_100);
       doc.setDrawColor(...PDF_BORDER);
@@ -2063,7 +2529,6 @@ const buildPdfDoc = async (
       y = doc.lastAutoTable.finalY + 10;
     }
 
-    // Violations table
     if (violationsData.length) {
       if (y + 30 > pageHeight - 14) {
         doc.addPage();
@@ -2115,7 +2580,6 @@ const buildPdfDoc = async (
     });
   }
 
-  // ── Page footers ──
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
@@ -2173,7 +2637,6 @@ const Dashboard = () => {
   const [violationLogsError, setViolationLogsError] = useState("");
   const [flaggedRiderAvatars, setFlaggedRiderAvatars] = useState({});
   const [topRiderAvatars, setTopRiderAvatars] = useState({});
-  const [violationChartTab, setViolationChartTab] = useState("month");
 
   // ── Refs ──
   const yearFilterRef = useRef(null);
@@ -2184,18 +2647,6 @@ const Dashboard = () => {
   const violationLayerGroupRef = useRef(null);
   const violationFullLayerGroupRef = useRef(null);
   const hasLoadedAnalyticsRef = useRef(false);
-
-  // Chart refs
-  const deliveryTrendChartRef = useRef(null);
-  const deliveryTrendInstanceRef = useRef(null);
-  const statusMixChartRef = useRef(null);
-  const statusMixInstanceRef = useRef(null);
-  const violationTrendChartRef = useRef(null);
-  const violationTrendInstanceRef = useRef(null);
-  const weekdayViolationChartRef = useRef(null);
-  const weekdayViolationInstanceRef = useRef(null);
-  const delayRiskChartRef = useRef(null);
-  const delayRiskInstanceRef = useRef(null);
 
   const todayLabel = new Date().toLocaleString("en-US", {
     month: "long",
@@ -2465,8 +2916,6 @@ const Dashboard = () => {
         }
 
         let totalRiders = 0;
-        // Build a map from any name variant → "fname lname" (no middle name)
-        // so violation_logs.name (which may include mname) matches riderNameById format
         const nameNormalizeMap = {};
         try {
           const { data: allUsers, count } = await supabaseClient
@@ -2476,15 +2925,12 @@ const Dashboard = () => {
           (allUsers || []).forEach((u) => {
             const firstLast = `${u.fname || ""} ${u.lname || ""}`.trim();
             if (!firstLast) return;
-            // Map "fname lname" → itself
             nameNormalizeMap[firstLast.toLowerCase()] = firstLast;
-            // Map "fname mname lname" → "fname lname"
             if (u.mname) {
               const withMiddle =
                 `${u.fname || ""} ${u.mname} ${u.lname || ""}`.trim();
               nameNormalizeMap[withMiddle.toLowerCase()] = firstLast;
             }
-            // Map username → "fname lname"
             if (u.username) {
               nameNormalizeMap[String(u.username).toLowerCase()] = firstLast;
             }
@@ -2498,7 +2944,6 @@ const Dashboard = () => {
           } catch {}
         }
 
-        // Helper: normalize a raw name from violation_logs to fname+lname format
         const normalizeRiderName = (raw) => {
           if (!raw) return "Unknown";
           const key = String(raw).trim().toLowerCase();
@@ -2591,7 +3036,6 @@ const Dashboard = () => {
         allViolations.forEach((v) => {
           const vt = String(v?.violation || "Unknown");
           violationTypeCount[vt] = (violationTypeCount[vt] || 0) + 1;
-          // Normalize the name to fname+lname to match riderNameById format
           const rn = normalizeRiderName(v?.name);
           flaggedRiderCount[rn] = (flaggedRiderCount[rn] || 0) + 1;
         });
@@ -2771,339 +3215,6 @@ const Dashboard = () => {
     [dashboardData.topRiders, topRiderAvatars],
   );
 
-  // ── Charts ──
-  useEffect(() => {
-    if (!deliveryTrendChartRef.current) return;
-    const labels = selectedYear === "All" ? dashboardData.years : MONTH_SHORT;
-    const data =
-      selectedYear === "All"
-        ? dashboardData.yearGrowth
-        : dashboardData.monthGrowth;
-    const delayData =
-      selectedYear === "All"
-        ? dashboardData.yearDelayGrowth
-        : dashboardData.monthDelayGrowth;
-    if (!labels.length) return;
-    if (deliveryTrendInstanceRef.current) {
-      const c = deliveryTrendInstanceRef.current;
-      c.data.labels = labels;
-      c.data.datasets[0].data = data;
-      c.data.datasets[1].data = delayData;
-      c.update("active");
-      return;
-    }
-    deliveryTrendInstanceRef.current = new Chart(
-      deliveryTrendChartRef.current,
-      {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Deliveries",
-              data,
-              borderColor: "#16a34a",
-              backgroundColor: "rgba(22,163,74,0.10)",
-              borderWidth: 2.5,
-              tension: 0.38,
-              fill: true,
-              pointRadius: 3,
-              pointHoverRadius: 5,
-            },
-            {
-              label: "Delays",
-              data: delayData,
-              borderColor: "#f59e0b",
-              backgroundColor: "rgba(245,158,11,0.08)",
-              borderWidth: 2,
-              tension: 0.38,
-              fill: true,
-              pointRadius: 2,
-              borderDash: [5, 3],
-            },
-          ],
-        },
-        options: {
-          animation: { duration: 900, easing: "easeInOutQuart" },
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: "top",
-              labels: { boxWidth: 10, font: { size: 11 }, usePointStyle: true },
-            },
-          },
-          scales: {
-            x: { grid: { display: false } },
-            y: {
-              beginAtZero: true,
-              grid: { color: "rgba(148,163,184,0.15)" },
-              ticks: { precision: 0 },
-            },
-          },
-        },
-      },
-    );
-    return () => {
-      if (deliveryTrendInstanceRef.current) {
-        deliveryTrendInstanceRef.current.destroy();
-        deliveryTrendInstanceRef.current = null;
-      }
-    };
-  }, [
-    dashboardData.years,
-    dashboardData.yearGrowth,
-    dashboardData.yearDelayGrowth,
-    dashboardData.monthGrowth,
-    dashboardData.monthDelayGrowth,
-    selectedYear,
-  ]);
-
-  useEffect(() => {
-    if (!statusMixChartRef.current) return;
-    const { delivered, cancelled, inProgress } = dashboardData.parcelStatusMix;
-    if (statusMixInstanceRef.current) {
-      const c = statusMixInstanceRef.current;
-      c.data.datasets[0].data = [delivered, cancelled, inProgress];
-      c.update("active");
-      return;
-    }
-    statusMixInstanceRef.current = new Chart(statusMixChartRef.current, {
-      type: "doughnut",
-      data: {
-        labels: ["Delivered", "Cancelled", "In Progress"],
-        datasets: [
-          {
-            data: [delivered, cancelled, inProgress],
-            backgroundColor: ["#16a34a", "#ef4444", "#94a3b8"],
-            borderWidth: 0,
-            hoverOffset: 6,
-          },
-        ],
-      },
-      options: {
-        animation: {
-          animateRotate: true,
-          animateScale: true,
-          duration: 800,
-          easing: "easeInOutQuart",
-        },
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: "68%",
-        plugins: {
-          legend: {
-            display: true,
-            position: "bottom",
-            labels: {
-              boxWidth: 10,
-              font: { size: 11 },
-              usePointStyle: true,
-              padding: 12,
-            },
-          },
-        },
-      },
-    });
-    return () => {
-      if (statusMixInstanceRef.current) {
-        statusMixInstanceRef.current.destroy();
-        statusMixInstanceRef.current = null;
-      }
-    };
-  }, [dashboardData.parcelStatusMix]);
-
-  useEffect(() => {
-    if (!violationTrendChartRef.current) return;
-    const byMonth = Array(12).fill(0);
-    violationLogs.forEach((v) => {
-      const d = new Date(v?.date);
-      if (!Number.isNaN(d.getTime())) byMonth[d.getMonth()] += 1;
-    });
-    if (violationTrendInstanceRef.current) {
-      const c = violationTrendInstanceRef.current;
-      c.data.datasets[0].data = byMonth;
-      c.update("active");
-      return;
-    }
-    violationTrendInstanceRef.current = new Chart(
-      violationTrendChartRef.current,
-      {
-        type: "bar",
-        data: {
-          labels: MONTH_SHORT,
-          datasets: [
-            {
-              label: "Violations",
-              data: byMonth,
-              backgroundColor: "rgba(239,68,68,0.75)",
-              borderRadius: 5,
-              borderSkipped: false,
-            },
-          ],
-        },
-        options: {
-          animation: { duration: 750, easing: "easeOutQuart" },
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false } },
-            y: {
-              beginAtZero: true,
-              grid: { color: "rgba(148,163,184,0.15)" },
-              ticks: { precision: 0 },
-            },
-          },
-        },
-      },
-    );
-    setTimeout(() => {
-      violationTrendInstanceRef.current?.resize();
-    }, 50);
-    return () => {
-      if (violationTrendInstanceRef.current) {
-        violationTrendInstanceRef.current.destroy();
-        violationTrendInstanceRef.current = null;
-      }
-    };
-  }, [violationLogs]);
-
-  useEffect(() => {
-    if (!weekdayViolationChartRef.current) return;
-    const newColors = dashboardData.violationsByWeekday.map((v) => {
-      const max = Math.max(...dashboardData.violationsByWeekday, 1);
-      return v === max ? "#ef4444" : "rgba(239,68,68,0.35)";
-    });
-    if (weekdayViolationInstanceRef.current) {
-      const c = weekdayViolationInstanceRef.current;
-      c.data.datasets[0].data = dashboardData.violationsByWeekday;
-      c.data.datasets[0].backgroundColor = newColors;
-      c.update("active");
-      return;
-    }
-    weekdayViolationInstanceRef.current = new Chart(
-      weekdayViolationChartRef.current,
-      {
-        type: "bar",
-        data: {
-          labels: WEEKDAY_LABELS,
-          datasets: [
-            {
-              label: "Violations",
-              data: dashboardData.violationsByWeekday,
-              backgroundColor: newColors,
-              borderRadius: 5,
-            },
-          ],
-        },
-        options: {
-          animation: { duration: 750, easing: "easeOutQuart" },
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false } },
-            y: {
-              beginAtZero: true,
-              grid: { color: "rgba(148,163,184,0.15)" },
-              ticks: { precision: 0 },
-            },
-          },
-        },
-      },
-    );
-    setTimeout(() => {
-      weekdayViolationInstanceRef.current?.resize();
-    }, 50);
-    return () => {
-      if (weekdayViolationInstanceRef.current) {
-        weekdayViolationInstanceRef.current.destroy();
-        weekdayViolationInstanceRef.current = null;
-      }
-    };
-  }, [dashboardData.violationsByWeekday]);
-
-  useEffect(() => {
-    if (!delayRiskChartRef.current) return;
-    if (delayRiskInstanceRef.current) {
-      const c = delayRiskInstanceRef.current;
-      c.data.datasets[0].data = [
-        analyticsSummary.deliveryRate,
-        analyticsSummary.delayRate,
-        analyticsSummary.cancellationRate,
-      ];
-      c.update("active");
-      return;
-    }
-    delayRiskInstanceRef.current = new Chart(delayRiskChartRef.current, {
-      type: "bar",
-      data: {
-        labels: ["Delivery Rate", "Delay Rate", "Cancel Rate"],
-        datasets: [
-          {
-            data: [
-              analyticsSummary.deliveryRate,
-              analyticsSummary.delayRate,
-              analyticsSummary.cancellationRate,
-            ],
-            backgroundColor: [
-              "rgba(22,163,74,0.8)",
-              "rgba(245,158,11,0.8)",
-              "rgba(239,68,68,0.8)",
-            ],
-            borderRadius: 8,
-            borderSkipped: false,
-          },
-        ],
-      },
-      options: {
-        animation: { duration: 750, easing: "easeOutBounce" },
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: {
-            beginAtZero: true,
-            max: 100,
-            grid: { color: "rgba(148,163,184,0.15)" },
-            ticks: { callback: (v) => `${v}%` },
-          },
-        },
-      },
-    });
-    return () => {
-      if (delayRiskInstanceRef.current) {
-        delayRiskInstanceRef.current.destroy();
-        delayRiskInstanceRef.current = null;
-      }
-    };
-  }, [
-    analyticsSummary.deliveryRate,
-    analyticsSummary.delayRate,
-    analyticsSummary.cancellationRate,
-  ]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (violationChartTab === "month")
-        violationTrendInstanceRef.current?.resize();
-      else weekdayViolationInstanceRef.current?.resize();
-    }, 30);
-    return () => clearTimeout(timer);
-  }, [violationChartTab]);
-
-  useEffect(() => {
-    if (!violationLogs.length) return;
-    const timer = setTimeout(() => {
-      violationTrendInstanceRef.current?.resize();
-      weekdayViolationInstanceRef.current?.resize();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [violationLogs]);
-
   // ── Map ──
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
@@ -3219,7 +3330,6 @@ const Dashboard = () => {
             ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
             : ["parcel_id", selCol];
     } else if (selType === "rider_performance") {
-      // Note: no date filter on users — filter by parcel/violation dates instead
       const { data: riders, error: rErr } = await supabaseClient
         .from("users")
         .select("*")
@@ -3408,8 +3518,6 @@ const Dashboard = () => {
     }
   };
 
-  const reportNeedsDate = true; // All report types now require date
-
   const trendYoY = useMemo(() => {
     const yg = dashboardData.yearGrowth;
     if (yg.length < 2) return null;
@@ -3586,7 +3694,7 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* ── Row 3: Delivery trend + Status mix ── */}
+              {/* ── Row 3: Delivery trend (Recharts) + Status mix (Recharts) ── */}
               <div className="charts-row-main">
                 <ChartCard
                   title="Deliveries vs. Delays"
@@ -3596,14 +3704,19 @@ const Dashboard = () => {
                       : `by month · ${selectedYear}`
                   }
                 >
-                  <div style={{ height: 220 }}>
-                    <canvas ref={deliveryTrendChartRef} />
-                  </div>
+                  <DeliveriesLineChart
+                    monthGrowth={dashboardData.monthGrowth}
+                    monthDelayGrowth={dashboardData.monthDelayGrowth}
+                    selectedYear={selectedYear}
+                    years={dashboardData.years}
+                    yearGrowth={dashboardData.yearGrowth}
+                    yearDelayGrowth={dashboardData.yearDelayGrowth}
+                  />
                 </ChartCard>
                 <ChartCard title="Status Breakdown" subtitle="">
-                  <div style={{ height: 220 }}>
-                    <canvas ref={statusMixChartRef} />
-                  </div>
+                  <StatusDonutChart
+                    parcelStatusMix={dashboardData.parcelStatusMix}
+                  />
                 </ChartCard>
               </div>
 
@@ -3651,59 +3764,24 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 5: Rate Overview + Violations Trend ── */}
+              {/* ── Row 5: Rate Overview (Chart.js) + Violations Trend (Recharts) ── */}
               <div className="charts-row-violations">
                 <ChartCard title="Rate Overview" subtitle="">
-                  <div style={{ height: 220 }}>
-                    <canvas ref={delayRiskChartRef} />
-                  </div>
+                  <RateOverviewChart
+                    deliveryRate={analyticsSummary.deliveryRate}
+                    delayRate={analyticsSummary.delayRate}
+                    cancellationRate={analyticsSummary.cancellationRate}
+                  />
                 </ChartCard>
-                <div className="chart-card violation-toggled-card">
+
+                <div className="chart-card">
                   <div className="violation-toggle-header">
                     <h3>Violations Trend</h3>
-                    <div className="violation-tab-toggle">
-                      <button
-                        type="button"
-                        className={`vtab-btn${violationChartTab === "month" ? " vtab-active" : ""}`}
-                        onClick={() => setViolationChartTab("month")}
-                      >
-                        By Month
-                      </button>
-                      <button
-                        type="button"
-                        className={`vtab-btn${violationChartTab === "weekday" ? " vtab-active" : ""}`}
-                        onClick={() => setViolationChartTab("weekday")}
-                      >
-                        By Weekday
-                      </button>
-                    </div>
                   </div>
-                  <div style={{ position: "relative", height: 220 }}>
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        opacity: violationChartTab === "month" ? 1 : 0,
-                        pointerEvents:
-                          violationChartTab === "month" ? "auto" : "none",
-                        transition: "opacity 0.2s ease",
-                      }}
-                    >
-                      <canvas ref={violationTrendChartRef} />
-                    </div>
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        opacity: violationChartTab === "weekday" ? 1 : 0,
-                        pointerEvents:
-                          violationChartTab === "weekday" ? "auto" : "none",
-                        transition: "opacity 0.2s ease",
-                      }}
-                    >
-                      <canvas ref={weekdayViolationChartRef} />
-                    </div>
-                  </div>
+                  <ViolationsTrendChart
+                    violationLogs={violationLogs}
+                    violationsByWeekday={dashboardData.violationsByWeekday}
+                  />
                 </div>
               </div>
 
@@ -3927,7 +4005,6 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                {/* Report type description */}
                 {reportType && (
                   <div className="rpt-type-desc-card">
                     {reportType === "parcels" && (

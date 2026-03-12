@@ -266,7 +266,7 @@ const Parcel = () => {
         const { data, error } = await supabaseClient
           .from("parcels")
           .select(
-            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname, lname)`,
+            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname, lname, profile_url)`,
           )
           .order(sortColumn, { ascending })
           .range(from, from + chunkSize - 1);
@@ -751,7 +751,7 @@ const Parcel = () => {
               </div>
             </div>
 
-            {/* ── View parcel modal ── */}
+            {/* ── View Parcel Modal (REDESIGNED) ── */}
             {viewParcel && (
               <div
                 className="parcels-modal-overlay show"
@@ -761,154 +761,191 @@ const Parcel = () => {
                   className="parcels-modal-content view-parcel-modal"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="parcels-modal-header">
-                    <h3>Parcel Details</h3>
+                  {/* ── Hero Header ── */}
+                  <div className="vpd-hero">
+                    <div className="vpd-hero-bg" aria-hidden="true" />
+                    <div className="vpd-hero-inner">
+                      <div className="vpd-hero-left">
+                        <div>
+                          <p className="vpd-hero-eyebrow">Parcel ID</p>
+                          <h2 className="vpd-hero-id">
+                            #{viewParcel.parcel_id || "—"}
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="vpd-hero-right">
+                        {(() => {
+                          const m = getParcelStatusMeta(viewParcel.status);
+                          return (
+                            <span className={`vpd-status-chip ${m.className}`}>
+                              <span
+                                className="vpd-status-dot"
+                                aria-hidden="true"
+                              />
+                              {m.label}
+                            </span>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          className="vpd-close-btn"
+                          onClick={() => setViewParcel(null)}
+                          aria-label="Close"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Timeline strip inside hero */}
+                    <div className="vpd-timeline-strip">
+                      <div className="vpd-timeline-item">
+                        <span className="vpd-tl-label">Created</span>
+                        <span className="vpd-tl-value">
+                          {formatTimelineDateTime(viewParcel.created_at)}
+                        </span>
+                      </div>
+                      <div className="vpd-timeline-arrow" aria-hidden="true">
+                        →
+                      </div>
+                      <div className="vpd-timeline-item">
+                        <span className="vpd-tl-label">Last Updated</span>
+                        <span className="vpd-tl-value">
+                          {formatTimelineDateTime(viewParcel.updated_at)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="parcels-modal-body">
-                    <div className="parcel-view-shell">
-                      {/* Delivery */}
-                      <section className="parcel-view-card">
-                        <h4>Delivery</h4>
-                        <div className="parcel-view-grid">
-                          <div className="parcel-view-item">
-                            <span>Parcel ID</span>
-                            <strong>{viewParcel.parcel_id || "-"}</strong>
+
+                  {/* ── Scrollable Body ── */}
+                  <div className="vpd-body">
+                    {/* ── Two-col info row: Recipient + Sender ── */}
+                    <div className="vpd-cols">
+                      {/* Recipient */}
+                      <div className="vpd-info-card">
+                        <div className="vpd-card-label">Recipient</div>
+                        <div className="vpd-field-stack">
+                          <div className="vpd-field">
+                            <span>Name</span>
+                            <strong>{viewParcel.recipient_name || "—"}</strong>
                           </div>
-                          <div className="parcel-view-item">
-                            <span>Status</span>
-                            <strong>
-                              {(() => {
-                                const n = (
-                                  viewParcel.status || ""
-                                ).toLowerCase();
-                                const cls =
-                                  n === "successfully delivered"
-                                    ? "is-delivered"
-                                    : n === "on-going"
-                                      ? "is-ongoing"
-                                      : n === "cancelled"
-                                        ? "is-cancelled"
-                                        : "is-default";
-                                return (
-                                  <span className={`parcel-view-status ${cls}`}>
-                                    {viewParcel.status || "-"}
-                                  </span>
-                                );
-                              })()}
-                            </strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Recipient Name</span>
-                            <strong>{viewParcel.recipient_name || "-"}</strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Recipient Phone</span>
-                            <strong>{viewParcel.recipient_phone || "-"}</strong>
-                          </div>
-                          <div className="parcel-view-item parcel-view-item-full">
-                            <span>Address</span>
-                            <strong>{viewParcel.address || "-"}</strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Assigned Rider</span>
-                            <strong>{viewParcel.riderFullName || "-"}</strong>
-                          </div>
-                          <div className="parcel-view-item parcel-view-action-inline">
-                            <button
-                              type="button"
-                              className="parcel-track-btn"
-                              onClick={() => openTrackModal(viewParcel)}
-                              disabled={!getParcelCoords(viewParcel)}
-                            >
-                              View Delivery Location
-                            </button>
+                          <div className="vpd-field">
+                            <span>Phone</span>
+                            <strong>{viewParcel.recipient_phone || "—"}</strong>
                           </div>
                         </div>
-                      </section>
+                      </div>
 
                       {/* Sender */}
-                      <section className="parcel-view-card">
-                        <h4>Sender</h4>
-                        <div className="parcel-view-grid">
-                          <div className="parcel-view-item">
-                            <span>Sender Name</span>
-                            <strong>{viewParcel.sender_name || "-"}</strong>
+                      <div className="vpd-info-card">
+                        <div className="vpd-card-label">Sender</div>
+                        <div className="vpd-field-stack">
+                          <div className="vpd-field">
+                            <span>Name</span>
+                            <strong>{viewParcel.sender_name || "—"}</strong>
                           </div>
-                          <div className="parcel-view-item">
-                            <span>Sender Phone</span>
-                            <strong>{viewParcel.sender_phone || "-"}</strong>
+                          <div className="vpd-field">
+                            <span>Phone</span>
+                            <strong>{viewParcel.sender_phone || "—"}</strong>
                           </div>
                         </div>
-                      </section>
+                      </div>
+                    </div>
 
-                      {/* Attempt History */}
-                      <section className="parcel-view-card">
-                        <h4>Attempt History</h4>
-                        <div className="parcel-view-grid">
-                          {/* Attempt 1 — always shown */}
-                          <div className="parcel-view-item">
-                            <span>Attempt 1 Status</span>
-                            <strong
-                              className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt1_status)}`}
+                    {/* ── Address + Rider card ── */}
+                    <div className="vpd-info-card">
+                      <div className="vpd-card-label">Delivery Address</div>
+                      <p className="vpd-address-text">
+                        {viewParcel.address || "—"}
+                      </p>
+                      <div className="vpd-rider-row">
+                        <div className="vpd-rider-avatar">
+                          {viewParcel.assigned_rider?.profile_url ? (
+                            <img
+                              src={viewParcel.assigned_rider.profile_url}
+                              alt={viewParcel.riderFullName}
+                              className="vpd-rider-photo"
+                            />
+                          ) : (
+                            <span className="vpd-rider-initials">
+                              {viewParcel.riderFullName &&
+                              viewParcel.riderFullName !== "Unassigned"
+                                ? viewParcel.riderFullName
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .slice(0, 2)
+                                    .toUpperCase()
+                                : "—"}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="vpd-rider-eyebrow">
+                            Assigned Rider
+                          </span>
+                          <strong className="vpd-rider-name">
+                            {viewParcel.riderFullName || "—"}
+                          </strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="vpd-track-btn"
+                          onClick={() => openTrackModal(viewParcel)}
+                          disabled={!getParcelCoords(viewParcel)}
+                        >
+                          View Delivery Location
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ── Attempt History ── */}
+                    <div className="vpd-attempts">
+                      <div className="vpd-section-title">
+                        <span className="vpd-section-line" aria-hidden="true" />
+                        Attempt History
+                        <span className="vpd-section-line" aria-hidden="true" />
+                      </div>
+                      <div className="vpd-attempt-cards">
+                        {/* Attempt 1 — always shown */}
+                        <div className="vpd-attempt-card">
+                          <div className="vpd-attempt-num">01</div>
+                          <div className="vpd-attempt-info">
+                            <span
+                              className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt1_status)}`}
                             >
-                              {formatStatusLabel(viewParcel.attempt1_status)}
-                            </strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Attempt 1 Date</span>
-                            <strong>
+                              {formatStatusLabel(viewParcel.attempt1_status) ||
+                                "—"}
+                            </span>
+                            <span className="vpd-attempt-date">
                               {formatTimelineDateTime(
                                 viewParcel.attempt1_date ||
                                   viewParcel.attempt1_datetime,
                               )}
-                            </strong>
-                          </div>
-
-                          {/* Attempt 2 — only shown when attempt2_status is not null/empty */}
-                          {hasAttempt2(viewParcel) && (
-                            <>
-                              <div className="parcel-view-item">
-                                <span>Attempt 2 Status</span>
-                                <strong
-                                  className={`parcel-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
-                                >
-                                  {formatStatusLabel(
-                                    viewParcel.attempt2_status,
-                                  )}
-                                </strong>
-                              </div>
-                              <div className="parcel-view-item">
-                                <span>Attempt 2 Date</span>
-                                <strong>
-                                  {formatTimelineDateTime(
-                                    viewParcel.attempt2_date ||
-                                      viewParcel.attempt2_datetime,
-                                  )}
-                                </strong>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </section>
-
-                      {/* Timeline */}
-                      <section className="parcel-view-card">
-                        <h4>Timeline</h4>
-                        <div className="parcel-view-grid">
-                          <div className="parcel-view-item">
-                            <span>Created</span>
-                            <strong>
-                              {formatTimelineDateTime(viewParcel.created_at)}
-                            </strong>
-                          </div>
-                          <div className="parcel-view-item">
-                            <span>Updated</span>
-                            <strong>
-                              {formatTimelineDateTime(viewParcel.updated_at)}
-                            </strong>
+                            </span>
                           </div>
                         </div>
-                      </section>
+
+                        {/* Attempt 2 — only if present */}
+                        {hasAttempt2(viewParcel) && (
+                          <div className="vpd-attempt-card">
+                            <div className="vpd-attempt-num">02</div>
+                            <div className="vpd-attempt-info">
+                              <span
+                                className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
+                              >
+                                {formatStatusLabel(viewParcel.attempt2_status)}
+                              </span>
+                              <span className="vpd-attempt-date">
+                                {formatTimelineDateTime(
+                                  viewParcel.attempt2_date ||
+                                    viewParcel.attempt2_datetime,
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

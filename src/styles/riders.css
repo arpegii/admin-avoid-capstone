@@ -4878,8 +4878,8 @@ body.dark .ris-skeleton {
 
 .rider-create-modal-wrap {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  width: 680px;
+  grid-template-columns: 1fr; /* single column */
+  width: 480px; /* narrower */
   max-width: 95vw;
   max-height: 90vh;
   border-radius: 18px;

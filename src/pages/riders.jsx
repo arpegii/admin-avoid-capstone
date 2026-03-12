@@ -326,7 +326,6 @@ function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
   const [parcels, setParcels] = useState([]);
   const [loadingParcels, setLoadingParcels] = useState(false);
   const [parcelsError, setParcelsError] = useState("");
-  // Use a plain object as a selection map for O(1) reads without new Set() churn
   const [selected, setSelected] = useState({});
   const [step, setStep] = useState("parcels");
   const [assigning, setAssigning] = useState(false);
@@ -336,7 +335,6 @@ function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
   const [riderSearch, setRiderSearch] = useState("");
   const [sortBy, setSortBy] = useState("id_desc");
 
-  // Fetch unassigned parcels on mount
   useEffect(() => {
     let cancelled = false;
     setLoadingParcels(true);
@@ -345,6 +343,7 @@ function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
       .from("parcels")
       .select("parcel_id, recipient_name, address, status, created_at")
       .is("assigned_rider_id", null)
+      .eq("status", "on-going")
       .order("created_at", { ascending: false })
       .then(({ data, error: err }) => {
         if (cancelled) return;
@@ -877,13 +876,8 @@ export default function Riders() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [recentRiderActivity, setRecentRiderActivity] = useState([]);
 
-  // ── Violations analytics tab state ──
   const [violationsActiveTab, setViolationsActiveTab] = useState("overview");
-
-  // ── Assign Parcels State ──
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-
-  // ── Performance Modal: Assigned Parcels Tab ──
   const [perfActiveTab, setPerfActiveTab] = useState("overview");
   const [perfAssignedParcels, setPerfAssignedParcels] = useState([]);
   const [perfParcelsLoading, setPerfParcelsLoading] = useState(false);
@@ -910,7 +904,6 @@ export default function Riders() {
     [],
   );
 
-  // ── Pre-fetch flood GeoJSON on mount so toggling is instant ──
   useEffect(() => {
     getRizalFloodData().catch(() => {});
   }, []);
@@ -1349,7 +1342,6 @@ export default function Riders() {
     }
   };
 
-  // ── Only show online riders with valid coordinates on the map ──
   const riderLocations = useMemo(
     () =>
       riders.filter(
@@ -2090,7 +2082,6 @@ export default function Riders() {
     setLoadingViolationLogs(false);
   };
 
-  // ── Fetch assigned parcels for the performance modal ──
   const fetchAssignedParcels = useCallback(async (riderId) => {
     if (!riderId) return;
     setPerfParcelsLoading(true);
@@ -2127,7 +2118,6 @@ export default function Riders() {
     setCreatePassword("");
   };
 
-  // ── Manual Assign Parcels Handlers ──
   const openAssignModal = () => setAssignModalOpen(true);
   const closeAssignModal = () => setAssignModalOpen(false);
 
@@ -2259,7 +2249,6 @@ export default function Riders() {
     </div>
   );
 
-  // ── Derived values for performance modal ──
   const perfTotal =
     (selectedRiderInfo?.deliveredParcels ?? 0) +
     (selectedRiderInfo?.ongoingParcels ?? 0) +
@@ -2296,7 +2285,6 @@ export default function Riders() {
         )
       : 0;
 
-  // ── Filtered parcels for the performance modal parcels tab ──
   const perfFilteredParcels = useMemo(() => {
     const q = perfParcelsSearch.trim().toLowerCase();
     return perfAssignedParcels.filter((p) => {
@@ -2312,7 +2300,6 @@ export default function Riders() {
     });
   }, [perfAssignedParcels, perfParcelsSearch, perfParcelsFilter]);
 
-  // ── Violation analytics derived values ──
   const violationStats = useMemo(() => {
     if (!riderViolationLogs.length) return null;
     const byType = {};
@@ -3327,7 +3314,6 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 960, maxWidth: "96%" }}
           >
-            {/* ── Stats strip (always visible) ── */}
             <div className="rp2-header-strip">
               <div className="rp2-header-stat">
                 <span className="rp2-header-stat-label">TOTAL PARCELS</span>
@@ -3347,7 +3333,6 @@ export default function Riders() {
               </div>
             </div>
 
-            {/* ── Tabs ── */}
             <div className="rp2-tabs">
               <button
                 type="button"
@@ -3403,7 +3388,6 @@ export default function Riders() {
               </button>
             </div>
 
-            {/* ── TAB: Overview ── */}
             {perfActiveTab === "overview" && (
               <div className="rp2-body">
                 <div className="rp2-left">
@@ -3582,10 +3566,8 @@ export default function Riders() {
               </div>
             )}
 
-            {/* ── TAB: Assigned Parcels ── */}
             {perfActiveTab === "parcels" && (
               <div className="rp2-parcels-body">
-                {/* Toolbar */}
                 <div className="rp2-parcels-toolbar">
                   <div className="rp2-parcels-search-wrap">
                     <svg
@@ -3627,7 +3609,6 @@ export default function Riders() {
                   </div>
                 </div>
 
-                {/* Content */}
                 {perfParcelsLoading ? (
                   <div className="rp2-parcels-loading">
                     <div className="assign-spinner" />
@@ -3759,7 +3740,7 @@ export default function Riders() {
         </div>
       )}
 
-      {/* ══ VIOLATION LOGS MODAL (with analytics) ══ */}
+      {/* ══ VIOLATION LOGS MODAL ══ */}
       {violationLogsModalOpen && selectedRiderInfo && (
         <div
           className="riders-modal-overlay"
@@ -3775,7 +3756,6 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 760, maxWidth: "96%" }}
           >
-            {/* Header */}
             <div className="riders-modal-header">
               <h2>{selectedRiderDisplayName} — Violations</h2>
             </div>
@@ -3796,7 +3776,6 @@ export default function Riders() {
               </div>
             ) : (
               <>
-                {/* Tabs */}
                 <div className="viol-tabs">
                   <button
                     type="button"
@@ -3852,11 +3831,9 @@ export default function Riders() {
                   </button>
                 </div>
 
-                {/* TAB: Analytics */}
                 {violationsActiveTab === "overview" && (
                   <div className="viol-analytics-body">
                     <div className="viol-analytics-left">
-                      {/* Risk level */}
                       <div className="viol-section-label">
                         <span className="viol-section-bar" />
                         RISK LEVEL
@@ -3909,7 +3886,6 @@ export default function Riders() {
                     </div>
 
                     <div className="viol-analytics-right">
-                      {/* 7-day trend */}
                       <div className="viol-section-label">
                         <span className="viol-section-bar" />
                         7-DAY TREND
@@ -3940,7 +3916,6 @@ export default function Riders() {
                         })}
                       </div>
 
-                      {/* Summary cards */}
                       <div
                         className="viol-section-label"
                         style={{ marginTop: 14 }}
@@ -3997,7 +3972,6 @@ export default function Riders() {
                   </div>
                 )}
 
-                {/* TAB: Logs */}
                 {violationsActiveTab === "logs" && (
                   <div className="viol-logs-body">
                     <div className="viol-logs-table-wrap">
@@ -4062,70 +4036,7 @@ export default function Riders() {
             className="rider-create-modal-wrap"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* ── Left brand panel ── */}
-            <div className="rcm-brand">
-              <div className="rcm-brand-top">
-                <div className="rcm-brand-icon">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="5.5" cy="17.5" r="2.5" />
-                    <circle cx="18.5" cy="17.5" r="2.5" />
-                    <path d="M8 17.5h7M15 17.5l-1-5H9l-2 3.5" />
-                    <path d="M12 12.5V7l4 2-4 3.5z" />
-                    <path d="M7 9l2 3.5" />
-                  </svg>
-                </div>
-                <h3 className="rcm-brand-title">New Rider</h3>
-                <p className="rcm-brand-sub">
-                  Register a delivery rider to the fleet. They'll receive login
-                  credentials once the account is created.
-                </p>
-              </div>
-              <div className="rcm-brand-info">
-                <div className="rcm-info-row">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>Auto-assigned to available routes</span>
-                </div>
-                <div className="rcm-info-row">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>Tracked in real-time on the map</span>
-                </div>
-                <div className="rcm-info-row">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>Performance analytics enabled</span>
-                </div>
-              </div>
-              <div className="rcm-brand-date">
-                <span className="rcm-date-label">Date of Join</span>
-                <span className="rcm-date-value">{joinDateToday}</span>
-              </div>
-            </div>
-
-            {/* ── Right form panel ── */}
+            {/* ── Form panel (single column, no brand panel) ── */}
             <div className="rcm-form-panel">
               <div className="rcm-form-header">
                 <h2>Create Rider Account</h2>
@@ -4252,7 +4163,6 @@ export default function Riders() {
                     autoComplete="new-password"
                     disabled={creatingRider}
                   />
-                  {/* Password strength bar */}
                   <div className="rcm-strength-bar">
                     <div
                       className="rcm-strength-fill"
