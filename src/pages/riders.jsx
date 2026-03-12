@@ -912,6 +912,37 @@ export default function Riders() {
     getRizalFloodData().catch(() => {});
   }, []);
 
+  // Real-time violation notifications via Supabase subscription
+  useEffect(() => {
+    const channel = supabaseClient
+      .channel("violation-alerts")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "violation_logs" },
+        (payload) => {
+          const v = payload.new;
+          if (!v) return;
+          const violationKey = `${v.user_id}-${v.date}-${v.violation}`;
+          if (notifiedViolationsRef.current.has(violationKey)) return;
+          notifiedViolationsRef.current.add(violationKey);
+          const rider = riders.find((r) => r.user_id === v.user_id);
+          const riderName = rider
+            ? rider.fname || rider.username || "Rider"
+            : v.name || "Rider";
+          notifyRiderViolation(
+            v.user_id,
+            riderName,
+            v.violation || "Speed violation",
+            Math.floor(Math.random() * 30 + 60),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      supabaseClient.removeChannel(channel);
+    };
+  }, [riders, notifyRiderViolation]);
+
   useEffect(() => {
     if (!showCreateSuccessModal) return;
     const t = setTimeout(() => setShowCreateSuccessModal(false), 2400);
@@ -2027,26 +2058,6 @@ export default function Riders() {
         setViolationLogsError("Failed to load rider violation logs.");
       } else {
         setRiderViolationLogs(violationData || []);
-        if (violationData && violationData.length > 0) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const recentViolations = violationData.filter((v) => {
-            const vDate = new Date(v.date);
-            return vDate >= today;
-          });
-          // ── FIX: only notify for violations not yet seen this session ──
-          recentViolations.slice(0, 3).forEach((violation) => {
-            const violationKey = `${riderData.user_id}-${violation.date}-${violation.violation}`;
-            if (notifiedViolationsRef.current.has(violationKey)) return;
-            notifiedViolationsRef.current.add(violationKey);
-            notifyRiderViolation(
-              riderData.user_id,
-              riderData.fname || riderData.username || "Rider",
-              violation.violation || "Speed violation",
-              Math.floor(Math.random() * 30 + 60),
-            );
-          });
-        }
       }
       const parcels = parcelsData || [];
       const { streak, todayCount, metToday } = calculateQuotaStreak(
