@@ -826,6 +826,10 @@ export default function Riders() {
   const location = useLocation();
   const navigate = useNavigate();
   const { notifyRiderViolation } = useNotification();
+
+  // ── FIX: track which violations have already been notified this session ──
+  const notifiedViolationsRef = useRef(new Set());
+
   const [riders, setRiders] = useState([]);
   const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [trackingRider, setTrackingRider] = useState("");
@@ -2030,7 +2034,11 @@ export default function Riders() {
             const vDate = new Date(v.date);
             return vDate >= today;
           });
+          // ── FIX: only notify for violations not yet seen this session ──
           recentViolations.slice(0, 3).forEach((violation) => {
+            const violationKey = `${riderData.user_id}-${violation.date}-${violation.violation}`;
+            if (notifiedViolationsRef.current.has(violationKey)) return;
+            notifiedViolationsRef.current.add(violationKey);
             notifyRiderViolation(
               riderData.user_id,
               riderData.fname || riderData.username || "Rider",
