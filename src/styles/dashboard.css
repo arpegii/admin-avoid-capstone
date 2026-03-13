@@ -2121,3 +2121,56 @@ body.dark .rpt-type-desc-title {
 body.dark .rpt-type-desc-card p {
   color: #475569;
 }
+/* ─── Stat Card Analytics Button ─────────────────────────────────────────────
+   Add this block anywhere inside dashboard.css, e.g. after the .stat-footer rules
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.stat-chart-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0.5px solid rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #94a3b8;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+  z-index: 2;
+}
+
+.stat-chart-btn:hover {
+  background: #fef2f2;
+  color: #c8102e;
+  border-color: rgba(200, 16, 46, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Give stat-inner extra bottom padding to make room for the button */
+.stat-inner {
+  padding-bottom: 2.2rem; /* was 0.9rem — increased to clear the analytics button */
+}
+
+/* ─── Dark mode for analytics button ─────────────────────────────────────────  */
+body.dark .stat-chart-btn {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #475569;
+}
+
+body.dark .stat-chart-btn:hover {
+  background: rgba(200, 16, 46, 0.14);
+  color: #fb7185;
+  border-color: rgba(200, 16, 46, 0.3);
+}

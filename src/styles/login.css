@@ -1102,212 +1102,168 @@ body {
   box-shadow: 0 0 0 1000px #ffffff inset;
   transition: background-color 9999s ease-in-out 0s;
 }
+/* ================= FORCE LIGHT MODE ON LOGIN PAGE ================= */
+/* The login page is always light regardless of body.dark              */
 
-/* ================= DARK MODE LOGIN ================= */
 body.dark .login-page {
-  background: #0a0a14;
+  background: var(--bg-red) !important;
 }
 
-body.dark .modern-card {
+body.dark .login-page .modern-card {
   box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.55),
-    0 36px 95px rgba(0, 0, 0, 0.45);
+    0 18px 42px rgba(15, 23, 42, 0.24),
+    0 36px 95px rgba(0, 0, 0, 0.2) !important;
 }
 
-body.dark .login-card-brand {
-  background: linear-gradient(160deg, #2a2a3e 0%, #1e1e2e 100%);
+body.dark .login-page .login-card-brand {
+  background: linear-gradient(160deg, #f2f2f6 0%, #e9e9ef 100%) !important;
 }
 
-body.dark .login-right-panel {
-  background: linear-gradient(160deg, #e8192c 0%, #a30c1a 55%, #4a0510 100%);
+body.dark .login-page .login-right-panel {
+  background: linear-gradient(160deg, #e8192c 0%, #a30c1a 55%, #4a0510 100%) !important;
 }
 
-body.dark .form-group label {
-  color: rgba(255, 255, 255, 0.95);
+body.dark .login-page .form-group label {
+  color: rgba(255, 255, 255, 0.92) !important;
 }
 
-body.dark .form-input {
-  background: #0f1620;
-  color: #f0eded;
-  border-color: rgba(255, 255, 255, 0.15);
+body.dark .login-page .form-input {
+  background: #ffffff !important;
+  color: #1a1a2e !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-body.dark .form-input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+body.dark .login-page .form-input::placeholder {
+  color: #a0a0b0 !important;
 }
 
-body.dark .form-input:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: #141d2a;
+body.dark .login-page .form-input:hover {
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: #ffffff !important;
 }
 
-body.dark .form-input:focus {
-  border-color: #ff3f51;
-  background: #0f1620;
-  box-shadow: 0 0 0 3.5px rgba(255, 63, 81, 0.25);
+body.dark .login-page .form-input:focus {
+  border-color: #ffffff !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.2) !important;
 }
 
-body.dark .input-icon {
-  color: #ff3f51;
+body.dark .login-page .input-icon {
+  color: #c8102e !important;
 }
 
-body.dark .password-toggle {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+body.dark .login-page .password-toggle,
+body.dark .login-page .password-toggle.icon-toggle {
+  background: transparent !important;
+  color: rgba(51, 65, 85, 0.9) !important;
 }
 
-body.dark .password-toggle:hover {
+body.dark .login-page .password-toggle.icon-toggle:hover {
+  color: #1e293b !important;
+}
+
+body.dark .login-page .login-btn {
+  background: #ffffff !important;
+  color: var(--red) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+body.dark .login-page .login-btn:hover {
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.dark .login-page .login-error {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
   color: #ffffff !important;
 }
 
-body.dark .password-toggle.icon-toggle {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+body.dark .login-page .login-success {
+  background: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
 }
 
-body.dark .password-toggle.icon-toggle:hover {
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.95) !important;
+body.dark .login-page .otp-input-box {
+  background: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #1a1a2e !important;
 }
 
-body.dark .login-btn {
-  background: linear-gradient(135deg, #ff3f51 0%, #e8192c 100%);
-  color: #ffffff;
-  box-shadow: 0 6px 20px rgba(255, 63, 81, 0.35);
+body.dark .login-page .otp-input-box:focus {
+  border-color: #ffffff !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.2) !important;
 }
 
-body.dark .login-btn:hover {
-  background: linear-gradient(135deg, #ff5a6b 0%, #f0263c 100%);
-  box-shadow: 0 10px 28px rgba(255, 63, 81, 0.4);
+body.dark .login-page .otp-info p {
+  color: rgba(255, 255, 255, 0.92) !important;
 }
 
-body.dark .login-error {
-  background: rgba(255, 63, 81, 0.12);
-  border-color: rgba(255, 63, 81, 0.3);
-  color: #ff9ba8;
+body.dark .login-page .otp-info strong {
+  color: #ffffff !important;
 }
 
-body.dark .login-success {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #5eead4;
+body.dark .login-page .otp-subtext {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
-body.dark .forgot-modal {
-  background: #1e1e2e;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+body.dark .login-page .otp-link-btn {
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
-body.dark .forgot-modal-body .form-group label {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-body.dark .forgot-input {
-  background: #0f1620 !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
-  color: #f0eded !important;
-}
-
-body.dark .forgot-input::placeholder {
+body.dark .login-page .otp-link-btn:disabled {
   color: rgba(255, 255, 255, 0.4) !important;
 }
 
-body.dark .forgot-input:focus {
-  border-color: #ff3f51 !important;
-  box-shadow: 0 0 0 3px rgba(255, 63, 81, 0.25) !important;
+body.dark .login-page .otp-result-overlay {
+  background: rgba(10, 10, 20, 0.55) !important;
 }
 
-body.dark .forgot-submit-btn {
-  background: linear-gradient(135deg, #ff3f51 0%, #e8192c 100%);
-  box-shadow: 0 10px 24px rgba(255, 63, 81, 0.34);
+body.dark .login-page ~ .otp-result-modal,
+.otp-result-modal {
+  background: var(--white) !important;
+  color: var(--text-dark) !important;
 }
 
-body.dark .forgot-submit-btn:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 12px 28px rgba(255, 63, 81, 0.4);
+body.dark .login-page .forgot-modal {
+  background: #ffffff !important;
+  color: #1a1a2e !important;
 }
 
-body.dark .forgot-cancel-btn {
-  background: #0f1620;
-  border-color: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.9);
+body.dark .login-page .forgot-modal .form-group label {
+  color: #334155 !important;
 }
 
-body.dark .forgot-cancel-btn:hover {
-  background: #141d2a;
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+body.dark .login-page .forgot-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
-body.dark .otp-input-box {
-  background: #0f1620;
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #f0eded;
+body.dark .login-page .forgot-input::placeholder {
+  color: #94a3b8 !important;
 }
 
-body.dark .otp-input-box:focus {
-  border-color: #ff3f51;
-  background: #0f1620;
-  box-shadow: 0 0 0 3.5px rgba(255, 63, 81, 0.25);
+body.dark .login-page .forgot-input:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
 }
 
-body.dark .otp-info p {
-  color: rgba(255, 255, 255, 0.95);
+body.dark .login-page .forgot-cancel-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
 }
 
-body.dark .otp-info strong {
-  color: #ffffff;
+body.dark .login-page .forgot-cancel-btn:hover {
+  background: #f8fafc !important;
 }
 
-body.dark .otp-subtext {
-  color: rgba(255, 255, 255, 0.65) !important;
-}
-
-body.dark .otp-link-btn {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-body.dark .otp-link-btn:hover {
-  color: #ffffff;
-}
-
-body.dark .otp-link-btn:disabled {
-  color: rgba(255, 255, 255, 0.35);
-}
-
-body.dark .otp-result-overlay {
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-}
-
-body.dark .otp-result-modal {
-  background: #1e1e2e;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
-}
-
-body.dark .otp-result-symbol.error {
-  background: rgba(255, 63, 81, 0.12);
-  border-color: rgba(255, 63, 81, 0.35);
-}
-
-body.dark .otp-result-message {
-  color: var(--dm-muted);
-}
-
-body.dark .otp-result-btn {
-  background: linear-gradient(135deg, #ff3f51 0%, #e8192c 100%);
-  box-shadow: 0 4px 14px rgba(255, 63, 81, 0.3);
-}
-
-body.dark .otp-result-btn:hover {
-  box-shadow: 0 6px 18px rgba(255, 63, 81, 0.4);
-}
-
-/* Dark mode autofill fix */
-body.dark .form-input:-webkit-autofill,
-body.dark .form-input:-webkit-autofill:hover,
-body.dark .form-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f0eded;
-  box-shadow: 0 0 0 1000px #0f1620 inset;
-  transition: background-color 9999s ease-in-out 0s;
+/* Dark autofill fix — keep inputs white on login */
+body.dark .login-page .form-input:-webkit-autofill,
+body.dark .login-page .form-input:-webkit-autofill:hover,
+body.dark .login-page .form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1a1a2e !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
 }

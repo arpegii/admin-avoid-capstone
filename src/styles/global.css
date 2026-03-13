@@ -1119,13 +1119,13 @@ legend {
 
 /* ================= DARK MODE ================= */
 body.dark {
-  --theme-bg: #121212;
-  --theme-surface: #1e1e1e;
-  --theme-surface-alt: #2a2a2a;
-  --theme-border: #3a3a3a;
-  --theme-border-strong: #4a4a4a;
-  --theme-text: #f0eded;
-  --theme-muted: #a89898;
+  --theme-bg: #0f172a;
+  --theme-surface: #1e293b;
+  --theme-surface-alt: #263347;
+  --theme-border: #334155;
+  --theme-border-strong: #475569;
+  --theme-text: #e2e8f0;
+  --theme-muted: #94a3b8;
 
   /* Brand accent — slightly lighter red for dark bg visibility */
   --theme-accent: #f0263c;
@@ -1133,13 +1133,15 @@ body.dark {
   --theme-accent-soft: rgba(232, 25, 44, 0.15);
 
   /* Legacy aliases (kept for compatibility across all CSS files) */
-  --dm-bg: #121212;
-  --dm-surface: #1e1e1e;
-  --dm-surface-2: #2a2a2a;
-  --dm-border: #3a3a3a;
-  --dm-text: #f0eded;
-  --dm-muted: #c9b8b8;
-  --dm-muted-2: #a89898;
+  --dm-bg: #0f172a;
+  --dm-surface: #1e293b;
+  --dm-surface-2: #263347;
+  --dm-surface-alt: #263347;
+  --dm-border: #334155;
+  --dm-border-strong: #475569;
+  --dm-text: #e2e8f0;
+  --dm-muted: #94a3b8;
+  --dm-muted-2: #64748b;
   --dm-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
   --surface-shadow: var(--dm-shadow);
   background: var(--dm-bg);
@@ -1326,42 +1328,42 @@ body.dark .btn-cancel:hover {
   color: var(--dm-text);
 }
 
-/* Dark mode input styling */
-body.dark input[type="text"],
-body.dark input[type="email"],
-body.dark input[type="password"],
-body.dark input[type="date"],
-body.dark input[type="number"],
-body.dark input[type="search"],
-body.dark input[type="tel"],
-body.dark input[type="url"],
-body.dark textarea,
-body.dark select {
+/* Dark mode input styling — excludes login page so it stays light */
+body.dark :not(.login-page) input[type="text"],
+body.dark :not(.login-page) input[type="email"],
+body.dark :not(.login-page) input[type="password"],
+body.dark :not(.login-page) input[type="date"],
+body.dark :not(.login-page) input[type="number"],
+body.dark :not(.login-page) input[type="search"],
+body.dark :not(.login-page) input[type="tel"],
+body.dark :not(.login-page) input[type="url"],
+body.dark :not(.login-page) textarea,
+body.dark :not(.login-page) select {
   background: var(--dm-surface-alt);
   color: var(--dm-text);
   border-color: var(--dm-border);
 }
 
-body.dark input[type="text"]:focus,
-body.dark input[type="email"]:focus,
-body.dark input[type="password"]:focus,
-body.dark input[type="date"]:focus,
-body.dark input[type="number"]:focus,
-body.dark input[type="search"]:focus,
-body.dark input[type="tel"]:focus,
-body.dark input[type="url"]:focus,
-body.dark textarea:focus,
-body.dark select:focus {
+body.dark :not(.login-page) input[type="text"]:focus,
+body.dark :not(.login-page) input[type="email"]:focus,
+body.dark :not(.login-page) input[type="password"]:focus,
+body.dark :not(.login-page) input[type="date"]:focus,
+body.dark :not(.login-page) input[type="number"]:focus,
+body.dark :not(.login-page) input[type="search"]:focus,
+body.dark :not(.login-page) input[type="tel"]:focus,
+body.dark :not(.login-page) input[type="url"]:focus,
+body.dark :not(.login-page) textarea:focus,
+body.dark :not(.login-page) select:focus {
   border-color: #ff3f51;
   background: var(--dm-surface-alt);
   box-shadow: 0 0 0 3px rgba(255, 63, 81, 0.15);
 }
 
-body.dark input::placeholder {
+body.dark :not(.login-page) input::placeholder {
   color: var(--dm-muted-2);
 }
 
-body.dark textarea::placeholder {
+body.dark :not(.login-page) textarea::placeholder {
   color: var(--dm-muted-2);
 }
 
@@ -1369,9 +1371,15 @@ body.dark .page-spinner-wrap.fullscreen {
   background: var(--dm-bg);
 }
 
-/* Dark mode labels and text */
-body.dark label {
+/* Dark mode labels and text — excludes login page so it stays light */
+body.dark :not(.login-page) > label,
+body.dark :not(.login-page) label {
   color: var(--dm-text);
+}
+
+/* Scoped so login-page labels don't get dark overridden */
+body.dark .login-page label {
+  color: unset;
 }
 
 body.dark fieldset {
@@ -1382,7 +1390,7 @@ body.dark legend {
   color: var(--dm-text);
 }
 
-body.dark p {
+body.dark :not(.login-page) p {
   color: var(--dm-text);
 }
 

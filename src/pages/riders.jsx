@@ -866,8 +866,8 @@ export default function Riders() {
   const [fullWeatherCurrent, setFullWeatherCurrent] = useState(null);
   const [fullWeatherForecast, setFullWeatherForecast] = useState([]);
   const [showFullWeatherPanel, setShowFullWeatherPanel] = useState(false);
-  const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
-  const [tableSearchTerm, setTableSearchTerm] = useState("");
+const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
+const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  const [tableSearchTerm, setTableSearchTerm] = useState("");
   const [tableSortBy, setTableSortBy] = useState("name_asc");
   const [tableFilterBy, setTableFilterBy] = useState("all");
   const [tablePage, setTablePage] = useState(1);
@@ -1722,6 +1722,35 @@ export default function Riders() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullMapModalOpen, riderLocations]);
 
+useEffect(() => {
+  if (!fullMapModalOpen || !focusedRiderForFullMap) return;
+  const timer = setTimeout(() => {
+    const map = fullLeafletMapRef.current;
+    if (!map) return;
+    const { lat, lng, username } = focusedRiderForFullMap;
+    if (lat == null || lng == null) return;
+
+    map.flyTo([lat, lng], 16, {
+      animate: true,
+      duration: 1.4,        // seconds — smooth but not sluggish
+      easeLinearity: 0.25,  // lower = more ease-in/out curve
+    });
+
+    // Open popup after the fly animation finishes
+    map.once("moveend", () => {
+      const marker = fullMarkersByRiderRef.current.get(username);
+      if (marker) {
+        marker.openPopup();
+        marker.getPopup?.()?.update?.();
+      }
+    });
+
+    setFocusedRiderForFullMap(null);
+  }, 450); // give the modal + tiles a beat to render first
+
+  return () => clearTimeout(timer);
+}, [fullMapModalOpen, focusedRiderForFullMap]);
+
   useEffect(() => {
     const map = fullLeafletMapRef.current;
     if (!fullMapModalOpen || !map) return;
@@ -2001,22 +2030,19 @@ export default function Riders() {
     setTrackModalOpen(false);
   };
 
-  const openRiderOnMapsPage = (rider) => {
-    const username = String(rider?.username || "").trim();
-    if (!username) return;
-    const hasLiveLocation = rider?.lat !== null && rider?.lng !== null;
-    const isOnline = isActiveRiderStatus(rider?.status);
-    if (!isOnline || !hasLiveLocation) {
-      setTrackFailMessage(
-        `${getRiderDisplayName(rider)} is offline or not available on the live rider map.`,
-      );
-      setShowTrackFailModal(true);
-      return;
-    }
-    const params = new URLSearchParams();
-    params.set("focus", username);
-    navigate(`/maps?${params.toString()}`);
-  };
+const openRiderOnMapsPage = (rider) => {
+  const hasLiveLocation = rider?.lat !== null && rider?.lng !== null;
+  const isOnline = isActiveRiderStatus(rider?.status);
+  if (!isOnline || !hasLiveLocation) {
+    setTrackFailMessage(
+      `${getRiderDisplayName(rider)} is offline or not available on the live rider map.`,
+    );
+    setShowTrackFailModal(true);
+    return;
+  }
+  setFocusedRiderForFullMap(rider);
+  setFullMapModalOpen(true);
+};
 
   const openInfoModal = async (riderName) => {
     setInfoModalOpen(true);

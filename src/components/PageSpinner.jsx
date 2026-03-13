@@ -51,9 +51,9 @@ export default function PageSpinner({
           pointer-events: all;
         }
 
-        body.dark .page-spinner-wrap.fullscreen {
-          background: #121212;
-        }
+body.dark .page-spinner-wrap.fullscreen {
+  background: #0f172a;
+}
 
         .page-spinner-scene {
           position: relative;

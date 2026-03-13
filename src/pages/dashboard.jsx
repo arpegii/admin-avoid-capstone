@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
-import Chart from "chart.js/auto"; // used by PDF chart image builder
+import Chart from "chart.js/auto";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -291,32 +291,12 @@ const violationColumns = [
 ];
 
 const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
 ];
 const MONTH_SHORT = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec",
 ];
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SUPABASE_PAGE_SIZE = 1000;
@@ -363,6 +343,10 @@ const buildViolationPointIndicatorsFromLogs = (violationLogs = []) =>
           "Unknown rider",
         incidents: 1,
         violation_type: getViolationType(log),
+        date: log?.date || null,
+        // ── FIX: include rider name and profile_url for popup ──
+        rider_name: log?.name || log?.rider_name || log?.rider || null,
+        profile_url: log?.profile_url || null,
       };
     })
     .filter(Boolean);
@@ -483,19 +467,10 @@ const buildParcelsAnalytics = (parcels = []) => {
       ["Cancelled", String(cancelled)],
       ["In Progress / Other", String(undelivered)],
       ["Delayed", String(delayed)],
-      [
-        "Delivery Rate",
-        `${getSafePercent(delivered, parcels.length).toFixed(1)}%`,
-      ],
-      [
-        "Cancellation Rate",
-        `${getSafePercent(cancelled, parcels.length).toFixed(1)}%`,
-      ],
+      ["Delivery Rate", `${getSafePercent(delivered, parcels.length).toFixed(1)}%`],
+      ["Cancellation Rate", `${getSafePercent(cancelled, parcels.length).toFixed(1)}%`],
       ["Delay Rate", `${getSafePercent(delayed, parcels.length).toFixed(1)}%`],
-      [
-        "1st Attempt Success Rate",
-        `${getSafePercent(firstAttemptSuccessCount, delivered).toFixed(1)}%`,
-      ],
+      ["1st Attempt Success Rate", `${getSafePercent(firstAttemptSuccessCount, delivered).toFixed(1)}%`],
       ["Avg Deliveries / Active Day", avgPerActiveDay.toFixed(2)],
     ],
     charts: [
@@ -626,23 +601,10 @@ const buildRiderPerformanceAnalytics = (
       ["Active Riders", String(activeRiders || riders.length)],
       ["Total Deliveries", String(deliveredParcels.length)],
       ["Avg Deliveries / Rider", avgDeliveriesPerRider.toFixed(1)],
-      [
-        "Top Performer",
-        topRider ? `${topRider[0]} (${topRider[1]} deliveries)` : "N/A",
-      ],
+      ["Top Performer", topRider ? `${topRider[0]} (${topRider[1]} deliveries)` : "N/A"],
       ["Total Violations", String(violations.length)],
-      [
-        "Most Flagged Rider",
-        mostFlagged
-          ? `${mostFlagged[0]} (${mostFlagged[1]} violations)`
-          : "N/A",
-      ],
-      [
-        "Gender Breakdown",
-        Object.entries(genderMap)
-          .map(([g, c]) => `${g}: ${c}`)
-          .join(" · ") || "N/A",
-      ],
+      ["Most Flagged Rider", mostFlagged ? `${mostFlagged[0]} (${mostFlagged[1]} violations)` : "N/A"],
+      ["Gender Breakdown", Object.entries(genderMap).map(([g, c]) => `${g}: ${c}`).join(" · ") || "N/A"],
     ],
     riderPerfRows: topEntries(riderTotalMap, 20).map(([name]) => ({
       name,
@@ -651,9 +613,7 @@ const buildRiderPerformanceAnalytics = (
       delayed: riderDelayMap[name] || 0,
       violations: violationByRider[name] || 0,
       deliveryRate: riderTotalMap[name]
-        ? Math.round(
-            ((riderDeliveryMap[name] || 0) / riderTotalMap[name]) * 100,
-          )
+        ? Math.round(((riderDeliveryMap[name] || 0) / riderTotalMap[name]) * 100)
         : 0,
     })),
     charts: [
@@ -726,18 +686,11 @@ const buildRiderPerformanceAnalytics = (
 
 const buildReportAnalyticsBundle = (reportType, data) => {
   if (reportType === "overall") {
-    const parcels =
-      (data || []).find((s) => s?.section === "Parcels")?.data || [];
-    const riders =
-      (data || []).find((s) => s?.section === "Riders")?.data || [];
-    const violations =
-      (data || []).find((s) => s?.section === "Violations")?.data || [];
+    const parcels = (data || []).find((s) => s?.section === "Parcels")?.data || [];
+    const riders = (data || []).find((s) => s?.section === "Riders")?.data || [];
+    const violations = (data || []).find((s) => s?.section === "Violations")?.data || [];
     const parcelAnalytics = buildParcelsAnalytics(parcels);
-    const riderPerfAnalytics = buildRiderPerformanceAnalytics(
-      riders,
-      parcels,
-      violations,
-    );
+    const riderPerfAnalytics = buildRiderPerformanceAnalytics(riders, parcels, violations);
     return {
       sections: [
         {
@@ -754,47 +707,15 @@ const buildReportAnalyticsBundle = (reportType, data) => {
       ],
       summaryRows: [
         ["Total Parcels", String(parcels.length)],
-        [
-          "Delivered",
-          parcelAnalytics.summaryRows.find(([k]) => k === "Delivered")?.[1] ||
-            "0",
-        ],
-        [
-          "Delivery Rate",
-          parcelAnalytics.summaryRows.find(
-            ([k]) => k === "Delivery Rate",
-          )?.[1] || "0%",
-        ],
-        [
-          "Cancelled",
-          parcelAnalytics.summaryRows.find(([k]) => k === "Cancelled")?.[1] ||
-            "0",
-        ],
-        [
-          "Delayed",
-          parcelAnalytics.summaryRows.find(([k]) => k === "Delayed")?.[1] ||
-            "0",
-        ],
-        [
-          "1st Attempt Success",
-          parcelAnalytics.summaryRows.find(
-            ([k]) => k === "1st Attempt Success Rate",
-          )?.[1] || "0%",
-        ],
+        ["Delivered", parcelAnalytics.summaryRows.find(([k]) => k === "Delivered")?.[1] || "0"],
+        ["Delivery Rate", parcelAnalytics.summaryRows.find(([k]) => k === "Delivery Rate")?.[1] || "0%"],
+        ["Cancelled", parcelAnalytics.summaryRows.find(([k]) => k === "Cancelled")?.[1] || "0"],
+        ["Delayed", parcelAnalytics.summaryRows.find(([k]) => k === "Delayed")?.[1] || "0"],
+        ["1st Attempt Success", parcelAnalytics.summaryRows.find(([k]) => k === "1st Attempt Success Rate")?.[1] || "0%"],
         ["Total Riders", String(riders.length)],
         ["Total Violations", String(violations.length)],
-        [
-          "Top Performer",
-          riderPerfAnalytics.summaryRows.find(
-            ([k]) => k === "Top Performer",
-          )?.[1] || "N/A",
-        ],
-        [
-          "Most Flagged Rider",
-          riderPerfAnalytics.summaryRows.find(
-            ([k]) => k === "Most Flagged Rider",
-          )?.[1] || "N/A",
-        ],
+        ["Top Performer", riderPerfAnalytics.summaryRows.find(([k]) => k === "Top Performer")?.[1] || "N/A"],
+        ["Most Flagged Rider", riderPerfAnalytics.summaryRows.find(([k]) => k === "Most Flagged Rider")?.[1] || "N/A"],
       ],
       charts: [
         ...parcelAnalytics.charts.slice(0, 2),
@@ -804,24 +725,16 @@ const buildReportAnalyticsBundle = (reportType, data) => {
   }
   if (reportType === "parcels") return buildParcelsAnalytics(data || []);
   if (reportType === "rider_performance") {
-    const riders =
-      (data || []).find((s) => s?.section === "Riders")?.data || [];
-    const parcels =
-      (data || []).find((s) => s?.section === "Parcels")?.data || [];
-    const violations =
-      (data || []).find((s) => s?.section === "Violations")?.data || [];
+    const riders = (data || []).find((s) => s?.section === "Riders")?.data || [];
+    const parcels = (data || []).find((s) => s?.section === "Parcels")?.data || [];
+    const violations = (data || []).find((s) => s?.section === "Violations")?.data || [];
     return buildRiderPerformanceAnalytics(riders, parcels, violations);
   }
   return { summaryRows: [], charts: [] };
 };
 
 const buildChartImageFromSpec = async (spec, width = 900, height = 360) => {
-  if (
-    !spec ||
-    !Array.isArray(spec.labels) ||
-    !Array.isArray(spec.values) ||
-    !spec.values.length
-  )
+  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.values) || !spec.values.length)
     return null;
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -910,9 +823,7 @@ const resolveReportGeneratedBy = async () => {
       ).trim();
       if (profileName) return profileName;
       if (profile?.username) return String(profile.username);
-      const localPart = String(userEmail)
-        .split("@")[0]
-        .replace(/[._-]+/g, " ");
+      const localPart = String(userEmail).split("@")[0].replace(/[._-]+/g, " ");
       if (localPart.trim())
         return localPart
           .split(" ")
@@ -1092,26 +1003,11 @@ const FloatSelect = ({
       const maxH = Math.min(320, Math.floor(goUp ? spaceAbove : spaceBelow));
       const menuW = Math.max(r.width, 180);
       const fitsRight = r.left + menuW <= window.innerWidth - 8;
-      const xPos = fitsRight
-        ? { left: r.left }
-        : { right: window.innerWidth - r.right };
-
+      const xPos = fitsRight ? { left: r.left } : { right: window.innerWidth - r.right };
       setCoords(
         goUp
-          ? {
-              bottom: window.innerHeight - r.top + 6,
-              top: "auto",
-              minWidth: r.width,
-              maxHeight: maxH,
-              ...xPos,
-            }
-          : {
-              top: r.bottom + 6,
-              bottom: "auto",
-              minWidth: r.width,
-              maxHeight: maxH,
-              ...xPos,
-            },
+          ? { bottom: window.innerHeight - r.top + 6, top: "auto", minWidth: r.width, maxHeight: maxH, ...xPos }
+          : { top: r.bottom + 6, bottom: "auto", minWidth: r.width, maxHeight: maxH, ...xPos },
       );
     };
     calc();
@@ -1124,6 +1020,7 @@ const FloatSelect = ({
   }, [open]);
 
   const isField = variant === "field";
+  const isDark = document.body.classList.contains("dark");
   const triggerStyle = isField
     ? {
         display: "flex",
@@ -1161,12 +1058,14 @@ const FloatSelect = ({
         fontFamily: "inherit",
         fontSize: "0.82rem",
         fontWeight: 800,
-        color: "#7f1d1d",
+        color: isDark ? "#e2e8f0" : "#7f1d1d",
         letterSpacing: "0.01em",
         outline: "none",
       };
 
-  const chevronColor = isField ? (open ? "#c8102e" : "#94a3b8") : "#b91c1c";
+  const chevronColor = isField
+    ? open ? "#c8102e" : "#94a3b8"
+    : isDark ? "#94a3b8" : "#b91c1c";
 
   return (
     <>
@@ -1179,29 +1078,13 @@ const FloatSelect = ({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected?.label || placeholder}
         </span>
         <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={chevronColor}
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            flexShrink: 0,
-            transition: "transform 0.2s ease",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-          }}
+          width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke={chevronColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ flexShrink: 0, transition: "transform 0.2s ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
@@ -1225,13 +1108,8 @@ const FloatSelect = ({
               >
                 {opt.label}
                 <svg
-                  className="fs-check"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  className="fs-check" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"
                 >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
@@ -1241,6 +1119,610 @@ const FloatSelect = ({
           document.body,
         )}
     </>
+  );
+};
+
+// ─── KPI Chart Modal Config ───────────────────────────────────────────────────
+
+const KPI_CHART_CONFIG = {
+  totalParcels: {
+    label: "Total Parcels",
+    icon: <FaBoxOpen />,
+    color: "#0ea5e9",
+    buildChartData: (dd) => ({
+      tabs: ["Monthly", "Yearly", "Status Mix"],
+      monthly: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthGrowth,
+        color: "#0ea5e9",
+        datasetLabel: "Parcels",
+      },
+      yearly: {
+        type: "line",
+        labels: dd.years,
+        values: dd.yearGrowth,
+        color: "#0ea5e9",
+        datasetLabel: "Parcels",
+      },
+      statusMix: {
+        type: "doughnut",
+        labels: ["Delivered", "Cancelled", "In Progress"],
+        values: [dd.parcelStatusMix.delivered, dd.parcelStatusMix.cancelled, dd.parcelStatusMix.inProgress],
+        colors: ["#16a34a", "#ef4444", "#94a3b8"],
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Total", value: dd.totalParcels.toLocaleString() },
+      { label: "Peak month", value: dd.topMonth },
+      { label: "Peak year", value: dd.topYear },
+    ],
+  },
+  delivered: {
+    label: "Delivered",
+    icon: <FaCheckCircle />,
+    color: "#16a34a",
+    buildChartData: (dd) => ({
+      tabs: ["Monthly", "Yearly"],
+      monthly: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthGrowth,
+        color: "#16a34a",
+        datasetLabel: "Deliveries",
+      },
+      yearly: {
+        type: "line",
+        labels: dd.years,
+        values: dd.yearGrowth,
+        color: "#16a34a",
+        datasetLabel: "Deliveries",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Total", value: dd.delivered.toLocaleString() },
+      { label: "Peak month", value: dd.topMonth },
+      {
+        label: "Delivery rate",
+        value: dd.totalParcels > 0
+          ? `${((dd.delivered / dd.totalParcels) * 100).toFixed(1)}%`
+          : "0%",
+      },
+    ],
+  },
+  cancelled: {
+    label: "Cancelled",
+    icon: <FaTimesCircle />,
+    color: "#ef4444",
+    buildChartData: (dd) => ({
+      tabs: ["Status breakdown", "Rates (%)"],
+      statusBreakdown: {
+        type: "doughnut",
+        labels: ["Delivered", "Cancelled", "In Progress"],
+        values: [dd.parcelStatusMix.delivered, dd.parcelStatusMix.cancelled, dd.parcelStatusMix.inProgress],
+        colors: ["#16a34a", "#ef4444", "#94a3b8"],
+      },
+      rates: {
+        type: "bar",
+        labels: ["Delivery %", "Cancel %", "Delay %"],
+        values: [
+          dd.totalParcels > 0 ? Number(((dd.delivered / dd.totalParcels) * 100).toFixed(1)) : 0,
+          dd.totalParcels > 0 ? Number(((dd.cancelled / dd.totalParcels) * 100).toFixed(1)) : 0,
+          dd.totalParcels > 0 ? Number(((dd.delayed / dd.totalParcels) * 100).toFixed(1)) : 0,
+        ],
+        colors: ["#16a34a", "#ef4444", "#f59e0b"],
+        datasetLabel: "Rate",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Cancelled", value: dd.cancelled.toLocaleString() },
+      {
+        label: "Cancel rate",
+        value: dd.totalParcels > 0
+          ? `${((dd.cancelled / dd.totalParcels) * 100).toFixed(1)}%`
+          : "0%",
+      },
+      { label: "Total parcels", value: dd.totalParcels.toLocaleString() },
+    ],
+  },
+  delayed: {
+    label: "Delayed",
+    icon: <FaExclamationTriangle />,
+    color: "#f59e0b",
+    buildChartData: (dd) => ({
+      tabs: ["Monthly delays", "Yearly delays"],
+      monthlyDelays: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthDelayGrowth,
+        color: "#f59e0b",
+        datasetLabel: "Delays",
+      },
+      yearlyDelays: {
+        type: "line",
+        labels: dd.years,
+        values: dd.yearDelayGrowth,
+        color: "#f59e0b",
+        datasetLabel: "Delays",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Delayed", value: dd.delayed.toLocaleString() },
+      {
+        label: "Delay rate",
+        value: dd.totalParcels > 0
+          ? `${((dd.delayed / dd.totalParcels) * 100).toFixed(1)}%`
+          : "0%",
+      },
+      {
+        label: "Peak delay month",
+        value: (() => {
+          const maxVal = Math.max(...dd.monthDelayGrowth, 0);
+          const idx = dd.monthDelayGrowth.indexOf(maxVal);
+          return idx >= 0 && maxVal > 0 ? MONTH_SHORT[idx] : "--";
+        })(),
+      },
+    ],
+  },
+  firstAttempt: {
+    label: "1st Attempt",
+    icon: <FaPercent />,
+    color: "#14b8a6",
+    buildChartData: (dd) => ({
+      tabs: ["Attempt breakdown", "Top riders"],
+      attemptBreakdown: {
+        type: "doughnut",
+        labels: ["1st Attempt Success", "2nd Attempt / Other"],
+        values: [
+          Math.round(dd.firstAttemptSuccessRate),
+          Math.max(0, Math.round(100 - dd.firstAttemptSuccessRate)),
+        ],
+        colors: ["#14b8a6", "#e2e8f0"],
+      },
+      topRiders: {
+        type: "bar",
+        labels: dd.topRiders.slice(0, 6).map((r) => r.label),
+        values: dd.topRiders.slice(0, 6).map((r) => r.value),
+        color: "#14b8a6",
+        datasetLabel: "Deliveries",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Success rate", value: `${dd.firstAttemptSuccessRate.toFixed(1)}%` },
+      { label: "Delivered", value: dd.delivered.toLocaleString() },
+      { label: "Top rider", value: dd.topRider },
+    ],
+  },
+  topRider: {
+    label: "Top Rider",
+    icon: <FaMotorcycle />,
+    color: "#8b5cf6",
+    buildChartData: (dd) => ({
+      tabs: ["Top 5 riders", "Most flagged"],
+      top5Riders: {
+        type: "bar",
+        labels: dd.topRiders.map((r) => r.label),
+        values: dd.topRiders.map((r) => r.value),
+        color: "#8b5cf6",
+        datasetLabel: "Deliveries",
+      },
+      mostFlagged: {
+        type: "bar",
+        labels: dd.topFlaggedRiders.map((r) => r.label),
+        values: dd.topFlaggedRiders.map((r) => r.value),
+        color: "#ef4444",
+        datasetLabel: "Violations",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Top rider", value: dd.topRider },
+      { label: "Deliveries", value: dd.topRiderCount.toLocaleString() },
+      { label: "Total riders", value: dd.totalRiders.toLocaleString() },
+    ],
+  },
+  topMonth: {
+    label: "Peak Month",
+    icon: <FaCalendarAlt />,
+    color: "#0ea5e9",
+    buildChartData: (dd) => ({
+      tabs: ["Monthly deliveries", "Monthly delays"],
+      monthlyDeliveries: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthGrowth,
+        color: "#0ea5e9",
+        datasetLabel: "Deliveries",
+      },
+      monthlyDelays: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthDelayGrowth,
+        color: "#f59e0b",
+        datasetLabel: "Delays",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Peak month", value: dd.topMonth },
+      { label: "Deliveries", value: dd.topMonthCount.toLocaleString() },
+      {
+        label: "Avg / active month",
+        value: (() => {
+          const active = dd.monthGrowth.filter((v) => v > 0).length;
+          return active > 0 ? Math.round(dd.delivered / active).toLocaleString() : "0";
+        })(),
+      },
+    ],
+  },
+  topYear: {
+    label: "Peak Year",
+    icon: <FaTrophy />,
+    color: "#16a34a",
+    buildChartData: (dd) => ({
+      tabs: ["Yearly deliveries", "Yearly delays"],
+      yearlyDeliveries: {
+        type: "line",
+        labels: dd.years,
+        values: dd.yearGrowth,
+        color: "#16a34a",
+        datasetLabel: "Deliveries",
+      },
+      yearlyDelays: {
+        type: "line",
+        labels: dd.years,
+        values: dd.yearDelayGrowth,
+        color: "#f59e0b",
+        datasetLabel: "Delays",
+      },
+    }),
+    getSummary: (dd) => [
+      { label: "Peak year", value: dd.topYear },
+      { label: "Deliveries", value: dd.topYearCount.toLocaleString() },
+      { label: "Years tracked", value: dd.years.length.toLocaleString() },
+    ],
+  },
+  avgPerMonth: {
+    label: "Avg / Month",
+    icon: <FaChartLine />,
+    color: "#16a34a",
+    buildChartData: (dd) => ({
+      tabs: ["Monthly deliveries", "Monthly delays"],
+      monthlyDeliveries: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthGrowth,
+        color: "#16a34a",
+        datasetLabel: "Deliveries",
+      },
+      monthlyDelays: {
+        type: "bar",
+        labels: MONTH_SHORT,
+        values: dd.monthDelayGrowth,
+        color: "#f59e0b",
+        datasetLabel: "Delays",
+      },
+    }),
+    getSummary: (dd) => {
+      const active = dd.monthGrowth.filter((v) => v > 0).length;
+      return [
+        { label: "Avg / month", value: active > 0 ? (dd.delivered / active).toFixed(1) : "0" },
+        { label: "Active months", value: active.toString() },
+        { label: "Total delivered", value: dd.delivered.toLocaleString() },
+      ];
+    },
+  },
+};
+
+// ─── KPI Chart Modal Component ────────────────────────────────────────────────
+
+const KpiChartModal = ({ kpiKey, dashboardData, onClose }) => {
+  const config = KPI_CHART_CONFIG[kpiKey];
+  const [activeTab, setActiveTab] = useState(0);
+  const chartRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
+  if (!config) return null;
+
+  const chartData = config.buildChartData(dashboardData);
+  const tabKeys = Object.keys(chartData).filter((k) => k !== "tabs");
+  const tabs = chartData.tabs || tabKeys;
+  const currentKey = tabKeys[activeTab] || tabKeys[0];
+  const currentSpec = chartData[currentKey];
+  const summary = config.getSummary(dashboardData);
+
+  useEffect(() => {
+    if (!chartRef.current || !currentSpec) return;
+    if (chartInstanceRef.current) {
+      chartInstanceRef.current.destroy();
+      chartInstanceRef.current = null;
+    }
+    const ctx = chartRef.current.getContext("2d");
+    const isDonut = currentSpec.type === "doughnut" || currentSpec.type === "pie";
+    const maxVal = Array.isArray(currentSpec.values)
+      ? Math.max(...currentSpec.values, 1)
+      : 1;
+
+    const bgColors = isDonut
+      ? currentSpec.colors || ["#16a34a", "#ef4444", "#94a3b8"]
+      : currentSpec.colors
+        ? currentSpec.values.map((_, i) => currentSpec.colors[i % currentSpec.colors.length])
+        : currentSpec.values.map((v) =>
+            v === maxVal ? currentSpec.color : `${currentSpec.color}55`,
+          );
+
+    chartInstanceRef.current = new Chart(ctx, {
+      type: currentSpec.type,
+      data: {
+        labels: currentSpec.labels,
+        datasets: [
+          {
+            label: currentSpec.datasetLabel || config.label,
+            data: currentSpec.values,
+            backgroundColor: isDonut
+              ? bgColors
+              : currentSpec.type === "line"
+                ? `${currentSpec.color}22`
+                : bgColors,
+            borderColor: isDonut
+              ? bgColors
+              : currentSpec.type === "line"
+                ? currentSpec.color
+                : "transparent",
+            borderWidth: currentSpec.type === "line" ? 2.5 : 0,
+            fill: currentSpec.type === "line",
+            tension: 0.35,
+            borderRadius: currentSpec.type === "bar" ? 7 : 0,
+            pointBackgroundColor: currentSpec.color,
+            pointRadius: currentSpec.type === "line" ? 3 : 0,
+            pointHoverRadius: currentSpec.type === "line" ? 5 : 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        plugins: {
+          legend: {
+            display: isDonut,
+            position: "right",
+            labels: {
+              font: { size: 11, family: "inherit" },
+              boxWidth: 10,
+              padding: 12,
+              color: "#64748b",
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
+                return ` ${val} ${(currentSpec.datasetLabel || config.label).toLowerCase()}`;
+              },
+            },
+          },
+        },
+        scales: isDonut
+          ? undefined
+          : {
+              x: {
+                grid: { display: false },
+                ticks: { font: { size: 11 }, maxRotation: 45, color: "#94a3b8" },
+                border: { display: false },
+              },
+              y: {
+                grid: { color: "rgba(148,163,184,0.12)" },
+                ticks: { font: { size: 11 }, color: "#94a3b8" },
+                border: { display: false },
+                beginAtZero: true,
+              },
+            },
+      },
+    });
+
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+        chartInstanceRef.current = null;
+      }
+    };
+  }, [activeTab, kpiKey]);
+
+  return ReactDOM.createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(2,6,23,0.6)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        zIndex: 4000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#ffffff",
+          borderRadius: 20,
+          width: "min(600px, 96vw)",
+          maxHeight: "90vh",
+          overflow: "hidden",
+          display: "grid",
+          gridTemplateRows: "auto 1fr",
+          boxShadow: "0 34px 72px rgba(15,23,42,0.34), 0 12px 28px rgba(15,23,42,0.2)",
+          animation: "kpiModalIn 0.3s cubic-bezier(0.22,1,0.36,1) both",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ── Modal Header ── */}
+        <div
+          style={{
+            background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}cc 100%)`,
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                background: "rgba(255,255,255,0.18)",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                fontSize: 14,
+              }}
+            >
+              {config.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>
+                {config.label}
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>
+                Analytics breakdown
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.18)",
+              border: "none",
+              borderRadius: 8,
+              width: 30,
+              height: 30,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "#fff",
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* ── Modal Body ── */}
+        <div style={{ padding: 20, overflowY: "auto", background: "#f8fafc" }}>
+          {/* Summary pills */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            {summary.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "#fff",
+                  border: "0.5px solid #e2e8f0",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  boxShadow: "0 1px 3px rgba(15,23,42,0.05)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#94a3b8",
+                    marginBottom: 3,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    fontWeight: 600,
+                  }}
+                >
+                  {s.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: i === 0 ? config.color : "#0f172a",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {s.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          {tabs.length > 1 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 3,
+                background: "#e8ecf0",
+                borderRadius: 10,
+                padding: 3,
+                marginBottom: 14,
+              }}
+            >
+              {tabs.map((tab, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveTab(i)}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    borderRadius: 7,
+                    padding: "7px 8px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    transition: "all 0.15s",
+                    background: activeTab === i ? "#fff" : "transparent",
+                    color: activeTab === i ? config.color : "#64748b",
+                    boxShadow:
+                      activeTab === i ? "0 1px 4px rgba(15,23,42,0.1)" : "none",
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Chart */}
+          <div
+            style={{
+              background: "#fff",
+              border: "0.5px solid #e2e8f0",
+              borderRadius: 14,
+              padding: "14px 14px 10px",
+              height: 260,
+              position: "relative",
+              boxShadow: "0 1px 3px rgba(15,23,42,0.05)",
+            }}
+          >
+            <canvas ref={chartRef} />
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -1254,26 +1736,22 @@ const StatCard = ({
   accent = "emerald",
   trend,
   animKey,
+  onChartClick,
 }) => {
   const trendUp = trend && trend.startsWith("+");
   return (
     <div className={`stat-card accent-${accent}`}>
       <div className="stat-inner">
-        {/* Header: label (top-left) + icon (top-right) */}
         <div className="stat-header">
           <span className="stat-label">{label}</span>
           <div className="stat-icon">{icon}</div>
         </div>
-
-        {/* Big number */}
         <div
           key={animKey}
           className={`stat-value${animKey !== undefined ? " stat-value-anim" : ""}`}
         >
           {value}
         </div>
-
-        {/* Sub-text + trend badge */}
         <div className="stat-footer">
           {sub && (
             <span
@@ -1292,6 +1770,22 @@ const StatCard = ({
           )}
         </div>
       </div>
+      {onChartClick && (
+        <button
+          type="button"
+          onClick={onChartClick}
+          className="stat-chart-btn"
+          title={`View ${label} analytics`}
+        >
+          <svg
+            width="11" height="11" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          Analytics
+        </button>
+      )}
     </div>
   );
 };
@@ -1321,7 +1815,6 @@ const HorizontalBarList = ({
       {items.map((item, idx) => (
         <div key={idx} className="hbar-item">
           <div className="hbar-rank">{idx + 1}</div>
-
           {showAvatar && (
             <div className="hbar-avatar">
               {item.avatarUrl ? (
@@ -1343,7 +1836,6 @@ const HorizontalBarList = ({
               </div>
             </div>
           )}
-
           <div className="hbar-body">
             <div className="hbar-meta">
               <span className="hbar-label">{item.label}</span>
@@ -1365,16 +1857,7 @@ const HorizontalBarList = ({
 // ─── Report Type SVG Icons ────────────────────────────────────────────────────
 
 const IconParcel = () => (
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
     <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
     <line x1="12" y1="22.08" x2="12" y2="12" />
@@ -1382,16 +1865,7 @@ const IconParcel = () => (
 );
 
 const IconRiderPerf = () => (
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="7" r="4" />
     <path d="M5.5 20a7 7 0 0 1 13 0" />
     <polyline points="17 10 19 12 23 8" />
@@ -1399,16 +1873,7 @@ const IconRiderPerf = () => (
 );
 
 const IconOverall = () => (
-  <svg
-    width="22"
-    height="22"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="2" />
     <path d="M7 17V13" />
     <path d="M11 17V9" />
@@ -1419,11 +1884,7 @@ const IconOverall = () => (
 
 const REPORT_TYPE_OPTIONS = [
   { value: "parcels", label: "Parcels", Icon: IconParcel },
-  {
-    value: "rider_performance",
-    label: "Rider Performance",
-    Icon: IconRiderPerf,
-  },
+  { value: "rider_performance", label: "Rider Performance", Icon: IconRiderPerf },
   { value: "overall", label: "Overall Reports", Icon: IconOverall },
 ];
 
@@ -1443,39 +1904,12 @@ const RcTooltip = ({ active, payload, label }) => {
         fontSize: 13,
       }}
     >
-      <p
-        style={{
-          margin: "0 0 6px",
-          color: "#6b7280",
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.6px",
-        }}
-      >
+      <p style={{ margin: "0 0 6px", color: "#6b7280", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" }}>
         {label}
       </p>
       {payload.map((entry, i) => (
-        <p
-          key={i}
-          style={{
-            margin: "3px 0",
-            color: entry.color,
-            fontWeight: 600,
-            fontSize: 13,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: entry.color,
-              marginRight: 7,
-              verticalAlign: "middle",
-            }}
-          />
+        <p key={i} style={{ margin: "3px 0", color: entry.color, fontWeight: 600, fontSize: 13 }}>
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: entry.color, marginRight: 7, verticalAlign: "middle" }} />
           {entry.name}: <strong>{entry.value}</strong>
         </p>
       ))}
@@ -1506,60 +1940,14 @@ const DeliveriesLineChart = ({
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <LineChart
-        data={data}
-        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-      >
-        <CartesianGrid
-          strokeDasharray="4 4"
-          stroke="#f0f2f7"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="label"
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-          dy={8}
-        />
-        <YAxis
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-        />
-        <Tooltip
-          content={<RcTooltip />}
-          cursor={{
-            stroke: "#e8eaf0",
-            strokeWidth: 1.5,
-            strokeDasharray: "4 4",
-          }}
-        />
-        <Legend
-          wrapperStyle={{ paddingTop: 12, fontFamily: "inherit", fontSize: 12 }}
-          formatter={(value) => (
-            <span style={{ color: "#374151", fontSize: 12, fontWeight: 500 }}>
-              {value}
-            </span>
-          )}
-        />
-        <Line
-          type="monotone"
-          dataKey="Deliveries"
-          stroke="#16a34a"
-          strokeWidth={2.5}
-          dot={false}
-          activeDot={{ r: 5, fill: "#16a34a", stroke: "#fff", strokeWidth: 2 }}
-        />
-        <Line
-          type="monotone"
-          dataKey="Delays"
-          stroke="#f59e0b"
-          strokeWidth={2}
-          strokeDasharray="5 3"
-          dot={false}
-          activeDot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }}
-        />
+      <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="4 4" stroke="#f0f2f7" vertical={false} />
+        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }} />
+        <Tooltip content={<RcTooltip />} cursor={{ stroke: "#e8eaf0", strokeWidth: 1.5, strokeDasharray: "4 4" }} />
+        <Legend wrapperStyle={{ paddingTop: 12, fontFamily: "inherit", fontSize: 12 }} formatter={(value) => (<span style={{ color: "#374151", fontSize: 12, fontWeight: 500 }}>{value}</span>)} />
+        <Line type="monotone" dataKey="Deliveries" stroke="#16a34a" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: "#16a34a", stroke: "#fff", strokeWidth: 2 }} />
+        <Line type="monotone" dataKey="Delays" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -1584,35 +1972,20 @@ const StatusDonutChart = ({
     { name: "In Progress", value: parcelStatusMix.inProgress || 0 },
   ];
 
+  const isDarkMode = document.body.classList.contains("dark");
   const renderCenterLabel = ({ cx, cy }) => (
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
-      <tspan
-        x={cx}
-        dy="-6"
-        fontSize="20"
-        fontWeight="700"
-        fill="#1a1d2e"
-        fontFamily="inherit"
-      >
+      <tspan x={cx} dy="-6" fontSize="20" fontWeight="700" fill={isDarkMode ? "#e2e8f0" : "#1a1d2e"} fontFamily="inherit">
         {total.toLocaleString()}
       </tspan>
-      <tspan
-        x={cx}
-        dy="20"
-        fontSize="11"
-        fill="#9ca3af"
-        fontFamily="inherit"
-        fontWeight="500"
-      >
+      <tspan x={cx} dy="20" fontSize="11" fill={isDarkMode ? "#64748b" : "#9ca3af"} fontFamily="inherit" fontWeight="500">
         Total
       </tspan>
     </text>
   );
 
   return (
-    <div
-      style={{ display: "flex", alignItems: "center", gap: 16, height: 220 }}
-    >
+    <div style={{ display: "flex", alignItems: "center", gap: 16, height: 220 }}>
       <ResponsiveContainer width="55%" height="100%">
         <PieChart>
           <Pie
@@ -1632,79 +2005,29 @@ const StatusDonutChart = ({
               <Cell
                 key={index}
                 fill={DONUT_COLORS[index]}
-                opacity={
-                  activeIndex === null || activeIndex === index ? 1 : 0.5
-                }
+                opacity={activeIndex === null || activeIndex === index ? 1 : 0.5}
                 style={{ cursor: "pointer", transition: "opacity 0.2s" }}
               />
             ))}
           </Pie>
           <Tooltip
-            formatter={(value, name) => [
-              `${value} (${total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)`,
-              name,
-            ]}
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #e8eaf0",
-              borderRadius: 10,
-              fontFamily: "inherit",
-              fontSize: 13,
-              boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
-            }}
+            formatter={(value, name) => [`${value} (${total > 0 ? ((value / total) * 100).toFixed(1) : 0}%)`, name]}
+            contentStyle={{ background: "#fff", border: "1px solid #e8eaf0", borderRadius: 10, fontFamily: "inherit", fontSize: 13, boxShadow: "0 4px 20px rgba(30,40,80,0.12)" }}
           />
         </PieChart>
       </ResponsiveContainer>
 
-      <div
-        style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
         {donutData.map((entry, i) => (
-          <div
-            key={i}
-            style={{ display: "flex", alignItems: "center", gap: 10 }}
-          >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: DONUT_COLORS[i],
-                flexShrink: 0,
-                boxShadow: `0 0 0 3px ${DONUT_COLORS[i]}22`,
-              }}
-            />
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: DONUT_COLORS[i], flexShrink: 0, boxShadow: `0 0 0 3px ${DONUT_COLORS[i]}22` }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#374151",
-                  fontWeight: 600,
-                  fontFamily: "inherit",
-                }}
-              >
-                {DONUT_LABELS[i]}
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#9ca3af",
-                  fontFamily: "inherit",
-                }}
-              >
+              <div style={{ fontSize: 12, color: "#374151", fontWeight: 600, fontFamily: "inherit" }}>{DONUT_LABELS[i]}</div>
+              <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "inherit" }}>
                 {total > 0 ? ((entry.value / total) * 100).toFixed(1) : 0}%
               </div>
             </div>
-            <span
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: DONUT_COLORS[i],
-                fontFamily: "inherit",
-              }}
-            >
-              {entry.value}
-            </span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: DONUT_COLORS[i], fontFamily: "inherit" }}>{entry.value}</span>
           </div>
         ))}
       </div>
@@ -1730,11 +2053,7 @@ const ViolationsTrendChart = ({
   }, [violationLogs]);
 
   const byWeekday = useMemo(
-    () =>
-      WEEKDAY_LABELS.map((label, i) => ({
-        label,
-        Violations: violationsByWeekday[i] || 0,
-      })),
+    () => WEEKDAY_LABELS.map((label, i) => ({ label, Violations: violationsByWeekday[i] || 0 })),
     [violationsByWeekday],
   );
 
@@ -1745,90 +2064,28 @@ const ViolationsTrendChart = ({
     const { x, y, width, height, value } = props;
     const isMax = value === maxVal;
     return (
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        fill={isMax ? "#ef4444" : "rgba(239,68,68,0.35)"}
-        rx={5}
-        ry={5}
-        style={{ transition: "fill 0.2s" }}
-      />
+      <rect x={x} y={y} width={width} height={height} fill={isMax ? "#ef4444" : "rgba(239,68,68,0.35)"} rx={5} ry={5} style={{ transition: "fill 0.2s" }} />
     );
   };
 
   return (
     <div style={{ height: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div />
-        <div
-          style={{
-            display: "flex",
-            gap: 2,
-            background: "#f4f6fb",
-            borderRadius: 8,
-            padding: 3,
-          }}
-        >
+        <div style={{ display: "flex", gap: 2, background: "#f4f6fb", borderRadius: 8, padding: 3 }}>
           {["month", "weekday"].map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              style={{
-                padding: "5px 12px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                background: tab === t ? "#ffffff" : "transparent",
-                color: tab === t ? "#1a1d2e" : "#9ca3af",
-                boxShadow: tab === t ? "0 1px 4px rgba(30,40,80,0.1)" : "none",
-                transition: "all 0.15s",
-              }}
-            >
+            <button key={t} type="button" onClick={() => setTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", background: tab === t ? "#ffffff" : "transparent", color: tab === t ? "#1a1d2e" : "#9ca3af", boxShadow: tab === t ? "0 1px 4px rgba(30,40,80,0.1)" : "none", transition: "all 0.15s" }}>
               {t === "month" ? "By Month" : "By Weekday"}
             </button>
           ))}
         </div>
       </div>
       <ResponsiveContainer width="100%" height={188}>
-        <BarChart
-          data={chartData}
-          margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-          barCategoryGap="30%"
-        >
-          <CartesianGrid
-            strokeDasharray="4 4"
-            stroke="#f0f2f7"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="label"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-            dy={8}
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-          />
-          <Tooltip
-            content={<RcTooltip />}
-            cursor={{ fill: "#f4f6fb", rx: 6 }}
-          />
+        <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="30%">
+          <CartesianGrid strokeDasharray="4 4" stroke="#f0f2f7" vertical={false} />
+          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }} dy={8} />
+          <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }} />
+          <Tooltip content={<RcTooltip />} cursor={{ fill: "#f4f6fb", rx: 6 }} />
           <Bar dataKey="Violations" shape={<CustomBar />} />
         </BarChart>
       </ResponsiveContainer>
@@ -1840,47 +2097,15 @@ const ViolationsTrendChart = ({
 
 const RateOverviewBar = (props) => {
   const { x, y, width, height, fill } = props;
-  return (
-    <rect x={x} y={y} width={width} height={height} fill={fill} rx={8} ry={8} />
-  );
+  return <rect x={x} y={y} width={width} height={height} fill={fill} rx={8} ry={8} />;
 };
 
 const RateOverviewTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: "1px solid #e8eaf0",
-        borderRadius: 10,
-        padding: "10px 14px",
-        boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
-        fontFamily: "inherit",
-        fontSize: 13,
-      }}
-    >
-      <p
-        style={{
-          margin: "0 0 4px",
-          color: "#6b7280",
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.6px",
-        }}
-      >
-        {label}
-      </p>
-      <p
-        style={{
-          margin: 0,
-          fontWeight: 700,
-          color: payload[0]?.fill,
-          fontSize: 14,
-        }}
-      >
-        {payload[0]?.value?.toFixed(1)}%
-      </p>
+    <div style={{ background: "#fff", border: "1px solid #e8eaf0", borderRadius: 10, padding: "10px 14px", boxShadow: "0 4px 20px rgba(30,40,80,0.12)", fontFamily: "inherit", fontSize: 13 }}>
+      <p style={{ margin: "0 0 4px", color: "#6b7280", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" }}>{label}</p>
+      <p style={{ margin: 0, fontWeight: 700, color: payload[0]?.fill, fontSize: 14 }}>{payload[0]?.value?.toFixed(1)}%</p>
     </div>
   );
 };
@@ -1898,41 +2123,12 @@ const RateOverviewChart = ({
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data}
-        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-        barCategoryGap="38%"
-      >
-        <CartesianGrid
-          strokeDasharray="4 4"
-          stroke="#f0f2f7"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="label"
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
-          dy={8}
-        />
-        <YAxis
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-          tickFormatter={(v) => `${v}%`}
-          domain={[0, 100]}
-        />
-        <Tooltip
-          content={<RateOverviewTooltip />}
-          cursor={{ fill: "#f4f6fb", rx: 8 }}
-        />
-        <Bar
-          dataKey="value"
-          shape={(props) => (
-            <RateOverviewBar {...props} fill={data[props.index]?.fill} />
-          )}
-          isAnimationActive={true}
-        />
+      <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barCategoryGap="38%">
+        <CartesianGrid strokeDasharray="4 4" stroke="#f0f2f7" vertical={false} />
+        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+        <Tooltip content={<RateOverviewTooltip />} cursor={{ fill: "#f4f6fb", rx: 8 }} />
+        <Bar dataKey="value" shape={(props) => <RateOverviewBar {...props} fill={data[props.index]?.fill} />} isAnimationActive={true} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -1948,23 +2144,13 @@ const PDF_SLATE_100 = [241, 245, 249];
 const PDF_WHITE = [255, 255, 255];
 const PDF_BORDER = [226, 232, 240];
 
-const pdfAddCoverHeader = (
-  doc,
-  pageWidth,
-  reportTitle,
-  dateRange,
-  generatedBy,
-  generatedAt,
-  logoDataUrl,
-) => {
+const pdfAddCoverHeader = (doc, pageWidth, reportTitle, dateRange, generatedBy, generatedAt, logoDataUrl) => {
   doc.setFillColor(...PDF_BRAND_RED);
   doc.rect(0, 0, pageWidth, 38, "F");
   doc.setFillColor(200, 16, 46);
   doc.rect(0, 34, pageWidth, 4, "F");
   if (logoDataUrl) {
-    try {
-      doc.addImage(logoDataUrl, "PNG", 10, 7, 24, 24);
-    } catch (_) {}
+    try { doc.addImage(logoDataUrl, "PNG", 10, 7, 24, 24); } catch (_) {}
   }
   const textX = logoDataUrl ? 40 : 14;
   doc.setFont("helvetica", "bold");
@@ -1974,11 +2160,7 @@ const pdfAddCoverHeader = (
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(255, 200, 200);
-  doc.text(
-    `${dateRange}   ·   Generated by: ${generatedBy || "Unknown"}   ·   ${generatedAt}`,
-    textX,
-    28,
-  );
+  doc.text(`${dateRange}   ·   Generated by: ${generatedBy || "Unknown"}   ·   ${generatedAt}`, textX, 28);
   doc.setTextColor(...PDF_BRAND_DARK);
 };
 
@@ -1993,9 +2175,7 @@ const loadLogoDataUrl = () =>
         canvas.height = img.naturalHeight;
         canvas.getContext("2d").drawImage(img, 0, 0);
         resolve(canvas.toDataURL("image/png"));
-      } catch (_) {
-        resolve(null);
-      }
+      } catch (_) { resolve(null); }
     };
     img.onerror = () => resolve(null);
     img.src = "/logo.png";
@@ -2011,14 +2191,7 @@ const pdfAddRunningHeader = (doc, pageWidth, reportTitle) => {
   doc.setTextColor(...PDF_BRAND_DARK);
 };
 
-const pdfAddPageFooter = (
-  doc,
-  pageNum,
-  totalPages,
-  pageWidth,
-  pageHeight,
-  reportTitle,
-) => {
+const pdfAddPageFooter = (doc, pageNum, totalPages, pageWidth, pageHeight, reportTitle) => {
   doc.setFillColor(...PDF_SLATE_100);
   doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
   doc.setDrawColor(...PDF_BORDER);
@@ -2028,9 +2201,7 @@ const pdfAddPageFooter = (
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_SLATE_400);
   doc.text(`${reportTitle} · Confidential`, 12, pageHeight - 4);
-  doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - 12, pageHeight - 4, {
-    align: "right",
-  });
+  doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - 12, pageHeight - 4, { align: "right" });
 };
 
 const pdfSectionHeading = (doc, text, y, pageWidth) => {
@@ -2051,14 +2222,10 @@ const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
   const boxW = (pageWidth - 20 - (cols - 1) * 5) / cols;
   const boxH = 16;
   const gap = 5;
-  let x = 10,
-    y = startY;
+  let x = 10, y = startY;
 
   rows.forEach(([label, value], i) => {
-    if (i > 0 && i % cols === 0) {
-      x = 10;
-      y += boxH + gap;
-    }
+    if (i > 0 && i % cols === 0) { x = 10; y += boxH + gap; }
     doc.setFillColor(252, 252, 253);
     doc.setDrawColor(...PDF_BORDER);
     doc.setLineWidth(0.3);
@@ -2078,14 +2245,7 @@ const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
   return startY + totalRows * (boxH + gap) + 3;
 };
 
-const pdfChartGrid = (
-  doc,
-  chartImages,
-  startY,
-  pageWidth,
-  pageHeight,
-  reportTitle,
-) => {
+const pdfChartGrid = (doc, chartImages, startY, pageWidth, pageHeight, reportTitle) => {
   const cols = 2;
   const marginX = 10;
   const gap = 6;
@@ -2114,28 +2274,14 @@ const pdfChartGrid = (
     doc.setDrawColor(...PDF_BORDER);
     doc.setLineWidth(0.25);
     doc.roundedRect(x, y + labelH, chartW, chartH, 2, 2, "FD");
-    doc.addImage(
-      ci.dataUrl,
-      "PNG",
-      x + 1,
-      y + labelH + 1,
-      chartW - 2,
-      chartH - 2,
-    );
+    doc.addImage(ci.dataUrl, "PNG", x + 1, y + labelH + 1, chartW - 2, chartH - 2);
   });
 
   const lastRow = Math.floor((chartImages.length - 1) / cols);
   return y + (lastRow >= 0 ? rowH : 0) + 6;
 };
 
-const pdfRiderPerfTable = (
-  doc,
-  riderPerfRows,
-  startY,
-  pageWidth,
-  pageHeight,
-  reportTitle,
-) => {
+const pdfRiderPerfTable = (doc, riderPerfRows, startY, pageWidth, pageHeight, reportTitle) => {
   if (!riderPerfRows?.length) return startY;
 
   if (startY + 30 > pageHeight - 14) {
@@ -2144,62 +2290,20 @@ const pdfRiderPerfTable = (
     startY = 16;
   }
 
-  startY = pdfSectionHeading(
-    doc,
-    "Rider Performance Breakdown",
-    startY,
-    pageWidth,
-  );
+  startY = pdfSectionHeading(doc, "Rider Performance Breakdown", startY, pageWidth);
   startY += 2;
 
-  const head = [
-    [
-      "Rider Name",
-      "Delivered",
-      "Cancelled",
-      "Delayed",
-      "Violations",
-      "Delivery Rate",
-    ],
-  ];
+  const head = [["Rider Name", "Delivered", "Cancelled", "Delayed", "Violations", "Delivery Rate"]];
   const body = riderPerfRows.map((r) => [
-    r.name,
-    String(r.delivered),
-    String(r.cancelled),
-    String(r.delayed),
-    String(r.violations),
-    `${r.deliveryRate}%`,
+    r.name, String(r.delivered), String(r.cancelled), String(r.delayed), String(r.violations), `${r.deliveryRate}%`,
   ]);
 
   autoTable(doc, {
-    startY,
-    margin: { left: 10, right: 10 },
-    head,
-    body,
-    theme: "grid",
-    styles: {
-      font: "helvetica",
-      fontSize: 8,
-      textColor: [31, 41, 55],
-      lineColor: PDF_BORDER,
-      lineWidth: 0.18,
-      cellPadding: 2.5,
-    },
-    headStyles: {
-      fillColor: PDF_BRAND_DARK,
-      textColor: PDF_WHITE,
-      fontStyle: "bold",
-      halign: "left",
-    },
+    startY, margin: { left: 10, right: 10 }, head, body, theme: "grid",
+    styles: { font: "helvetica", fontSize: 8, textColor: [31, 41, 55], lineColor: PDF_BORDER, lineWidth: 0.18, cellPadding: 2.5 },
+    headStyles: { fillColor: PDF_BRAND_DARK, textColor: PDF_WHITE, fontStyle: "bold", halign: "left" },
     alternateRowStyles: { fillColor: [249, 250, 251] },
-    columnStyles: {
-      0: { cellWidth: "auto" },
-      1: { halign: "center" },
-      2: { halign: "center" },
-      3: { halign: "center" },
-      4: { halign: "center" },
-      5: { halign: "center" },
-    },
+    columnStyles: { 0: { cellWidth: "auto" }, 1: { halign: "center" }, 2: { halign: "center" }, 3: { halign: "center" }, 4: { halign: "center" }, 5: { halign: "center" } },
     didParseCell: (tableData) => {
       if (tableData.section !== "body") return;
       const col = tableData.column.index;
@@ -2220,18 +2324,7 @@ const pdfRiderPerfTable = (
   return doc.lastAutoTable.finalY + 8;
 };
 
-const buildPdfDoc = async (
-  selType,
-  selStart,
-  selEnd,
-  selCol,
-  data,
-  columns,
-  reportAnalytics,
-  reportChartImages,
-  generatedBy,
-  logoDataUrl,
-) => {
+const buildPdfDoc = async (selType, selStart, selEnd, selCol, data, columns, reportAnalytics, reportChartImages, generatedBy, logoDataUrl) => {
   const doc = new jsPDF("landscape");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -2242,47 +2335,18 @@ const buildPdfDoc = async (
     overall: "Overall Operations Report",
   };
   const reportTitle = reportTitleMap[selType] || "Operations Report";
+  const generatedAt = new Date().toLocaleString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const dateRange = selStart && selEnd ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}` : "All time";
 
-  const generatedAt = new Date().toLocaleString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  const dateRange =
-    selStart && selEnd
-      ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}`
-      : "All time";
-
-  pdfAddCoverHeader(
-    doc,
-    pageWidth,
-    reportTitle,
-    dateRange,
-    generatedBy,
-    generatedAt,
-    logoDataUrl,
-  );
-
+  pdfAddCoverHeader(doc, pageWidth, reportTitle, dateRange, generatedBy, generatedAt, logoDataUrl);
   let y = 46;
 
   if (selType === "overall" && reportAnalytics?.sections?.length) {
     for (const section of reportAnalytics.sections) {
-      if (y > pageHeight - 40) {
-        doc.addPage();
-        pdfAddRunningHeader(doc, pageWidth, reportTitle);
-        y = 16;
-      }
+      if (y > pageHeight - 40) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
       y = pdfSectionHeading(doc, section.title, y, pageWidth);
       y += 3;
-
-      if (section.summaryRows?.length) {
-        y = pdfKpiGrid(doc, section.summaryRows, y, pageWidth);
-        y += 4;
-      }
-
+      if (section.summaryRows?.length) { y = pdfKpiGrid(doc, section.summaryRows, y, pageWidth); y += 4; }
       if (section.charts?.length) {
         const sectionImages = [];
         for (const spec of section.charts.slice(0, 4)) {
@@ -2290,33 +2354,13 @@ const buildPdfDoc = async (
           if (img) sectionImages.push(img);
         }
         if (sectionImages.length) {
-          if (y + 78 > pageHeight - 14) {
-            doc.addPage();
-            pdfAddRunningHeader(doc, pageWidth, reportTitle);
-            y = 16;
-          }
-          y = pdfChartGrid(
-            doc,
-            sectionImages,
-            y,
-            pageWidth,
-            pageHeight,
-            reportTitle,
-          );
+          if (y + 78 > pageHeight - 14) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
+          y = pdfChartGrid(doc, sectionImages, y, pageWidth, pageHeight, reportTitle);
         }
       }
-
       if (section.riderPerfRows?.length) {
-        y = pdfRiderPerfTable(
-          doc,
-          section.riderPerfRows,
-          y,
-          pageWidth,
-          pageHeight,
-          reportTitle,
-        );
+        y = pdfRiderPerfTable(doc, section.riderPerfRows, y, pageWidth, pageHeight, reportTitle);
       }
-
       y += 6;
     }
   } else {
@@ -2326,73 +2370,27 @@ const buildPdfDoc = async (
       y = pdfKpiGrid(doc, reportAnalytics.summaryRows, y, pageWidth);
       y += 6;
     }
-
     if (reportChartImages?.length) {
-      if (y + 78 > pageHeight - 14) {
-        doc.addPage();
-        pdfAddRunningHeader(doc, pageWidth, reportTitle);
-        y = 16;
-      }
+      if (y + 78 > pageHeight - 14) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
       y = pdfSectionHeading(doc, "Analytics Charts", y, pageWidth);
       y += 3;
-      y = pdfChartGrid(
-        doc,
-        reportChartImages,
-        y,
-        pageWidth,
-        pageHeight,
-        reportTitle,
-      );
+      y = pdfChartGrid(doc, reportChartImages, y, pageWidth, pageHeight, reportTitle);
     }
-
-    if (
-      selType === "rider_performance" &&
-      reportAnalytics?.riderPerfRows?.length
-    ) {
-      y = pdfRiderPerfTable(
-        doc,
-        reportAnalytics.riderPerfRows,
-        y,
-        pageWidth,
-        pageHeight,
-        reportTitle,
-      );
+    if (selType === "rider_performance" && reportAnalytics?.riderPerfRows?.length) {
+      y = pdfRiderPerfTable(doc, reportAnalytics.riderPerfRows, y, pageWidth, pageHeight, reportTitle);
     }
   }
 
-  if (y + 30 > pageHeight - 14) {
-    doc.addPage();
-    pdfAddRunningHeader(doc, pageWidth, reportTitle);
-    y = 16;
-  }
+  if (y + 30 > pageHeight - 14) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
   y = pdfSectionHeading(doc, "Raw Data", y, pageWidth);
   y += 3;
 
-  const tableStyles = {
-    font: "helvetica",
-    fontSize: 7.8,
-    textColor: [31, 41, 55],
-    lineColor: PDF_BORDER,
-    lineWidth: 0.18,
-    cellPadding: 2.2,
-    overflow: "linebreak",
-  };
-  const tableHeadStyles = {
-    fillColor: PDF_BRAND_DARK,
-    textColor: PDF_WHITE,
-    fontStyle: "bold",
-    halign: "left",
-    fontSize: 8,
-  };
+  const tableStyles = { font: "helvetica", fontSize: 7.8, textColor: [31, 41, 55], lineColor: PDF_BORDER, lineWidth: 0.18, cellPadding: 2.2, overflow: "linebreak" };
+  const tableHeadStyles = { fillColor: PDF_BRAND_DARK, textColor: PDF_WHITE, fontStyle: "bold", halign: "left", fontSize: 8 };
 
   if (selType === "overall") {
     data.forEach((section) => {
-      if (y > pageHeight - 28) {
-        doc.addPage();
-        pdfAddRunningHeader(doc, pageWidth, reportTitle);
-        y = 16;
-      }
-
+      if (y > pageHeight - 28) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
       doc.setFillColor(...PDF_SLATE_100);
       doc.setDrawColor(...PDF_BORDER);
       doc.setLineWidth(0.3);
@@ -2405,179 +2403,48 @@ const buildPdfDoc = async (
 
       const head =
         section.section === "Riders"
-          ? [
-              [
-                "Username",
-                "Email",
-                "First Name",
-                "Last Name",
-                "Gender",
-                "Joined",
-                "Phone",
-              ],
-            ]
+          ? [["Username", "Email", "First Name", "Last Name", "Gender", "Joined", "Phone"]]
           : section.section === "Violations"
             ? [["Name", "Violation", "Date"]]
-            : [
-                [
-                  "Parcel ID",
-                  "Recipient",
-                  "Phone",
-                  "Address",
-                  "Rider",
-                  "Status",
-                  "Att.1 Status",
-                  "Att.1 Date",
-                  "Att.2 Status",
-                  "Att.2 Date",
-                  "Created",
-                ],
-              ];
+            : [["Parcel ID", "Recipient", "Phone", "Address", "Rider", "Status", "Att.1 Status", "Att.1 Date", "Att.2 Status", "Att.2 Date", "Created"]];
 
       const body = section.data.map((row) =>
         section.section === "Riders"
-          ? [
-              formatPdfCellValue(row.username, "username"),
-              formatPdfCellValue(row.email, "email"),
-              formatPdfCellValue(row.fname, "fname"),
-              formatPdfCellValue(row.lname, "lname"),
-              formatPdfCellValue(row.gender, "gender"),
-              formatPdfCellValue(row.doj, "doj"),
-              formatPdfCellValue(row.pnumber, "pnumber"),
-            ]
+          ? [formatPdfCellValue(row.username, "username"), formatPdfCellValue(row.email, "email"), formatPdfCellValue(row.fname, "fname"), formatPdfCellValue(row.lname, "lname"), formatPdfCellValue(row.gender, "gender"), formatPdfCellValue(row.doj, "doj"), formatPdfCellValue(row.pnumber, "pnumber")]
           : section.section === "Violations"
-            ? [
-                formatPdfCellValue(row.name, "name"),
-                formatPdfCellValue(row.violation, "violation"),
-                formatPdfCellValue(row.date, "date"),
-              ]
-            : [
-                formatPdfCellValue(row.parcel_id, "parcel_id"),
-                formatPdfCellValue(row.recipient_name, "recipient_name"),
-                formatPdfCellValue(row.recipient_phone, "recipient_phone"),
-                formatPdfCellValue(row.address, "address"),
-                formatPdfCellValue(row.assigned_rider, "assigned_rider"),
-                formatPdfCellValue(row.status, "status"),
-                formatPdfCellValue(row.attempt1_status, "attempt1_status"),
-                formatPdfCellValue(row.attempt1_date, "attempt1_date"),
-                formatPdfCellValue(row.attempt2_status, "attempt2_status"),
-                formatPdfCellValue(row.attempt2_date, "attempt2_date"),
-                formatPdfCellValue(row.created_at, "created_at"),
-              ],
+            ? [formatPdfCellValue(row.name, "name"), formatPdfCellValue(row.violation, "violation"), formatPdfCellValue(row.date, "date")]
+            : [formatPdfCellValue(row.parcel_id, "parcel_id"), formatPdfCellValue(row.recipient_name, "recipient_name"), formatPdfCellValue(row.recipient_phone, "recipient_phone"), formatPdfCellValue(row.address, "address"), formatPdfCellValue(row.assigned_rider, "assigned_rider"), formatPdfCellValue(row.status, "status"), formatPdfCellValue(row.attempt1_status, "attempt1_status"), formatPdfCellValue(row.attempt1_date, "attempt1_date"), formatPdfCellValue(row.attempt2_status, "attempt2_status"), formatPdfCellValue(row.attempt2_date, "attempt2_date"), formatPdfCellValue(row.created_at, "created_at")],
       );
 
-      autoTable(doc, {
-        startY: y,
-        margin: { left: 10, right: 10 },
-        head,
-        body,
-        theme: "grid",
-        styles: tableStyles,
-        headStyles: tableHeadStyles,
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        didParseCell: applyPdfStatusCellColor,
-      });
+      autoTable(doc, { startY: y, margin: { left: 10, right: 10 }, head, body, theme: "grid", styles: tableStyles, headStyles: tableHeadStyles, alternateRowStyles: { fillColor: [249, 250, 251] }, didParseCell: applyPdfStatusCellColor });
       y = doc.lastAutoTable.finalY + 10;
     });
   } else if (selType === "rider_performance") {
-    const ridersData = Array.isArray(data)
-      ? data.find?.((s) => s?.section === "Riders")?.data || []
-      : [];
-    const violationsData = Array.isArray(data)
-      ? data.find?.((s) => s?.section === "Violations")?.data || []
-      : [];
+    const ridersData = Array.isArray(data) ? data.find?.((s) => s?.section === "Riders")?.data || [] : [];
+    const violationsData = Array.isArray(data) ? data.find?.((s) => s?.section === "Violations")?.data || [] : [];
 
     if (ridersData.length) {
-      doc.setFillColor(...PDF_SLATE_100);
-      doc.setDrawColor(...PDF_BORDER);
-      doc.setLineWidth(0.3);
+      doc.setFillColor(...PDF_SLATE_100); doc.setDrawColor(...PDF_BORDER); doc.setLineWidth(0.3);
       doc.roundedRect(10, y - 1, pageWidth - 20, 8, 1, 1, "FD");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...PDF_SLATE_600);
-      doc.text("Riders", 14, y + 4.5);
-      y += 10;
-
-      autoTable(doc, {
-        startY: y,
-        margin: { left: 10, right: 10 },
-        head: [
-          [
-            "Username",
-            "Email",
-            "First Name",
-            "Last Name",
-            "Gender",
-            "Date Joined",
-            "Phone",
-          ],
-        ],
-        body: ridersData.map((row) => [
-          formatPdfCellValue(row.username, "username"),
-          formatPdfCellValue(row.email, "email"),
-          formatPdfCellValue(row.fname, "fname"),
-          formatPdfCellValue(row.lname, "lname"),
-          formatPdfCellValue(row.gender, "gender"),
-          formatPdfCellValue(row.doj, "doj"),
-          formatPdfCellValue(row.pnumber, "pnumber"),
-        ]),
-        theme: "grid",
-        styles: tableStyles,
-        headStyles: tableHeadStyles,
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-      });
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...PDF_SLATE_600);
+      doc.text("Riders", 14, y + 4.5); y += 10;
+      autoTable(doc, { startY: y, margin: { left: 10, right: 10 }, head: [["Username", "Email", "First Name", "Last Name", "Gender", "Date Joined", "Phone"]], body: ridersData.map((row) => [formatPdfCellValue(row.username, "username"), formatPdfCellValue(row.email, "email"), formatPdfCellValue(row.fname, "fname"), formatPdfCellValue(row.lname, "lname"), formatPdfCellValue(row.gender, "gender"), formatPdfCellValue(row.doj, "doj"), formatPdfCellValue(row.pnumber, "pnumber")]), theme: "grid", styles: tableStyles, headStyles: tableHeadStyles, alternateRowStyles: { fillColor: [249, 250, 251] } });
       y = doc.lastAutoTable.finalY + 10;
     }
 
     if (violationsData.length) {
-      if (y + 30 > pageHeight - 14) {
-        doc.addPage();
-        pdfAddRunningHeader(doc, pageWidth, reportTitle);
-        y = 16;
-      }
-
-      doc.setFillColor(...PDF_SLATE_100);
-      doc.setDrawColor(...PDF_BORDER);
-      doc.setLineWidth(0.3);
+      if (y + 30 > pageHeight - 14) { doc.addPage(); pdfAddRunningHeader(doc, pageWidth, reportTitle); y = 16; }
+      doc.setFillColor(...PDF_SLATE_100); doc.setDrawColor(...PDF_BORDER); doc.setLineWidth(0.3);
       doc.roundedRect(10, y - 1, pageWidth - 20, 8, 1, 1, "FD");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...PDF_SLATE_600);
-      doc.text("Violations", 14, y + 4.5);
-      y += 10;
-
-      autoTable(doc, {
-        startY: y,
-        margin: { left: 10, right: 10 },
-        head: [["Name", "Violation", "Date"]],
-        body: violationsData.map((row) => [
-          formatPdfCellValue(row.name, "name"),
-          formatPdfCellValue(row.violation, "violation"),
-          formatPdfCellValue(row.date, "date"),
-        ]),
-        theme: "grid",
-        styles: tableStyles,
-        headStyles: tableHeadStyles,
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-      });
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...PDF_SLATE_600);
+      doc.text("Violations", 14, y + 4.5); y += 10;
+      autoTable(doc, { startY: y, margin: { left: 10, right: 10 }, head: [["Name", "Violation", "Date"]], body: violationsData.map((row) => [formatPdfCellValue(row.name, "name"), formatPdfCellValue(row.violation, "violation"), formatPdfCellValue(row.date, "date")]), theme: "grid", styles: tableStyles, headStyles: tableHeadStyles, alternateRowStyles: { fillColor: [249, 250, 251] } });
       y = doc.lastAutoTable.finalY + 10;
     }
   } else {
     const head = columns.map(humanizeLabel);
-    const body = data.map((row) =>
-      columns.map((c) => formatPdfCellValue(row[c], c)),
-    );
-    autoTable(doc, {
-      startY: y,
-      margin: { left: 10, right: 10 },
-      head: [head],
-      body,
-      theme: "grid",
-      styles: tableStyles,
-      headStyles: tableHeadStyles,
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      didParseCell: applyPdfStatusCellColor,
-    });
+    const body = data.map((row) => columns.map((c) => formatPdfCellValue(row[c], c)));
+    autoTable(doc, { startY: y, margin: { left: 10, right: 10 }, head: [head], body, theme: "grid", styles: tableStyles, headStyles: tableHeadStyles, alternateRowStyles: { fillColor: [249, 250, 251] }, didParseCell: applyPdfStatusCellColor });
   }
 
   const totalPages = doc.internal.getNumberOfPages();
@@ -2637,6 +2504,7 @@ const Dashboard = () => {
   const [violationLogsError, setViolationLogsError] = useState("");
   const [flaggedRiderAvatars, setFlaggedRiderAvatars] = useState({});
   const [topRiderAvatars, setTopRiderAvatars] = useState({});
+  const [kpiModalKey, setKpiModalKey] = useState(null);
 
   // ── Refs ──
   const yearFilterRef = useRef(null);
@@ -2648,12 +2516,9 @@ const Dashboard = () => {
   const violationFullLayerGroupRef = useRef(null);
   const hasLoadedAnalyticsRef = useRef(false);
 
-  const todayLabel = new Date().toLocaleString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  const todayLabel = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
-  // ── Inject animation styles once ──
+  // ── Inject animation + popup styles once ──
   useEffect(() => {
     const styleId = "dash-value-anim-styles";
     if (document.getElementById(styleId)) return;
@@ -2675,6 +2540,27 @@ const Dashboard = () => {
       .stat-sub-anim {
         animation: statSubIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
       }
+      @keyframes kpiModalIn {
+        from { opacity: 0; transform: scale(0.94) translateY(20px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      /* ── Strip Leaflet default popup chrome for violation popups ── */
+      .violation-hotspot-popup .leaflet-popup-content-wrapper {
+        padding: 0 !important;
+        border-radius: 14px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+      .violation-hotspot-popup .leaflet-popup-content {
+        margin: 0 !important;
+        width: auto !important;
+        line-height: normal !important;
+      }
+      .violation-hotspot-popup .leaflet-popup-tip-container {
+        display: none !important;
+      }
     `;
     document.head.appendChild(style);
   }, []);
@@ -2685,23 +2571,155 @@ const Dashboard = () => {
   const animDelivered = useAnimatedNumber(dashboardData.delivered);
   const animCancelled = useAnimatedNumber(dashboardData.cancelled);
   const animDelayed = useAnimatedNumber(dashboardData.delayed);
-  const animFirstAttempt = useAnimatedNumber(
-    dashboardData.firstAttemptSuccessRate,
-  );
+  const animFirstAttempt = useAnimatedNumber(dashboardData.firstAttemptSuccessRate);
   const animTopRiderCount = useAnimatedNumber(dashboardData.topRiderCount);
   const animTopMonthCount = useAnimatedNumber(dashboardData.topMonthCount);
   const animTopYearCount = useAnimatedNumber(dashboardData.topYearCount);
 
+  // ── FIX 3 & 4: buildViolationPopup — removed risk badge, added profile picture ──
   const buildViolationPopup = useCallback(
-    (location, level, incidents, _note, violationType) => `
-    <div class="violation-hotspot-popup-card">
-      <div class="violation-hotspot-popup-top">
-        <span class="violation-hotspot-dot ${level}"></span>
-        <strong>${location}</strong>
-      </div>
-      <small style="color: #dc2626; font-weight: 700;">Violation: ${violationType || "Unknown violation"}</small>
-    </div>
-  `,
+    (location, _level, _incidents, _note, violationType, date, riderName, profileUrl) => {
+      const violationLabel = violationType
+        ? violationType.trim().replace(/\b\w/g, (c) => c.toUpperCase())
+        : "Unknown Violation";
+
+      // Use riderName preferentially; fall back to location
+      const displayName = (riderName && riderName.trim())
+        ? riderName.trim().replace(/\b\w/g, (c) => c.toUpperCase())
+        : (location
+          ? location.trim().replace(/\b\w/g, (c) => c.toUpperCase())
+          : "Unknown Rider");
+
+      const formattedDate = date
+        ? new Date(date).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : null;
+
+      // Avatar: either an <img> or initials fallback
+      const initials = displayName
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w.charAt(0).toUpperCase())
+        .join("");
+
+      const avatarHtml = profileUrl
+        ? `<img
+            src="${profileUrl}"
+            alt="${displayName}"
+            style="
+              width: 38px; height: 38px; border-radius: 50%;
+              object-fit: cover; border: 2px solid rgba(255,255,255,0.8);
+              flex-shrink: 0; display: block;
+            "
+            onerror="this.style.display='none'; this.nextSibling.style.display='flex';"
+          />
+          <div style="
+            display: none; width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg,#c8102e,#8b0000);
+            align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 800; color: #fff;
+            flex-shrink: 0; border: 2px solid rgba(255,255,255,0.25);
+          ">${initials}</div>`
+        : `<div style="
+            display: flex; width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg,#c8102e,#8b0000);
+            align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 800; color: #fff;
+            flex-shrink: 0; border: 2px solid rgba(255,255,255,0.25);
+          ">${initials}</div>`;
+
+      return `
+        <div style="
+          font-family: inherit;
+          min-width: 220px;
+          max-width: 270px;
+          border-radius: 14px;
+          overflow: hidden;
+          background: #ffffff;
+          box-shadow: 0 8px 28px rgba(15,23,42,0.16), 0 2px 8px rgba(15,23,42,0.08);
+        ">
+          <!-- Header -->
+          <div style="
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 11px 14px 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          ">
+            ${avatarHtml}
+            <span style="
+              font-size: 13px; font-weight: 700; color: #f1f5f9;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              letter-spacing: -0.01em; flex: 1; min-width: 0;
+            ">${displayName}</span>
+          </div>
+
+          <!-- Body -->
+          <div style="padding: 11px 14px 12px; display: flex; flex-direction: column; gap: 8px;">
+            <!-- Violation row -->
+            <div style="display: flex; align-items: flex-start; gap: 9px;">
+              <div style="
+                width: 26px; height: 26px; border-radius: 8px;
+                background: rgba(239,68,68,0.08);
+                border: 1px solid rgba(239,68,68,0.18);
+                display: flex; align-items: center; justify-content: center;
+                flex-shrink: 0;
+              ">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                  stroke="#ef4444" stroke-width="2.5" stroke-linecap="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 600;
+                  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px;">
+                  Violation
+                </div>
+                <div style="font-size: 12.5px; font-weight: 700; color: #dc2626;">
+                  ${violationLabel}
+                </div>
+              </div>
+            </div>
+
+            ${formattedDate ? `
+            <div style="height: 1px; background: #f1f5f9; margin: 0 -2px;"></div>
+            <!-- Date row -->
+            <div style="display: flex; align-items: center; gap: 9px;">
+              <div style="
+                width: 26px; height: 26px; border-radius: 8px;
+                background: rgba(99,102,241,0.08);
+                border: 1px solid rgba(99,102,241,0.18);
+                display: flex; align-items: center; justify-content: center;
+                flex-shrink: 0;
+              ">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="#6366f1" stroke-width="2.5" stroke-linecap="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 600;
+                  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px;">
+                  Date &amp; Time
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: #334155;">
+                  ${formattedDate}
+                </div>
+              </div>
+            </div>
+            ` : ""}
+          </div>
+        </div>
+      `;
+    },
     [],
   );
 
@@ -2739,11 +2757,14 @@ const Dashboard = () => {
       deliveryRate: (delivered / safeTotal) * 100,
       cancellationRate: (cancelled / safeTotal) * 100,
       delayRate: (delayed / safeTotal) * 100,
-      inProgressRate:
-        ((totalParcels - delivered - cancelled) / safeTotal) * 100,
+      inProgressRate: ((totalParcels - delivered - cancelled) / safeTotal) * 100,
     };
   }, [dashboardData]);
 
+  // ── FIX 1 & 2: renderViolationHotspots ──
+  // Fix 1: maxZoom 21 + CartoDB tiles that actually serve z21
+  // Fix 2: disableClusteringAtZoom so markers appear individually at high zoom;
+  //        spiderfyOnMaxZoom handles the spread when zoomed all the way in
   const renderViolationHotspots = useCallback(
     (map, points, layerGroupRef, options = {}) => {
       if (!map) return;
@@ -2752,6 +2773,7 @@ const Dashboard = () => {
         layerGroupRef.current.remove();
         layerGroupRef.current = null;
       }
+
       const warningIcon = L.divIcon({
         className: "violation-warning-marker-wrap",
         html: `<span class="violation-warning-pulse" aria-hidden="true"></span><span class="violation-warning-marker" aria-hidden="true">&#9888;</span>`,
@@ -2759,11 +2781,16 @@ const Dashboard = () => {
         iconAnchor: [17, 34],
         popupAnchor: [0, -34],
       });
+
+      // FIX 2: disableClusteringAtZoom ensures individual markers show at deep zoom;
+      // spiderfyOnMaxZoom + spiderfyDistanceMultiplier handles same-coord stacking
       const layerGroup = L.markerClusterGroup({
         showCoverageOnHover: false,
         spiderfyOnMaxZoom: true,
         zoomToBoundsOnClick: true,
-        maxClusterRadius: 52,
+        disableClusteringAtZoom: 18,   // ← clusters dissolve at z18+
+        maxClusterRadius: 48,
+        spiderfyDistanceMultiplier: 3,
         iconCreateFunction: (cluster) => {
           const count = cluster.getChildCount();
           return L.divIcon({
@@ -2775,10 +2802,12 @@ const Dashboard = () => {
           });
         },
       });
+
       (points || []).forEach((point) => {
         const [lat, lng] = point.coords || [];
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         const level = getViolationDensityLevel(point.incidents);
+        // FIX 3 & 4: pass rider_name + profile_url to popup builder
         L.marker([lat, lng], { icon: warningIcon, zIndexOffset: 1200 })
           .addTo(layerGroup)
           .bindPopup(
@@ -2788,28 +2817,30 @@ const Dashboard = () => {
               point.incidents,
               "",
               point.violation_type,
+              point.date,
+              point.rider_name,   // ← rider name
+              point.profile_url,  // ← profile picture
             ),
             {
               className: "violation-hotspot-popup",
               closeButton: false,
-              autoPan: false,
-              keepInView: false,
+              autoPan: true,
+              keepInView: true,
+              maxWidth: 300,
             },
           );
       });
+
       layerGroup.addTo(map);
       layerGroupRef.current = layerGroup;
+
       if (!autoCenter) return;
       const plottedLayers = layerGroup.getLayers();
       if (plottedLayers.length > 1) {
-        map.fitBounds(
-          L.featureGroup(layerGroup.getLayers()).getBounds().pad(0.2),
-        );
+        map.fitBounds(L.featureGroup(layerGroup.getLayers()).getBounds().pad(0.2));
       } else if (plottedLayers.length === 1) {
         const first = plottedLayers[0];
-        const c = first?.getLatLng
-          ? first.getLatLng()
-          : first?.getBounds?.().getCenter();
+        const c = first?.getLatLng ? first.getLatLng() : first?.getBounds?.().getCenter();
         if (c) map.setView([c.lat, c.lng], 14);
       } else {
         map.setView([14.676, 121.0437], 13);
@@ -2818,11 +2849,36 @@ const Dashboard = () => {
     [buildViolationPopup],
   );
 
+  // ── createLeafletMap helper — shared tile config ──
+  // FIX 1: Use CartoDB Positron tiles which support up to z21 natively.
+  // maxZoom on map and maxNativeZoom on tile layer both set to 21.
+  const createLeafletMap = useCallback((container) => {
+    const map = L.map(container, {
+      minZoom: 3,
+      maxZoom: 21,
+      zoomSnap: 0.5,
+      zoomDelta: 1,
+    }).setView([14.676, 121.0437], 13);
+
+    // Primary: CartoDB Positron (supports z21)
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 21,
+        maxNativeZoom: 21,
+        noWrap: true,
+      },
+    ).addTo(map);
+
+    return map;
+  }, []);
+
   // Effects
   useEffect(() => {
     if (reportType === "parcels") setColumnsOptions(parcelColumns);
-    else if (reportType === "rider_performance")
-      setColumnsOptions(riderPerfColumns);
+    else if (reportType === "rider_performance") setColumnsOptions(riderPerfColumns);
     else setColumnsOptions([]);
     setColumn("All");
   }, [reportType]);
@@ -2830,18 +2886,8 @@ const Dashboard = () => {
   useEffect(() => {
     async function loadAvailableYears() {
       try {
-        const { data: oldestRows } = await supabaseClient
-          .from("parcels")
-          .select("created_at")
-          .not("created_at", "is", null)
-          .order("created_at", { ascending: true })
-          .limit(1);
-        const { data: newestRows } = await supabaseClient
-          .from("parcels")
-          .select("created_at")
-          .not("created_at", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1);
+        const { data: oldestRows } = await supabaseClient.from("parcels").select("created_at").not("created_at", "is", null).order("created_at", { ascending: true }).limit(1);
+        const { data: newestRows } = await supabaseClient.from("parcels").select("created_at").not("created_at", "is", null).order("created_at", { ascending: false }).limit(1);
         const oldestYear = Number(extractYearKey(oldestRows?.[0]?.created_at));
         const newestYear = Number(extractYearKey(newestRows?.[0]?.created_at));
         const minYear = Number.isFinite(oldestYear) ? oldestYear : currentYear;
@@ -2868,78 +2914,113 @@ const Dashboard = () => {
     async function loadAnalytics() {
       if (!hasLoadedAnalyticsRef.current) setLoading(true);
       try {
-        const analyticsYears =
-          selectedYear === "All"
-            ? [...availableYears].reverse()
-            : [selectedYear];
-        const safeYears = analyticsYears.length
-          ? analyticsYears
-          : [String(currentYear)];
+        const analyticsYears = selectedYear === "All" ? [...availableYears].reverse() : [selectedYear];
+        const safeYears = analyticsYears.length ? analyticsYears : [String(currentYear)];
         const allParcels = [];
         for (const year of safeYears) {
           const yr = getYearDateRange(year);
           if (!yr) continue;
           const yearParcels = await fetchAllPages(() =>
-            supabaseClient
-              .from("parcels")
-              .select(
-                `*, assigned_rider:users!parcels_assigned_rider_id_fkey(user_id,username,fname,lname)`,
-              )
-              .gte("created_at", yr.start)
-              .lt("created_at", yr.endExclusive),
+            supabaseClient.from("parcels").select(`*, assigned_rider:users!parcels_assigned_rider_id_fkey(user_id,username,fname,lname)`).gte("created_at", yr.start).lt("created_at", yr.endExclusive),
           );
           allParcels.push(...yearParcels);
         }
+
+        // ── FIX 4: fetch violation_logs with profile_url joined from users ──
         const allViolations = [];
         try {
           for (const year of safeYears) {
             const yr = getYearDateRange(year);
             if (!yr) continue;
+            // Join users table to get profile_url; use left join via select
             const yv = await fetchAllPages(() =>
               supabaseClient
                 .from("violation_logs")
-                .select("*")
+                .select("*, rider:users!violation_logs_user_id_fkey(fname, lname, profile_url)")
                 .gte("date", yr.start)
                 .lt("date", yr.endExclusive)
                 .order("date", { ascending: false }),
             );
-            allViolations.push(...yv);
+            // Flatten rider profile data onto each log row
+            const enriched = yv.map((v) => ({
+              ...v,
+              profile_url: v?.rider?.profile_url || null,
+              // Prefer joined rider name if `name` column is absent
+              name: v?.name || (v?.rider ? `${v.rider.fname || ""} ${v.rider.lname || ""}`.trim() : null),
+            }));
+            allViolations.push(...enriched);
           }
-          allViolations.sort(
-            (a, b) => new Date(b?.date || 0) - new Date(a?.date || 0),
-          );
+          allViolations.sort((a, b) => new Date(b?.date || 0) - new Date(a?.date || 0));
           setViolationLogsError("");
           setViolationLogs(allViolations);
         } catch (ve) {
-          setViolationLogsError(ve?.message || "Unknown error");
-          setViolationLogs([]);
+          // Fallback: fetch without join if FK doesn't exist
+          try {
+            const allViolationsFallback = [];
+            for (const year of safeYears) {
+              const yr = getYearDateRange(year);
+              if (!yr) continue;
+              const yv = await fetchAllPages(() =>
+                supabaseClient
+                  .from("violation_logs")
+                  .select("*")
+                  .gte("date", yr.start)
+                  .lt("date", yr.endExclusive)
+                  .order("date", { ascending: false }),
+              );
+              allViolationsFallback.push(...yv);
+            }
+            allViolationsFallback.sort((a, b) => new Date(b?.date || 0) - new Date(a?.date || 0));
+            setViolationLogsError("");
+            setViolationLogs(allViolationsFallback);
+            // Enrich with profile_url from users table separately
+            try {
+              const { data: allUsers } = await supabaseClient
+                .from("users")
+                .select("user_id, fname, lname, username, profile_url");
+              if (allUsers?.length) {
+                const userMap = {};
+                allUsers.forEach((u) => {
+                  if (u.user_id) userMap[String(u.user_id)] = u;
+                  const fullName = `${u.fname || ""} ${u.lname || ""}`.trim().toLowerCase();
+                  if (fullName) userMap[fullName] = u;
+                  if (u.username) userMap[u.username.toLowerCase()] = u;
+                });
+                setViolationLogs((prev) =>
+                  prev.map((v) => {
+                    if (v.profile_url) return v;
+                    const nameKey = String(v?.name || "").trim().toLowerCase();
+                    const idKey = String(v?.user_id || "");
+                    const match = userMap[idKey] || userMap[nameKey];
+                    return match ? { ...v, profile_url: match.profile_url || null } : v;
+                  }),
+                );
+              }
+            } catch (_) {}
+          } catch (ve2) {
+            setViolationLogsError(ve2?.message || "Unknown error");
+            setViolationLogs([]);
+          }
         }
 
         let totalRiders = 0;
         const nameNormalizeMap = {};
         try {
-          const { data: allUsers, count } = await supabaseClient
-            .from("users")
-            .select("fname, mname, lname, username", { count: "exact" });
+          const { data: allUsers, count } = await supabaseClient.from("users").select("fname, mname, lname, username", { count: "exact" });
           totalRiders = count || 0;
           (allUsers || []).forEach((u) => {
             const firstLast = `${u.fname || ""} ${u.lname || ""}`.trim();
             if (!firstLast) return;
             nameNormalizeMap[firstLast.toLowerCase()] = firstLast;
             if (u.mname) {
-              const withMiddle =
-                `${u.fname || ""} ${u.mname} ${u.lname || ""}`.trim();
+              const withMiddle = `${u.fname || ""} ${u.mname} ${u.lname || ""}`.trim();
               nameNormalizeMap[withMiddle.toLowerCase()] = firstLast;
             }
-            if (u.username) {
-              nameNormalizeMap[String(u.username).toLowerCase()] = firstLast;
-            }
+            if (u.username) { nameNormalizeMap[String(u.username).toLowerCase()] = firstLast; }
           });
         } catch {
           try {
-            const { count } = await supabaseClient
-              .from("users")
-              .select("*", { count: "exact", head: true });
+            const { count } = await supabaseClient.from("users").select("*", { count: "exact", head: true });
             totalRiders = count || 0;
           } catch {}
         }
@@ -2950,24 +3031,15 @@ const Dashboard = () => {
           return nameNormalizeMap[key] || String(raw).trim();
         };
 
-        const delivered = allParcels.filter((p) =>
-          isDeliveredStatus(p.status),
-        ).length;
-        const cancelled = allParcels.filter((p) =>
-          isCancelledStatus(p.status),
-        ).length;
+        const delivered = allParcels.filter((p) => isDeliveredStatus(p.status)).length;
+        const cancelled = allParcels.filter((p) => isCancelledStatus(p.status)).length;
         const isDelayed = (p) =>
           normalizeStatus(p?.attempt1_status) === "failed" ||
           normalizeStatus(p?.attempt2_status) === "failed" ||
           isCancelledStatus(p?.status);
         const delayed = allParcels.filter(isDelayed).length;
-        const inProgress = Math.max(
-          allParcels.length - delivered - cancelled,
-          0,
-        );
-        const deliveredRows = allParcels.filter((p) =>
-          isDeliveredStatus(p.status),
-        );
+        const inProgress = Math.max(allParcels.length - delivered - cancelled, 0);
+        const deliveredRows = allParcels.filter((p) => isDeliveredStatus(p.status));
         const firstAttemptOk = deliveredRows.filter(
           (p) =>
             normalizeStatus(p?.attempt1_status) === "success" ||
@@ -2994,8 +3066,7 @@ const Dashboard = () => {
             const d = new Date(p.created_at);
             const ys = extractYearKey(p.created_at);
             if (!Number.isNaN(d.getTime()) && ys && isDelayed(p)) {
-              monthDelayCounts[d.getMonth()] =
-                (monthDelayCounts[d.getMonth()] || 0) + 1;
+              monthDelayCounts[d.getMonth()] = (monthDelayCounts[d.getMonth()] || 0) + 1;
               yearsDelayCount[ys] = (yearsDelayCount[ys] || 0) + 1;
             }
           }
@@ -3003,10 +3074,8 @@ const Dashboard = () => {
           const riderId = p.assigned_rider_id;
           if (riderId) {
             if (!riderNameById[riderId]) {
-              const fn =
-                `${p?.assigned_rider?.fname || ""} ${p?.assigned_rider?.lname || ""}`.trim();
-              riderNameById[riderId] =
-                fn || p?.assigned_rider?.username || String(riderId);
+              const fn = `${p?.assigned_rider?.fname || ""} ${p?.assigned_rider?.lname || ""}`.trim();
+              riderNameById[riderId] = fn || p?.assigned_rider?.username || String(riderId);
             }
             riderCountsById[riderId] = (riderCountsById[riderId] || 0) + 1;
             if (riderCountsById[riderId] > topRiderCount) {
@@ -3021,16 +3090,10 @@ const Dashboard = () => {
           const mi = date.getMonth();
           const ms = MONTH_LABELS[mi];
           monthCounts[mi] = (monthCounts[mi] || 0) + 1;
-          if (monthCounts[mi] > topMonthCount) {
-            topMonth = ms;
-            topMonthCount = monthCounts[mi];
-          }
+          if (monthCounts[mi] > topMonthCount) { topMonth = ms; topMonthCount = monthCounts[mi]; }
           if (!yearsCount[ys]) yearsCount[ys] = 0;
           yearsCount[ys] += 1;
-          if (yearsCount[ys] > topYearCount) {
-            topYear = ys;
-            topYearCount = yearsCount[ys];
-          }
+          if (yearsCount[ys] > topYearCount) { topYear = ys; topYearCount = yearsCount[ys]; }
         });
 
         allViolations.forEach((v) => {
@@ -3044,40 +3107,23 @@ const Dashboard = () => {
           label: riderNameById[id] || id,
           value: count,
         }));
-        const topViolationTypes = topEntries(violationTypeCount, 5).map(
-          ([l, v]) => ({ label: l, value: v }),
-        );
-        const topFlaggedRiders = topEntries(flaggedRiderCount, 5).map(
-          ([l, v]) => ({ label: l, value: v }),
-        );
+        const topViolationTypes = topEntries(violationTypeCount, 5).map(([l, v]) => ({ label: l, value: v }));
+        const topFlaggedRiders = topEntries(flaggedRiderCount, 5).map(([l, v]) => ({ label: l, value: v }));
         const violationsByWeekday = Array(7).fill(0);
         allViolations.forEach((v) => {
           const d = new Date(v?.date);
           if (!Number.isNaN(d.getTime())) violationsByWeekday[d.getDay()] += 1;
         });
 
-        const sortedYears = Object.keys(yearsCount).sort(
-          (a, b) => Number(a) - Number(b),
-        );
-        const chartYears =
-          selectedYear === "All" ? sortedYears : [selectedYear];
-        const yearGrowthData =
-          selectedYear === "All"
-            ? chartYears.map((y) => yearsCount[y] || 0)
-            : [yearsCount[selectedYear] || 0];
-        const yearDelayGrowthData =
-          selectedYear === "All"
-            ? chartYears.map((y) => yearsDelayCount[y] || 0)
-            : [yearsDelayCount[selectedYear] || 0];
+        const sortedYears = Object.keys(yearsCount).sort((a, b) => Number(a) - Number(b));
+        const chartYears = selectedYear === "All" ? sortedYears : [selectedYear];
+        const yearGrowthData = selectedYear === "All" ? chartYears.map((y) => yearsCount[y] || 0) : [yearsCount[selectedYear] || 0];
+        const yearDelayGrowthData = selectedYear === "All" ? chartYears.map((y) => yearsDelayCount[y] || 0) : [yearsDelayCount[selectedYear] || 0];
         const activeDaySet = new Set(
-          deliveredRows
-            .map((p) => {
-              const d = new Date(p?.created_at);
-              return Number.isNaN(d.getTime())
-                ? null
-                : d.toISOString().slice(0, 10);
-            })
-            .filter(Boolean),
+          deliveredRows.map((p) => {
+            const d = new Date(p?.created_at);
+            return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+          }).filter(Boolean),
         );
 
         setDashboardData({
@@ -3089,9 +3135,7 @@ const Dashboard = () => {
           topMonthCount: topMonthCount || 0,
           topYear: topYear || "--",
           topYearCount: topYearCount || 0,
-          topRider:
-            (topRiderId && (riderNameById[topRiderId] || String(topRiderId))) ||
-            "--",
+          topRider: (topRiderId && (riderNameById[topRiderId] || String(topRiderId))) || "--",
           topRiderCount: topRiderCount || 0,
           years: chartYears,
           yearGrowth: yearGrowthData,
@@ -3103,10 +3147,8 @@ const Dashboard = () => {
           topFlaggedRiders,
           violationsByWeekday,
           parcelStatusMix: { delivered, cancelled, inProgress },
-          firstAttemptSuccessRate:
-            delivered > 0 ? (firstAttemptOk / delivered) * 100 : 0,
-          avgDeliveriesPerDay:
-            activeDaySet.size > 0 ? delivered / activeDaySet.size : 0,
+          firstAttemptSuccessRate: delivered > 0 ? (firstAttemptOk / delivered) * 100 : 0,
+          avgDeliveriesPerDay: activeDaySet.size > 0 ? delivered / activeDaySet.size : 0,
           totalViolations: allViolations.length,
           totalRiders,
         });
@@ -3126,17 +3168,13 @@ const Dashboard = () => {
     if (!dashboardData.topFlaggedRiders.length) return;
     async function fetchFlaggedRiderAvatars() {
       try {
-        const { data: allUsers, error } = await supabaseClient
-          .from("users")
-          .select("user_id, username, fname, lname, profile_url");
+        const { data: allUsers, error } = await supabaseClient.from("users").select("user_id, username, fname, lname, profile_url");
         if (error) throw error;
         const avatarMap = {};
         (allUsers || []).forEach((u) => {
           const profileUrl = u.profile_url || null;
           if (u.username) avatarMap[u.username.toLowerCase()] = profileUrl;
-          const fullName = `${u.fname || ""} ${u.lname || ""}`
-            .trim()
-            .toLowerCase();
+          const fullName = `${u.fname || ""} ${u.lname || ""}`.trim().toLowerCase();
           if (fullName) avatarMap[fullName] = profileUrl;
           if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
         });
@@ -3153,17 +3191,13 @@ const Dashboard = () => {
     if (!dashboardData.topRiders.length) return;
     async function fetchTopRiderAvatars() {
       try {
-        const { data: allUsers, error } = await supabaseClient
-          .from("users")
-          .select("user_id, username, fname, lname, profile_url");
+        const { data: allUsers, error } = await supabaseClient.from("users").select("user_id, username, fname, lname, profile_url");
         if (error) throw error;
         const avatarMap = {};
         (allUsers || []).forEach((u) => {
           const profileUrl = u.profile_url || null;
           if (u.username) avatarMap[u.username.toLowerCase()] = profileUrl;
-          const fullName = `${u.fname || ""} ${u.lname || ""}`
-            .trim()
-            .toLowerCase();
+          const fullName = `${u.fname || ""} ${u.lname || ""}`.trim().toLowerCase();
           if (fullName) avatarMap[fullName] = profileUrl;
           if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
         });
@@ -3180,15 +3214,9 @@ const Dashboard = () => {
       dashboardData.topFlaggedRiders.map((r) => {
         const label = r.label || "";
         const exactKey = label.toLowerCase();
-        if (flaggedRiderAvatars[exactKey] !== undefined)
-          return { ...r, avatarUrl: flaggedRiderAvatars[exactKey] };
-        const stripped = label
-          .replace(/\s+[A-Z]\.\s+/g, " ")
-          .replace(/\s+[A-Z]\s+/g, " ")
-          .trim()
-          .toLowerCase();
-        if (flaggedRiderAvatars[stripped] !== undefined)
-          return { ...r, avatarUrl: flaggedRiderAvatars[stripped] };
+        if (flaggedRiderAvatars[exactKey] !== undefined) return { ...r, avatarUrl: flaggedRiderAvatars[exactKey] };
+        const stripped = label.replace(/\s+[A-Z]\.\s+/g, " ").replace(/\s+[A-Z]\s+/g, " ").trim().toLowerCase();
+        if (flaggedRiderAvatars[stripped] !== undefined) return { ...r, avatarUrl: flaggedRiderAvatars[stripped] };
         const firstName = label.split(" ")[0].toLowerCase();
         return { ...r, avatarUrl: flaggedRiderAvatars[firstName] || null };
       }),
@@ -3200,53 +3228,30 @@ const Dashboard = () => {
       dashboardData.topRiders.map((r) => {
         const label = r.label || "";
         const exactKey = label.toLowerCase();
-        if (topRiderAvatars[exactKey] !== undefined)
-          return { ...r, avatarUrl: topRiderAvatars[exactKey] };
-        const stripped = label
-          .replace(/\s+[A-Z]\.\s+/g, " ")
-          .replace(/\s+[A-Z]\s+/g, " ")
-          .trim()
-          .toLowerCase();
-        if (topRiderAvatars[stripped] !== undefined)
-          return { ...r, avatarUrl: topRiderAvatars[stripped] };
+        if (topRiderAvatars[exactKey] !== undefined) return { ...r, avatarUrl: topRiderAvatars[exactKey] };
+        const stripped = label.replace(/\s+[A-Z]\.\s+/g, " ").replace(/\s+[A-Z]\s+/g, " ").trim().toLowerCase();
+        if (topRiderAvatars[stripped] !== undefined) return { ...r, avatarUrl: topRiderAvatars[stripped] };
         const firstName = label.split(" ")[0].toLowerCase();
         return { ...r, avatarUrl: topRiderAvatars[firstName] || null };
       }),
     [dashboardData.topRiders, topRiderAvatars],
   );
 
-  // ── Map ──
+  // ── FIX 1: Map effects — use createLeafletMap helper ──
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
     const existing = violationLeafletMapRef.current;
-    if (
-      existing &&
-      typeof existing.getContainer === "function" &&
-      existing.getContainer() !== violationMapRef.current
-    ) {
+    if (existing && typeof existing.getContainer === "function" && existing.getContainer() !== violationMapRef.current) {
       existing.remove();
       violationLeafletMapRef.current = null;
       violationLayerGroupRef.current = null;
     }
     if (!violationLeafletMapRef.current) {
-      const map = L.map(violationMapRef.current, { minZoom: 11 }).setView(
-        [14.676, 121.0437],
-        13,
-      );
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        noWrap: true,
-      }).addTo(map);
-      violationLeafletMapRef.current = map;
+      violationLeafletMapRef.current = createLeafletMap(violationMapRef.current);
     }
-    renderViolationHotspots(
-      violationLeafletMapRef.current,
-      violationPointIndicators,
-      violationLayerGroupRef,
-      { autoCenter: true },
-    );
+    renderViolationHotspots(violationLeafletMapRef.current, violationPointIndicators, violationLayerGroupRef, { autoCenter: true });
     setTimeout(() => violationLeafletMapRef.current?.invalidateSize(), 120);
-  }, [loading, violationPointIndicators, renderViolationHotspots]);
+  }, [loading, violationPointIndicators, renderViolationHotspots, createLeafletMap]);
 
   useEffect(() => {
     if (!violationMapModalOpen) {
@@ -3258,39 +3263,16 @@ const Dashboard = () => {
     }
     if (!violationFullMapRef.current) return;
     if (!violationFullLeafletMapRef.current) {
-      const map = L.map(violationFullMapRef.current, { minZoom: 11 }).setView(
-        [14.676, 121.0437],
-        13,
-      );
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        noWrap: true,
-      }).addTo(map);
-      violationFullLeafletMapRef.current = map;
+      violationFullLeafletMapRef.current = createLeafletMap(violationFullMapRef.current);
     }
-    renderViolationHotspots(
-      violationFullLeafletMapRef.current,
-      violationPointIndicators,
-      violationFullLayerGroupRef,
-      { autoCenter: true },
-    );
+    renderViolationHotspots(violationFullLeafletMapRef.current, violationPointIndicators, violationFullLayerGroupRef, { autoCenter: true });
     setTimeout(() => violationFullLeafletMapRef.current?.invalidateSize(), 120);
-  }, [
-    violationMapModalOpen,
-    violationPointIndicators,
-    renderViolationHotspots,
-  ]);
+  }, [violationMapModalOpen, violationPointIndicators, renderViolationHotspots, createLeafletMap]);
 
   useEffect(() => {
     return () => {
-      if (violationLeafletMapRef.current) {
-        violationLeafletMapRef.current.remove();
-        violationLeafletMapRef.current = null;
-      }
-      if (violationFullLeafletMapRef.current) {
-        violationFullLeafletMapRef.current.remove();
-        violationFullLeafletMapRef.current = null;
-      }
+      if (violationLeafletMapRef.current) { violationLeafletMapRef.current.remove(); violationLeafletMapRef.current = null; }
+      if (violationFullLeafletMapRef.current) { violationFullLeafletMapRef.current.remove(); violationFullLeafletMapRef.current = null; }
       violationLayerGroupRef.current = null;
       violationFullLayerGroupRef.current = null;
     };
@@ -3298,65 +3280,35 @@ const Dashboard = () => {
 
   // ── Report logic ──
   const fetchReportData = async (selType, selStart, selEnd, selCol) => {
-    let data = [],
-      columns = [];
+    let data = [], columns = [];
 
     if (selType === "parcels") {
       const parcels = await fetchAllPages(() => {
-        let q = supabaseClient
-          .from("parcels")
-          .select(
-            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`,
-          )
-          .order("parcel_id", { ascending: true });
+        let q = supabaseClient.from("parcels").select(`*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`).order("parcel_id", { ascending: true });
         if (selStart) q = q.gte("created_at", selStart);
         if (selEnd) q = q.lte("created_at", `${selEnd}T23:59:59`);
         return q;
       });
       data = normalizeParcelsForReport(parcels);
-      columns =
-        selCol === "All"
-          ? [
-              "parcel_id",
-              "recipient_name",
-              "recipient_phone",
-              "address",
-              "assigned_rider",
-              "status",
-              ...DELIVERY_ATTEMPT_COLUMNS,
-              "created_at",
-            ]
-          : selCol === "delivery_attempt"
-            ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
-            : ["parcel_id", selCol];
+      columns = selCol === "All"
+        ? ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"]
+        : selCol === "delivery_attempt"
+          ? ["parcel_id", ...DELIVERY_ATTEMPT_COLUMNS]
+          : ["parcel_id", selCol];
     } else if (selType === "rider_performance") {
-      const { data: riders, error: rErr } = await supabaseClient
-        .from("users")
-        .select("*")
-        .order("username", { ascending: true });
+      const { data: riders, error: rErr } = await supabaseClient.from("users").select("*").order("username", { ascending: true });
       if (rErr) throw rErr;
-
       const parcels = await fetchAllPages(() => {
-        let q = supabaseClient
-          .from("parcels")
-          .select(
-            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`,
-          )
-          .order("parcel_id", { ascending: true });
+        let q = supabaseClient.from("parcels").select(`*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`).order("parcel_id", { ascending: true });
         if (selStart) q = q.gte("created_at", selStart);
         if (selEnd) q = q.lte("created_at", `${selEnd}T23:59:59`);
         return q;
       });
-
-      let vq = supabaseClient
-        .from("violation_logs")
-        .select("violation,name,date")
-        .order("date", { ascending: false });
+      let vq = supabaseClient.from("violation_logs").select("violation,name,date").order("date", { ascending: false });
       if (selStart) vq = vq.gte("date", selStart);
       if (selEnd) vq = vq.lte("date", `${selEnd}T23:59:59`);
       const { data: violations, error: vErr } = await vq;
       if (vErr) throw vErr;
-
       data = [
         { section: "Riders", data: riders || [] },
         { section: "Parcels", data: normalizeParcelsForReport(parcels) },
@@ -3365,31 +3317,16 @@ const Dashboard = () => {
       columns = null;
     } else if (selType === "overall") {
       const pq = () => {
-        let q = supabaseClient
-          .from("parcels")
-          .select(
-            `*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`,
-          )
-          .order("parcel_id", { ascending: true });
+        let q = supabaseClient.from("parcels").select(`*, assigned_rider:users!parcels_assigned_rider_id_fkey(fname,lname,username)`).order("parcel_id", { ascending: true });
         if (selStart) q = q.gte("created_at", selStart);
         if (selEnd) q = q.lte("created_at", `${selEnd}T23:59:59`);
         return q;
       };
-      let rq = supabaseClient
-        .from("users")
-        .select("*")
-        .order("username", { ascending: true });
-      let vq = supabaseClient
-        .from("violation_logs")
-        .select("violation,name,date")
-        .order("date", { ascending: false });
+      let rq = supabaseClient.from("users").select("*").order("username", { ascending: true });
+      let vq = supabaseClient.from("violation_logs").select("violation,name,date").order("date", { ascending: false });
       if (selStart) vq = vq.gte("date", selStart);
       if (selEnd) vq = vq.lte("date", `${selEnd}T23:59:59`);
-      const [parcels, ridersRes, violationsRes] = await Promise.all([
-        fetchAllPages(pq),
-        rq,
-        vq,
-      ]);
+      const [parcels, ridersRes, violationsRes] = await Promise.all([fetchAllPages(pq), rq, vq]);
       if (ridersRes.error) throw ridersRes.error;
       if (violationsRes.error) throw violationsRes.error;
       data = [
@@ -3404,63 +3341,26 @@ const Dashboard = () => {
   };
 
   const resolveOverallSectionColumns = (sectionName) => {
-    if (sectionName === "Riders")
-      return [
-        "username",
-        "email",
-        "fname",
-        "mname",
-        "lname",
-        "gender",
-        "doj",
-        "pnumber",
-      ];
+    if (sectionName === "Riders") return ["username", "email", "fname", "mname", "lname", "gender", "doj", "pnumber"];
     if (sectionName === "Violations") return ["name", "violation", "date"];
-    return [
-      "parcel_id",
-      "recipient_name",
-      "recipient_phone",
-      "address",
-      "assigned_rider",
-      "status",
-      ...DELIVERY_ATTEMPT_COLUMNS,
-      "created_at",
-    ];
+    return ["parcel_id", "recipient_name", "recipient_phone", "address", "assigned_rider", "status", ...DELIVERY_ATTEMPT_COLUMNS, "created_at"];
   };
 
   const generateExcelReport = async (selType, selStart, selEnd, selCol) => {
-    const { data, columns } = await fetchReportData(
-      selType,
-      selStart,
-      selEnd,
-      selCol,
-    );
+    const { data, columns } = await fetchReportData(selType, selStart, selEnd, selCol);
     const reportAnalytics = buildReportAnalyticsBundle(selType, data);
-    const reportChartImages = await buildReportChartImages(
-      reportAnalytics.charts || [],
-    );
+    const reportChartImages = await buildReportChartImages(reportAnalytics.charts || []);
     const generatedBy = await resolveReportGeneratedBy();
     await exportReportAsWorkbook({
-      reportType: selType,
-      selectedColumn: selCol,
-      startDate: selStart,
-      endDate: selEnd,
-      data,
-      columns,
-      reportAnalytics,
-      reportChartImages,
-      generatedBy,
-      humanizeLabel,
-      resolveSectionColumns: resolveOverallSectionColumns,
+      reportType: selType, selectedColumn: selCol, startDate: selStart, endDate: selEnd,
+      data, columns, reportAnalytics, reportChartImages, generatedBy,
+      humanizeLabel, resolveSectionColumns: resolveOverallSectionColumns,
       fileName: `${selType}_report.xlsx`,
     });
   };
 
   const validateReportInput = () => {
-    const needsDate =
-      reportType === "parcels" ||
-      reportType === "overall" ||
-      reportType === "rider_performance";
+    const needsDate = reportType === "parcels" || reportType === "overall" || reportType === "rider_performance";
     if (!reportType || !format || (needsDate && (!startDate || !endDate))) {
       setShowReportValidation(true);
       return false;
@@ -3473,30 +3373,12 @@ const Dashboard = () => {
     try {
       setIsGeneratingReport(true);
       if (format === "pdf") {
-        const { data, columns } = await fetchReportData(
-          reportType,
-          startDate,
-          endDate,
-          column,
-        );
+        const { data, columns } = await fetchReportData(reportType, startDate, endDate, column);
         const reportAnalytics = buildReportAnalyticsBundle(reportType, data);
-        const reportChartImages = await buildReportChartImages(
-          reportAnalytics.charts || [],
-        );
+        const reportChartImages = await buildReportChartImages(reportAnalytics.charts || []);
         const generatedBy = await resolveReportGeneratedBy();
         const logoDataUrl = await loadLogoDataUrl();
-        const doc = await buildPdfDoc(
-          reportType,
-          startDate,
-          endDate,
-          column,
-          data,
-          columns,
-          reportAnalytics,
-          reportChartImages,
-          generatedBy,
-          logoDataUrl,
-        );
+        const doc = await buildPdfDoc(reportType, startDate, endDate, column, data, columns, reportAnalytics, reportChartImages, generatedBy, logoDataUrl);
         const pdfBlob = doc.output("blob");
         const blobUrl = URL.createObjectURL(pdfBlob);
         const newTab = window.open(blobUrl, "_blank");
@@ -3529,36 +3411,13 @@ const Dashboard = () => {
   }, [dashboardData.yearGrowth]);
 
   // ── Derived animated display values ──
-  const animDeliveryRate =
-    analyticsSummary.totalParcels > 0
-      ? (animDelivered / analyticsSummary.totalParcels) * 100
-      : 0;
-  const animCancellationRate =
-    analyticsSummary.totalParcels > 0
-      ? (animCancelled / analyticsSummary.totalParcels) * 100
-      : 0;
-  const animDelayRate =
-    analyticsSummary.totalParcels > 0
-      ? (animDelayed / analyticsSummary.totalParcels) * 100
-      : 0;
+  const animDeliveryRate = analyticsSummary.totalParcels > 0 ? (animDelivered / analyticsSummary.totalParcels) * 100 : 0;
+  const animCancellationRate = analyticsSummary.totalParcels > 0 ? (animCancelled / analyticsSummary.totalParcels) * 100 : 0;
+  const animDelayRate = analyticsSummary.totalParcels > 0 ? (animDelayed / analyticsSummary.totalParcels) * 100 : 0;
 
-  const reportSummaryType = reportType
-    ? REPORT_TYPE_OPTIONS.find((o) => o.value === reportType)?.label || null
-    : null;
-  const reportSummaryStart = startDate
-    ? new Date(startDate).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : null;
-  const reportSummaryEnd = endDate
-    ? new Date(endDate).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : null;
+  const reportSummaryType = reportType ? REPORT_TYPE_OPTIONS.find((o) => o.value === reportType)?.label || null : null;
+  const reportSummaryStart = startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+  const reportSummaryEnd = endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
 
   return (
     <div className="dashboard-container bg-slate-100 dark:bg-slate-950">
@@ -3576,11 +3435,7 @@ const Dashboard = () => {
                 <p>{todayLabel}</p>
               </div>
               <div className="dash-header-actions">
-                <button
-                  type="button"
-                  className="dash-generate-report-btn"
-                  onClick={() => setReportModalOpen(true)}
-                >
+                <button type="button" className="dash-generate-report-btn" onClick={() => setReportModalOpen(true)}>
                   <FaDownload /> Generate Report
                 </button>
                 <div className="dash-year-filter" ref={yearFilterRef}>
@@ -3600,123 +3455,45 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div
-              className={`analytics-dashboard-grid ${isYearSwitching ? "year-switching" : ""}`}
-            >
+            <div className={`analytics-dashboard-grid ${isYearSwitching ? "year-switching" : ""}`}>
               {/* ── Row 1: KPI Cards ── */}
               <div className="kpi-row">
-                <StatCard
-                  icon={<FaBoxOpen />}
-                  label="Parcels"
-                  value={Math.round(animTotalParcels).toLocaleString()}
-                  sub={selectedYear === "All" ? "all time" : selectedYear}
-                  accent="sky"
-                  animKey={transitionKey}
-                />
-                <StatCard
-                  icon={<FaCheckCircle />}
-                  label="Delivered"
-                  value={Math.round(animDelivered).toLocaleString()}
-                  sub={`${animDeliveryRate.toFixed(1)}% delivered`}
-                  trend={trendYoY}
-                  accent="emerald"
-                  animKey={transitionKey}
-                />
-                <StatCard
-                  icon={<FaTimesCircle />}
-                  label="Cancelled"
-                  value={Math.round(animCancelled).toLocaleString()}
-                  sub={`${animCancellationRate.toFixed(1)}% of total`}
-                  accent="rose"
-                  animKey={transitionKey}
-                />
-                <StatCard
-                  icon={<FaExclamationTriangle />}
-                  label="Delayed"
-                  value={Math.round(animDelayed).toLocaleString()}
-                  sub={`${animDelayRate.toFixed(1)}% of total`}
-                  accent="amber"
-                  animKey={transitionKey}
-                />
+                <StatCard icon={<FaBoxOpen />} label="Parcels" value={Math.round(animTotalParcels).toLocaleString()} sub={selectedYear === "All" ? "all time" : selectedYear} accent="sky" animKey={transitionKey} onChartClick={() => setKpiModalKey("totalParcels")} />
+                <StatCard icon={<FaCheckCircle />} label="Delivered" value={Math.round(animDelivered).toLocaleString()} sub={`${animDeliveryRate.toFixed(1)}% delivered`} trend={trendYoY} accent="emerald" animKey={transitionKey} onChartClick={() => setKpiModalKey("delivered")} />
+                <StatCard icon={<FaTimesCircle />} label="Cancelled" value={Math.round(animCancelled).toLocaleString()} sub={`${animCancellationRate.toFixed(1)}% of total`} accent="rose" animKey={transitionKey} onChartClick={() => setKpiModalKey("cancelled")} />
+                <StatCard icon={<FaExclamationTriangle />} label="Delayed" value={Math.round(animDelayed).toLocaleString()} sub={`${animDelayRate.toFixed(1)}% of total`} accent="amber" animKey={transitionKey} onChartClick={() => setKpiModalKey("delayed")} />
               </div>
 
               {/* ── Row 2: Secondary KPIs ── */}
               <div className="kpi-row">
-                <StatCard
-                  icon={<FaPercent />}
-                  label="1st Attempt"
-                  value={`${animFirstAttempt.toFixed(1)}%`}
-                  sub="first-try success"
-                  accent="teal"
-                  animKey={transitionKey}
-                />
-                <StatCard
-                  icon={<FaMotorcycle />}
-                  label="Top Rider"
-                  value={dashboardData.topRider}
-                  sub={`${Math.round(animTopRiderCount)} deliveries`}
-                  accent="violet"
-                  animKey={transitionKey}
-                />
-                <StatCard
-                  icon={<FaCalendarAlt />}
-                  label="Peak Month"
-                  value={dashboardData.topMonth}
-                  sub={`${Math.round(animTopMonthCount)} deliveries`}
-                  accent="sky"
-                  animKey={transitionKey}
-                />
+                <StatCard icon={<FaPercent />} label="1st Attempt" value={`${animFirstAttempt.toFixed(1)}%`} sub="first-try success" accent="teal" animKey={transitionKey} onChartClick={() => setKpiModalKey("firstAttempt")} />
+                <StatCard icon={<FaMotorcycle />} label="Top Rider" value={dashboardData.topRider} sub={`${Math.round(animTopRiderCount)} deliveries`} accent="violet" animKey={transitionKey} onChartClick={() => setKpiModalKey("topRider")} />
+                <StatCard icon={<FaCalendarAlt />} label="Peak Month" value={dashboardData.topMonth} sub={`${Math.round(animTopMonthCount)} deliveries`} accent="sky" animKey={transitionKey} onChartClick={() => setKpiModalKey("topMonth")} />
                 {selectedYear === "All" ? (
-                  <StatCard
-                    icon={<FaTrophy />}
-                    label="Peak Year"
-                    value={dashboardData.topYear}
-                    sub={`${Math.round(animTopYearCount)} deliveries`}
-                    accent="emerald"
-                    animKey={transitionKey}
-                  />
+                  <StatCard icon={<FaTrophy />} label="Peak Year" value={dashboardData.topYear} sub={`${Math.round(animTopYearCount)} deliveries`} accent="emerald" animKey={transitionKey} onChartClick={() => setKpiModalKey("topYear")} />
                 ) : (
                   <StatCard
                     icon={<FaChartLine />}
                     label="Avg / Month"
                     value={(() => {
-                      const active = dashboardData.monthGrowth.filter(
-                        (v) => v > 0,
-                      ).length;
-                      return active > 0
-                        ? (dashboardData.delivered / active).toFixed(1)
-                        : "0";
+                      const active = dashboardData.monthGrowth.filter((v) => v > 0).length;
+                      return active > 0 ? (dashboardData.delivered / active).toFixed(1) : "0";
                     })()}
                     sub="per active month"
                     accent="emerald"
                     animKey={transitionKey}
+                    onChartClick={() => setKpiModalKey("avgPerMonth")}
                   />
                 )}
               </div>
 
-              {/* ── Row 3: Delivery trend (Recharts) + Status mix (Recharts) ── */}
+              {/* ── Row 3: Delivery trend + Status mix ── */}
               <div className="charts-row-main">
-                <ChartCard
-                  title="Deliveries vs. Delays"
-                  subtitle={
-                    selectedYear === "All"
-                      ? "by year"
-                      : `by month · ${selectedYear}`
-                  }
-                >
-                  <DeliveriesLineChart
-                    monthGrowth={dashboardData.monthGrowth}
-                    monthDelayGrowth={dashboardData.monthDelayGrowth}
-                    selectedYear={selectedYear}
-                    years={dashboardData.years}
-                    yearGrowth={dashboardData.yearGrowth}
-                    yearDelayGrowth={dashboardData.yearDelayGrowth}
-                  />
+                <ChartCard title="Deliveries vs. Delays" subtitle={selectedYear === "All" ? "by year" : `by month · ${selectedYear}`}>
+                  <DeliveriesLineChart monthGrowth={dashboardData.monthGrowth} monthDelayGrowth={dashboardData.monthDelayGrowth} selectedYear={selectedYear} years={dashboardData.years} yearGrowth={dashboardData.yearGrowth} yearDelayGrowth={dashboardData.yearDelayGrowth} />
                 </ChartCard>
                 <ChartCard title="Status Breakdown" subtitle="">
-                  <StatusDonutChart
-                    parcelStatusMix={dashboardData.parcelStatusMix}
-                  />
+                  <StatusDonutChart parcelStatusMix={dashboardData.parcelStatusMix} />
                 </ChartCard>
               </div>
 
@@ -3724,98 +3501,50 @@ const Dashboard = () => {
               <div className="charts-row-riders">
                 <ChartCard title="Top Riders" subtitle="">
                   {topRidersWithAvatars.length > 0 ? (
-                    <HorizontalBarList
-                      items={topRidersWithAvatars.slice(0, 5)}
-                      colorClass="emerald"
-                      showAvatar={true}
-                    />
+                    <HorizontalBarList items={topRidersWithAvatars.slice(0, 5)} colorClass="emerald" showAvatar={true} />
                   ) : (
-                    <p
-                      style={{
-                        textAlign: "center",
-                        color: "var(--dash-muted)",
-                        padding: "2rem 0",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      No rider data
-                    </p>
+                    <p style={{ textAlign: "center", color: "var(--dash-muted)", padding: "2rem 0", fontSize: "0.8rem" }}>No rider data</p>
                   )}
                 </ChartCard>
                 <ChartCard title="Most Flagged" subtitle="">
                   {topFlaggedRidersWithAvatars.length > 0 ? (
-                    <HorizontalBarList
-                      items={topFlaggedRidersWithAvatars.slice(0, 5)}
-                      colorClass="violet"
-                      showAvatar={true}
-                    />
+                    <HorizontalBarList items={topFlaggedRidersWithAvatars.slice(0, 5)} colorClass="violet" showAvatar={true} />
                   ) : (
-                    <p
-                      style={{
-                        textAlign: "center",
-                        color: "var(--dash-muted)",
-                        padding: "2rem 0",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      No violation data
-                    </p>
+                    <p style={{ textAlign: "center", color: "var(--dash-muted)", padding: "2rem 0", fontSize: "0.8rem" }}>No violation data</p>
                   )}
                 </ChartCard>
               </div>
 
-              {/* ── Row 5: Rate Overview (Chart.js) + Violations Trend (Recharts) ── */}
+              {/* ── Row 5: Rate Overview + Violations Trend ── */}
               <div className="charts-row-violations">
                 <ChartCard title="Rate Overview" subtitle="">
-                  <RateOverviewChart
-                    deliveryRate={analyticsSummary.deliveryRate}
-                    delayRate={analyticsSummary.delayRate}
-                    cancellationRate={analyticsSummary.cancellationRate}
-                  />
+                  <RateOverviewChart deliveryRate={analyticsSummary.deliveryRate} delayRate={analyticsSummary.delayRate} cancellationRate={analyticsSummary.cancellationRate} />
                 </ChartCard>
-
                 <div className="chart-card">
                   <div className="violation-toggle-header">
                     <h3>Violations Trend</h3>
                   </div>
-                  <ViolationsTrendChart
-                    violationLogs={violationLogs}
-                    violationsByWeekday={dashboardData.violationsByWeekday}
-                  />
+                  <ViolationsTrendChart violationLogs={violationLogs} violationsByWeekday={dashboardData.violationsByWeekday} />
                 </div>
               </div>
 
-              {/* ── Row 6: Map (full width) ── */}
+              {/* ── Row 6: Map ── */}
               <div className="charts-row-map-solo">
                 <div className="chart-card">
                   <div className="analytics-map-header">
                     <div>
                       <h3>Violation Heat Map</h3>
                     </div>
-                    <button
-                      type="button"
-                      className="violation-map-size-btn"
-                      onClick={() => setViolationMapModalOpen(true)}
-                    >
+                    <button type="button" className="violation-map-size-btn" onClick={() => setViolationMapModalOpen(true)}>
                       Fullscreen
                     </button>
                   </div>
                   {violationLogsError && (
-                    <p
-                      style={{
-                        color: "#ef4444",
-                        fontSize: "0.75rem",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
+                    <p style={{ color: "#ef4444", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
                       Unable to load violation logs: {violationLogsError}
                     </p>
                   )}
-                  <div
-                    className="violation-map-canvas"
-                    ref={violationMapRef}
-                    style={{ height: 300 }}
-                  />
+                  <div className="violation-map-canvas" ref={violationMapRef} style={{ height: 300 }} />
                 </div>
               </div>
             </div>
@@ -3823,32 +3552,22 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* ── KPI Chart Modal ── */}
+      {kpiModalKey && (
+        <KpiChartModal kpiKey={kpiModalKey} dashboardData={dashboardData} onClose={() => setKpiModalKey(null)} />
+      )}
+
       {/* ── Fullscreen Map Modal ── */}
       {violationMapModalOpen && (
-        <div
-          className="dashboard-modal-overlay violation-fullscreen-overlay"
-          onClick={() => setViolationMapModalOpen(false)}
-        >
-          <div
-            className="dashboard-modal-content violation-full-map-modal violation-fullscreen-map"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="dashboard-modal-overlay violation-fullscreen-overlay" onClick={() => setViolationMapModalOpen(false)}>
+          <div className="dashboard-modal-content violation-full-map-modal violation-fullscreen-map" onClick={(e) => e.stopPropagation()}>
             <div className="violation-full-map-header">
               <h2>Violation Heat Map</h2>
-              <button
-                type="button"
-                className="violation-full-map-close"
-                onClick={() => setViolationMapModalOpen(false)}
-              >
-                Close
-              </button>
+              <button type="button" className="violation-full-map-close" onClick={() => setViolationMapModalOpen(false)}>Close</button>
             </div>
             <div className="violation-full-map-body">
               <div className="violation-full-map-stack">
-                <div
-                  ref={violationFullMapRef}
-                  className="violation-full-map-canvas"
-                />
+                <div ref={violationFullMapRef} className="violation-full-map-canvas" />
               </div>
             </div>
           </div>
@@ -3857,102 +3576,58 @@ const Dashboard = () => {
 
       {/* ── Report Modal ── */}
       {reportModalOpen && (
-        <div
-          className="dashboard-modal-overlay"
-          onClick={() => setReportModalOpen(false)}
-        >
-          <div
-            className="dashboard-modal-content rpt-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
+        <div className="dashboard-modal-overlay" onClick={() => setReportModalOpen(false)}>
+          <div className="dashboard-modal-content rpt-modal" onClick={(e) => e.stopPropagation()}>
             <div className="rpt-modal-header">
               <div className="rpt-header-top">
-                <div className="rpt-header-icon">
-                  <FaDownload />
-                </div>
+                <div className="rpt-header-icon"><FaDownload /></div>
                 <div className="rpt-header-text">
                   <h2>Generate Reports</h2>
                   <p>Export your logistics data as PDF or Excel</p>
                 </div>
               </div>
             </div>
-
-            {/* Body */}
             <div className="rpt-modal-body">
-              {/* Left: form */}
               <div className="rpt-form-col">
                 <div className="rpt-section-card">
                   <div className="rpt-section-label">Date Range *</div>
                   <div className="rpt-date-row">
                     <div className="rpt-field">
                       <label>Start Date</label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                      />
+                      <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                     </div>
                     <div className="rpt-field">
                       <label>End Date</label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                      />
+                      <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                     </div>
                   </div>
                 </div>
-
                 <div className="rpt-section-card">
                   <div className="rpt-section-label">Report Type *</div>
                   <div className="rpt-type-grid">
                     {REPORT_TYPE_OPTIONS.map(({ value, label, Icon }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`rpt-type-tile ${reportType === value ? "rpt-type-tile-active" : ""}`}
-                        onClick={() => setReportType(value)}
-                      >
-                        <span className="rpt-tile-icon">
-                          <Icon />
-                        </span>
+                      <button key={value} type="button" className={`rpt-type-tile ${reportType === value ? "rpt-type-tile-active" : ""}`} onClick={() => setReportType(value)}>
+                        <span className="rpt-tile-icon"><Icon /></span>
                         <span className="rpt-tile-label">{label}</span>
                       </button>
                     ))}
                   </div>
-
                   {reportType === "parcels" && (
                     <div className="rpt-col-field">
                       <div className="rpt-col-field-label">Column Filter</div>
-                      <FloatSelect
-                        variant="field"
-                        value={column}
-                        options={columnsOptions}
-                        onChange={(v) => setColumn(v)}
-                        placeholder="Select column"
-                      />
+                      <FloatSelect variant="field" value={column} options={columnsOptions} onChange={(v) => setColumn(v)} placeholder="Select column" />
                     </div>
                   )}
                 </div>
-
                 <div className="rpt-section-card">
                   <div className="rpt-section-label">Export Format *</div>
                   <div className="rpt-format-pills">
-                    <button
-                      type="button"
-                      className={`rpt-format-pill ${format === "pdf" ? "rpt-format-pill-active" : ""}`}
-                      onClick={() => setFormat("pdf")}
-                    >
+                    <button type="button" className={`rpt-format-pill ${format === "pdf" ? "rpt-format-pill-active" : ""}`} onClick={() => setFormat("pdf")}>
                       <span className="rpt-pill-icon">📄</span>
                       <span className="rpt-pill-label">PDF</span>
                       <span className="rpt-pill-desc">Print-ready</span>
                     </button>
-                    <button
-                      type="button"
-                      className={`rpt-format-pill ${format === "xlsx" ? "rpt-format-pill-active" : ""}`}
-                      onClick={() => setFormat("xlsx")}
-                    >
+                    <button type="button" className={`rpt-format-pill ${format === "xlsx" ? "rpt-format-pill-active" : ""}`} onClick={() => setFormat("xlsx")}>
                       <span className="rpt-pill-icon">📊</span>
                       <span className="rpt-pill-label">Excel</span>
                       <span className="rpt-pill-desc">Spreadsheet</span>
@@ -3960,104 +3635,41 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Right: summary + actions */}
               <div className="rpt-side-col">
                 <div className="rpt-summary-card">
                   <div className="rpt-summary-title">Export Summary</div>
                   <div className="rpt-summary-items">
                     <div className="rpt-summary-row">
                       <span className="rpt-summary-key">Type</span>
-                      <span
-                        className={`rpt-summary-val ${!reportSummaryType ? "rpt-summary-placeholder" : ""}`}
-                      >
-                        {reportSummaryType || "Not set"}
-                      </span>
+                      <span className={`rpt-summary-val ${!reportSummaryType ? "rpt-summary-placeholder" : ""}`}>{reportSummaryType || "Not set"}</span>
                     </div>
                     <div className="rpt-summary-divider" />
                     <div className="rpt-summary-row">
                       <span className="rpt-summary-key">From</span>
-                      <span
-                        className={`rpt-summary-val ${!reportSummaryStart ? "rpt-summary-placeholder" : ""}`}
-                      >
-                        {reportSummaryStart || "—"}
-                      </span>
+                      <span className={`rpt-summary-val ${!reportSummaryStart ? "rpt-summary-placeholder" : ""}`}>{reportSummaryStart || "—"}</span>
                     </div>
                     <div className="rpt-summary-row">
                       <span className="rpt-summary-key">To</span>
-                      <span
-                        className={`rpt-summary-val ${!reportSummaryEnd ? "rpt-summary-placeholder" : ""}`}
-                      >
-                        {reportSummaryEnd || "—"}
-                      </span>
+                      <span className={`rpt-summary-val ${!reportSummaryEnd ? "rpt-summary-placeholder" : ""}`}>{reportSummaryEnd || "—"}</span>
                     </div>
                     <div className="rpt-summary-divider" />
                     <div className="rpt-summary-row">
                       <span className="rpt-summary-key">Format</span>
                       <span className="rpt-summary-val">
-                        <span
-                          className={`rpt-format-badge ${format === "pdf" ? "rpt-badge-red" : "rpt-badge-blue"}`}
-                        >
-                          {format.toUpperCase()}
-                        </span>
+                        <span className={`rpt-format-badge ${format === "pdf" ? "rpt-badge-red" : "rpt-badge-blue"}`}>{format.toUpperCase()}</span>
                       </span>
                     </div>
                   </div>
                 </div>
-
                 {reportType && (
                   <div className="rpt-type-desc-card">
-                    {reportType === "parcels" && (
-                      <>
-                        <div className="rpt-type-desc-title">
-                          Parcels Report
-                        </div>
-                        <p>
-                          Delivery statistics, status breakdown, delay &
-                          cancellation rates, and full parcel data.
-                        </p>
-                      </>
-                    )}
-                    {reportType === "rider_performance" && (
-                      <>
-                        <div className="rpt-type-desc-title">
-                          Rider Performance
-                        </div>
-                        <p>
-                          Rider delivery counts, 1st-attempt success, violation
-                          history, and performance breakdown per rider.
-                        </p>
-                      </>
-                    )}
-                    {reportType === "overall" && (
-                      <>
-                        <div className="rpt-type-desc-title">
-                          Overall Report
-                        </div>
-                        <p>
-                          Comprehensive view of parcels and rider performance —
-                          all metrics in one document.
-                        </p>
-                      </>
-                    )}
+                    {reportType === "parcels" && (<><div className="rpt-type-desc-title">Parcels Report</div><p>Delivery statistics, status breakdown, delay & cancellation rates, and full parcel data.</p></>)}
+                    {reportType === "rider_performance" && (<><div className="rpt-type-desc-title">Rider Performance</div><p>Rider delivery counts, 1st-attempt success, violation history, and performance breakdown per rider.</p></>)}
+                    {reportType === "overall" && (<><div className="rpt-type-desc-title">Overall Report</div><p>Comprehensive view of parcels and rider performance — all metrics in one document.</p></>)}
                   </div>
                 )}
-
-                <button
-                  type="button"
-                  className="rpt-download-btn"
-                  onClick={handleDownloadReport}
-                  disabled={isGeneratingReport}
-                >
-                  {isGeneratingReport ? (
-                    <>
-                      <span className="rpt-btn-spinner" /> Generating…
-                    </>
-                  ) : (
-                    <>
-                      <FaDownload /> Download
-                    </>
-                  )}
+                <button type="button" className="rpt-download-btn" onClick={handleDownloadReport} disabled={isGeneratingReport}>
+                  {isGeneratingReport ? (<><span className="rpt-btn-spinner" /> Generating…</>) : (<><FaDownload /> Download</>)}
                 </button>
               </div>
             </div>
@@ -4067,21 +3679,10 @@ const Dashboard = () => {
 
       {/* ── Validation Modal ── */}
       {showReportValidation && (
-        <div
-          className="dashboard-modal-overlay"
-          onClick={() => setShowReportValidation(false)}
-        >
-          <div
-            className="dashboard-modal-content dashboard-report-validation"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="dashboard-modal-overlay" onClick={() => setShowReportValidation(false)}>
+          <div className="dashboard-modal-content dashboard-report-validation" onClick={(e) => e.stopPropagation()}>
             <p>All required fields must be filled in.</p>
-            <button
-              type="button"
-              onClick={() => setShowReportValidation(false)}
-            >
-              OK
-            </button>
+            <button type="button" onClick={() => setShowReportValidation(false)}>OK</button>
           </div>
         </div>
       )}

@@ -328,12 +328,12 @@ body:has(.settings-page) .modal-overlay {
 
 /* ── Dark Mode ── */
 body.dark .settings-page {
-  background: #121212;
+  background: var(--dm-bg, #0f172a);
 }
 
 body.dark .settings-card {
-  background: #1e1e1e;
-  border-color: rgba(255, 255, 255, 0.06) !important;
+  background: var(--dm-surface, #1e293b);
+  border-color: var(--dm-border, #334155) !important;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.3),
     0 8px 24px rgba(0, 0, 0, 0.3);
@@ -346,16 +346,16 @@ body.dark .settings-row--logout:hover {
   background: rgba(232, 25, 44, 0.08);
 }
 body.dark .settings-row-divider {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--dm-border, #334155);
 }
 body.dark .settings-row-title {
-  color: #f0eded;
+  color: var(--dm-text, #e2e8f0);
 }
 body.dark .settings-row-desc {
-  color: #a89898;
+  color: var(--dm-muted, #94a3b8);
 }
 body.dark .settings-group-label {
-  color: #a89898;
+  color: var(--dm-muted, #94a3b8);
 }
 
 body.dark .settings-row-icon--violet {
@@ -379,19 +379,11 @@ body.dark .settings-row-icon--red {
 
 body.dark .settings-action-btn {
   background: rgba(255, 255, 255, 0.06);
+  color: var(--dm-muted, #94a3b8);
 }
 body.dark .slider {
   background: rgba(255, 255, 255, 0.15);
 }
 body.dark .settings-version {
-  color: #a89898;
-}
-/* ── Hide scrollbar ── */
-.settings-page {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.settings-page::-webkit-scrollbar {
-  display: none;
+  color: var(--dm-muted, #94a3b8);
 }
