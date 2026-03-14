@@ -46,8 +46,7 @@ const getAttemptStatusClass = (value) => {
     return "is-success";
   if (["pending", "on-going", "ongoing", "in progress"].includes(n))
     return "is-pending";
-  if (["failed", "failure", "cancelled", "canceled"].includes(n))
-    return "is-failed";
+  if (["failed", "failure", "delayed"].includes(n)) return "is-failed";
   return "is-default";
 };
 
@@ -59,9 +58,16 @@ const getParcelStatusMeta = (value) => {
     return { className: "is-delivered", label: "Delivered" };
   if (n === "on-going" || n === "ongoing" || n === "in progress")
     return { className: "is-ongoing", label: "On-Going" };
-  if (n === "cancelled" || n === "canceled")
-    return { className: "is-cancelled", label: "Cancelled" };
+  if (n === "delayed" || n === "cancelled" || n === "canceled")
+    return { className: "is-delayed", label: "Delayed" };
   return { className: "is-default", label: formatStatusLabel(value) };
+};
+
+const isDeliveredParcel = (parcel) => {
+  const n = String(parcel?.status || "")
+    .trim()
+    .toLowerCase();
+  return n === "successfully delivered" || n === "delivered";
 };
 
 const ModernSelect = ({
@@ -139,7 +145,6 @@ const ModernSelect = ({
 // CSV HELPERS
 // ─────────────────────────────────────────────────────────────
 
-// Columns that must be present as headers AND non-empty in every row
 const CSV_REQUIRED_COLS = [
   "recipient_name",
   "recipient_phone",
@@ -150,7 +155,6 @@ const CSV_REQUIRED_COLS = [
   "attempt1_status",
 ];
 
-// Columns that are fully optional — header and values may both be absent
 const CSV_HEADER_ONLY_COLS = [];
 
 const parseCsvText = (text) => {
@@ -188,14 +192,10 @@ const parseCsvText = (text) => {
 
 const validateCsvRows = (rows, headers) => {
   const errors = [];
-
-  // Check all required-value columns exist as headers
   const missingRequired = CSV_REQUIRED_COLS.filter((c) => !headers.includes(c));
-  // Check header-only columns exist as headers (values may be empty)
   const missingHeaderOnly = CSV_HEADER_ONLY_COLS.filter(
     (c) => !headers.includes(c),
   );
-
   const allMissing = [...missingRequired, ...missingHeaderOnly];
   if (allMissing.length > 0) {
     errors.push({
@@ -204,8 +204,6 @@ const validateCsvRows = (rows, headers) => {
     });
     return errors;
   }
-
-  // Validate that required-value columns are non-empty per row
   rows.forEach((row) => {
     CSV_REQUIRED_COLS.forEach((col) => {
       if (!row[col] || !String(row[col]).trim()) {
@@ -216,7 +214,6 @@ const validateCsvRows = (rows, headers) => {
       }
     });
   });
-
   return errors;
 };
 
@@ -253,7 +250,7 @@ const Parcel = () => {
       { value: "All", label: "All Status" },
       { value: "Successfully Delivered", label: "Delivered" },
       { value: "On-going", label: "On-Going" },
-      { value: "Cancelled", label: "Cancelled" },
+      { value: "Delayed", label: "Delayed" },
     ],
     [],
   );
@@ -339,6 +336,16 @@ const Parcel = () => {
 
   const statusFilteredParcels = useMemo(() => {
     if (statusFilter === "All") return parcels;
+
+    if (statusFilter === "Delayed") {
+      return parcels.filter(
+        (p) =>
+          String(p?.attempt2_status || "")
+            .trim()
+            .toLowerCase() === "failed",
+      );
+    }
+
     const nf = statusFilter.trim().toLowerCase();
     return parcels.filter(
       (p) =>
@@ -437,8 +444,8 @@ const Parcel = () => {
         ? "status-delivered"
         : n === "on-going"
           ? "status-ongoing"
-          : n === "cancelled"
-            ? "status-cancelled"
+          : n === "delayed"
+            ? "status-delayed"
             : "status-default";
     return `
       <div class="parcel-track-popup-card">
@@ -568,10 +575,16 @@ const Parcel = () => {
     if (csvFileRef.current) csvFileRef.current.value = "";
   };
 
-  // Helper: does this parcel have a real attempt 2?
   const hasAttempt2 = (parcel) =>
     parcel?.attempt2_status != null &&
     String(parcel.attempt2_status).trim() !== "";
+
+  const resolveStatusMeta = (parcel) => {
+    if (statusFilter === "Delayed") {
+      return { className: "is-delayed", label: "Delayed" };
+    }
+    return getParcelStatusMeta(parcel.status);
+  };
 
   return (
     <div className="dashboard-container">
@@ -693,7 +706,7 @@ const Parcel = () => {
                       <td>{parcel.riderFullName}</td>
                       <td className="status-cell">
                         {(() => {
-                          const m = getParcelStatusMeta(parcel.status);
+                          const m = resolveStatusMeta(parcel);
                           return (
                             <span
                               className={`parcel-status-pill ${m.className}`}
@@ -768,7 +781,7 @@ const Parcel = () => {
               </div>
             </div>
 
-            {/* ── View Parcel Modal (REDESIGNED) ── */}
+            {/* ── View Parcel Modal ── */}
             {viewParcel && (
               <div
                 className="parcels-modal-overlay show"
@@ -778,193 +791,247 @@ const Parcel = () => {
                   className="parcels-modal-content view-parcel-modal"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* ── Hero Header ── */}
-                  <div className="vpd-hero">
-                    <div className="vpd-hero-bg" aria-hidden="true" />
-                    <div className="vpd-hero-inner">
-                      <div className="vpd-hero-left">
-                        <div>
-                          <p className="vpd-hero-eyebrow">Parcel ID</p>
-                          <h2 className="vpd-hero-id">
-                            #{viewParcel.parcel_id || "—"}
-                          </h2>
+                  <div className="vpd-main-col">
+                    {/* ── Hero Header ── */}
+                    <div className="vpd-hero">
+                      <div className="vpd-hero-bg" aria-hidden="true" />
+                      <div className="vpd-hero-inner">
+                        <div className="vpd-hero-left">
+                          <div>
+                            <p className="vpd-hero-eyebrow">Parcel ID</p>
+                            <h2 className="vpd-hero-id">
+                              #{viewParcel.parcel_id || "—"}
+                            </h2>
+                          </div>
                         </div>
-                      </div>
-                      <div className="vpd-hero-right">
-                        {(() => {
-                          const m = getParcelStatusMeta(viewParcel.status);
-                          return (
-                            <span className={`vpd-status-chip ${m.className}`}>
+                        <div className="vpd-hero-right">
+                          {(() => {
+                            const m = resolveStatusMeta(viewParcel);
+                            return (
                               <span
-                                className="vpd-status-dot"
-                                aria-hidden="true"
-                              />
-                              {m.label}
-                            </span>
-                          );
-                        })()}
-                        <button
-                          type="button"
-                          className="vpd-close-btn"
-                          onClick={() => setViewParcel(null)}
-                          aria-label="Close"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Timeline strip inside hero */}
-                    <div className="vpd-timeline-strip">
-                      <div className="vpd-timeline-item">
-                        <span className="vpd-tl-label">Created</span>
-                        <span className="vpd-tl-value">
-                          {formatTimelineDateTime(viewParcel.created_at)}
-                        </span>
-                      </div>
-                      <div className="vpd-timeline-arrow" aria-hidden="true">
-                        →
-                      </div>
-                      <div className="vpd-timeline-item">
-                        <span className="vpd-tl-label">Last Updated</span>
-                        <span className="vpd-tl-value">
-                          {formatTimelineDateTime(viewParcel.updated_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Scrollable Body ── */}
-                  <div className="vpd-body">
-                    {/* ── Two-col info row: Recipient + Sender ── */}
-                    <div className="vpd-cols">
-                      {/* Recipient */}
-                      <div className="vpd-info-card">
-                        <div className="vpd-card-label">Recipient</div>
-                        <div className="vpd-field-stack">
-                          <div className="vpd-field">
-                            <span>Name</span>
-                            <strong>{viewParcel.recipient_name || "—"}</strong>
-                          </div>
-                          <div className="vpd-field">
-                            <span>Phone</span>
-                            <strong>{viewParcel.recipient_phone || "—"}</strong>
-                          </div>
+                                className={`vpd-status-chip ${m.className}`}
+                              >
+                                <span
+                                  className="vpd-status-dot"
+                                  aria-hidden="true"
+                                />
+                                {m.label}
+                              </span>
+                            );
+                          })()}
+                          <button
+                            type="button"
+                            className="vpd-close-btn"
+                            onClick={() => setViewParcel(null)}
+                            aria-label="Close"
+                          >
+                            ✕
+                          </button>
                         </div>
                       </div>
 
-                      {/* Sender */}
-                      <div className="vpd-info-card">
-                        <div className="vpd-card-label">Sender</div>
-                        <div className="vpd-field-stack">
-                          <div className="vpd-field">
-                            <span>Name</span>
-                            <strong>{viewParcel.sender_name || "—"}</strong>
-                          </div>
-                          <div className="vpd-field">
-                            <span>Phone</span>
-                            <strong>{viewParcel.sender_phone || "—"}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Address + Rider card ── */}
-                    <div className="vpd-info-card">
-                      <div className="vpd-card-label">Delivery Address</div>
-                      <p className="vpd-address-text">
-                        {viewParcel.address || "—"}
-                      </p>
-                      <div className="vpd-rider-row">
-                        <div className="vpd-rider-avatar">
-                          {viewParcel.assigned_rider?.profile_url ? (
-                            <img
-                              src={viewParcel.assigned_rider.profile_url}
-                              alt={viewParcel.riderFullName}
-                              className="vpd-rider-photo"
-                            />
-                          ) : (
-                            <span className="vpd-rider-initials">
-                              {viewParcel.riderFullName &&
-                              viewParcel.riderFullName !== "Unassigned"
-                                ? viewParcel.riderFullName
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .slice(0, 2)
-                                    .toUpperCase()
-                                : "—"}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <span className="vpd-rider-eyebrow">
-                            Assigned Rider
+                      <div className="vpd-timeline-strip">
+                        <div className="vpd-timeline-item">
+                          <span className="vpd-tl-label">Created</span>
+                          <span className="vpd-tl-value">
+                            {formatTimelineDateTime(viewParcel.created_at)}
                           </span>
-                          <strong className="vpd-rider-name">
-                            {viewParcel.riderFullName || "—"}
-                          </strong>
                         </div>
-                        <button
-                          type="button"
-                          className="vpd-track-btn"
-                          onClick={() => openTrackModal(viewParcel)}
-                          disabled={!getParcelCoords(viewParcel)}
-                        >
-                          View Delivery Location
-                        </button>
+                        <div className="vpd-timeline-arrow" aria-hidden="true">
+                          →
+                        </div>
+                        <div className="vpd-timeline-item">
+                          <span className="vpd-tl-label">Last Updated</span>
+                          <span className="vpd-tl-value">
+                            {formatTimelineDateTime(viewParcel.updated_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* ── Attempt History ── */}
-                    <div className="vpd-attempts">
-                      <div className="vpd-section-title">
-                        <span className="vpd-section-line" aria-hidden="true" />
-                        Attempt History
-                        <span className="vpd-section-line" aria-hidden="true" />
-                      </div>
-                      <div className="vpd-attempt-cards">
-                        {/* Attempt 1 — always shown */}
-                        <div className="vpd-attempt-card">
-                          <div className="vpd-attempt-num">01</div>
-                          <div className="vpd-attempt-info">
-                            <span
-                              className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt1_status)}`}
-                            >
-                              {formatStatusLabel(viewParcel.attempt1_status) ||
-                                "—"}
-                            </span>
-                            <span className="vpd-attempt-date">
-                              {formatTimelineDateTime(
-                                viewParcel.attempt1_date ||
-                                  viewParcel.attempt1_datetime,
-                              )}
-                            </span>
+                    {/* ── Scrollable Body ── */}
+                    <div className="vpd-body">
+                      {/* ── Recipient + Sender ── */}
+                      <div className="vpd-cols">
+                        <div className="vpd-info-card">
+                          <div className="vpd-card-label">Recipient</div>
+                          <div className="vpd-field-stack">
+                            <div className="vpd-field">
+                              <span>Name</span>
+                              <strong>
+                                {viewParcel.recipient_name || "—"}
+                              </strong>
+                            </div>
+                            <div className="vpd-field">
+                              <span>Phone</span>
+                              <strong>
+                                {viewParcel.recipient_phone || "—"}
+                              </strong>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Attempt 2 — only if present */}
-                        {hasAttempt2(viewParcel) && (
+                        <div className="vpd-info-card">
+                          <div className="vpd-card-label">Sender</div>
+                          <div className="vpd-field-stack">
+                            <div className="vpd-field">
+                              <span>Name</span>
+                              <strong>{viewParcel.sender_name || "—"}</strong>
+                            </div>
+                            <div className="vpd-field">
+                              <span>Phone</span>
+                              <strong>{viewParcel.sender_phone || "—"}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── Delivery Address ── */}
+                      <div className="vpd-info-card">
+                        <div className="vpd-card-label">Delivery Address</div>
+                        <p className="vpd-address-text">
+                          {viewParcel.address || "—"}
+                        </p>
+                        <div className="vpd-rider-row">
+                          <div className="vpd-rider-avatar">
+                            {viewParcel.assigned_rider?.profile_url ? (
+                              <img
+                                src={viewParcel.assigned_rider.profile_url}
+                                alt={viewParcel.riderFullName}
+                                className="vpd-rider-photo"
+                              />
+                            ) : (
+                              <span className="vpd-rider-initials">
+                                {viewParcel.riderFullName &&
+                                viewParcel.riderFullName !== "Unassigned"
+                                  ? viewParcel.riderFullName
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .slice(0, 2)
+                                      .toUpperCase()
+                                  : "—"}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="vpd-rider-eyebrow">
+                              Assigned Rider
+                            </span>
+                            <strong className="vpd-rider-name">
+                              {viewParcel.riderFullName || "—"}
+                            </strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="vpd-track-btn"
+                            onClick={() => openTrackModal(viewParcel)}
+                            disabled={!getParcelCoords(viewParcel)}
+                          >
+                            View Delivery Location
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── Attempt History ── */}
+                      <div className="vpd-attempts">
+                        <div className="vpd-section-title">
+                          <span
+                            className="vpd-section-line"
+                            aria-hidden="true"
+                          />
+                          Attempt History
+                          <span
+                            className="vpd-section-line"
+                            aria-hidden="true"
+                          />
+                        </div>
+                        <div className="vpd-attempt-cards">
                           <div className="vpd-attempt-card">
-                            <div className="vpd-attempt-num">02</div>
+                            <div className="vpd-attempt-num">01</div>
                             <div className="vpd-attempt-info">
                               <span
-                                className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
+                                className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt1_status)}`}
                               >
-                                {formatStatusLabel(viewParcel.attempt2_status)}
+                                {formatStatusLabel(
+                                  viewParcel.attempt1_status,
+                                ) || "—"}
                               </span>
                               <span className="vpd-attempt-date">
                                 {formatTimelineDateTime(
-                                  viewParcel.attempt2_date ||
-                                    viewParcel.attempt2_datetime,
+                                  viewParcel.attempt1_date ||
+                                    viewParcel.attempt1_datetime,
                                 )}
                               </span>
                             </div>
                           </div>
-                        )}
+
+                          {hasAttempt2(viewParcel) && (
+                            <div className="vpd-attempt-card">
+                              <div className="vpd-attempt-num">02</div>
+                              <div className="vpd-attempt-info">
+                                <span
+                                  className={`vpd-attempt-status ${getAttemptStatusClass(viewParcel.attempt2_status)}`}
+                                >
+                                  {formatStatusLabel(
+                                    viewParcel.attempt2_status,
+                                  )}
+                                </span>
+                                <span className="vpd-attempt-date">
+                                  {formatTimelineDateTime(
+                                    viewParcel.attempt2_date ||
+                                      viewParcel.attempt2_datetime,
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
+                  {/* end vpd-main-col */}
+
+                  {/* ── Proof of Delivery side panel — only for delivered + has image ── */}
+                  {isDeliveredParcel(viewParcel) &&
+                    viewParcel.parcel_image_proof && (
+                      <div className="vpd-proof-panel">
+                        <div className="vpd-proof-panel-label">
+                          Proof of Delivery
+                        </div>
+                        <div
+                          className="vpd-proof-panel-img-wrap"
+                          ref={(el) => {
+                            if (el) el.classList.remove("is-loaded");
+                          }}
+                        >
+                          <img
+                            src={viewParcel.parcel_image_proof}
+                            alt="Proof of delivery"
+                            className="vpd-proof-panel-img"
+                            onLoad={(e) => {
+                              e.currentTarget.parentElement.classList.add(
+                                "is-loaded",
+                              );
+                            }}
+                            onError={(e) => {
+                              e.currentTarget.parentElement.classList.add(
+                                "is-loaded",
+                              );
+                              e.currentTarget.style.display = "none";
+                              e.currentTarget.nextSibling.style.display =
+                                "flex";
+                            }}
+                          />
+                          <div
+                            className="vpd-proof-panel-fallback"
+                            style={{ display: "none" }}
+                          >
+                            <span>Image unavailable</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
             )}

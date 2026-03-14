@@ -179,6 +179,39 @@ const formatRelativeTime = (value) => {
   return `${d}d ago`;
 };
 
+// ── Point-in-polygon helpers ──
+const pointInPolygon = (point, vs) => {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const [xi, yi] = vs[i];
+    const [xj, yj] = vs[j];
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const isPointInGeoJson = (lat, lng, geoJson) => {
+  if (!geoJson?.features?.length) return false;
+  const pt = [lng, lat];
+  for (const feature of geoJson.features) {
+    const geom = feature?.geometry;
+    if (!geom) continue;
+    const polys =
+      geom.type === "Polygon"
+        ? [geom.coordinates]
+        : geom.type === "MultiPolygon"
+          ? geom.coordinates
+          : [];
+    for (const poly of polys) {
+      if (poly[0] && pointInPolygon(pt, poly[0])) return true;
+    }
+  }
+  return false;
+};
+
 const RiderTableSelect = ({
   value,
   onChange,
@@ -247,46 +280,99 @@ const RiderTableSelect = ({
   );
 };
 
-// ── Flood Zone Legend Component ──
-const FloodLegend = () => (
+// ── Flood Zone Riders Panel ──
+const FloodRidersPanel = ({ riders = [] }) => (
   <div
     className="flood-legend"
     role="complementary"
-    aria-label="Flood zone legend"
+    aria-label="Riders in flood zone"
   >
     <div className="flood-legend-header">
       <span className="flood-legend-icon" aria-hidden="true">
         <svg viewBox="0 0 16 16" fill="none">
           <path
-            d="M2 7.5c1.5-3 3.5-3 4.5 0s3 3 4.5 0"
+            d="M8 1.5L2 13.5h12L8 1.5z"
             stroke="currentColor"
-            strokeWidth="1.6"
+            strokeWidth="1.5"
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
           <path
-            d="M2 11c1.5-2.5 3.5-2.5 4.5 0s3 2.5 4.5 0"
+            d="M8 6v3.5M8 11v.5"
             stroke="currentColor"
-            strokeWidth="1.6"
+            strokeWidth="1.5"
             strokeLinecap="round"
           />
         </svg>
       </span>
-      <span className="flood-legend-title">Flood Prone Areas</span>
+      <span className="flood-legend-title">
+        Riders in Flood Zone
+        {riders.length > 0 && (
+          <span className="flood-rider-count-badge">{riders.length}</span>
+        )}
+      </span>
     </div>
-    <div className="flood-legend-items">
-      <div className="flood-legend-item">
-        <span className="flood-legend-swatch flood-swatch-zone" />
-        <span>5-Year Flood Zone</span>
+
+    {riders.length === 0 ? (
+      <div className="flood-legend-empty">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+        <span>No riders in flood zone</span>
       </div>
-      <div className="flood-legend-item">
-        <span className="flood-legend-swatch flood-swatch-border" />
-        <span>Zone Boundary</span>
+    ) : (
+      <div className="flood-legend-riders">
+        {riders.map((r) => {
+          const displayName = getRiderDisplayName(r);
+          const initials = displayName
+            .split(" ")
+            .slice(0, 2)
+            .map((w) => w[0]?.toUpperCase() || "")
+            .join("");
+          return (
+            <div key={r.user_id || r.username} className="flood-rider-item">
+              <div className="flood-rider-avatar">
+                {r.profile_url ? (
+                  <img
+                    src={r.profile_url}
+                    alt={displayName}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      if (e.currentTarget.nextSibling) {
+                        e.currentTarget.nextSibling.style.display = "flex";
+                      }
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="flood-rider-avatar-fallback"
+                  style={{ display: r.profile_url ? "none" : "flex" }}
+                >
+                  {initials}
+                </div>
+              </div>
+              <span className="flood-rider-name">{displayName}</span>
+              <span className="flood-rider-alert" aria-hidden="true">
+                ⚠
+              </span>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    )}
   </div>
 );
 
-// ── Module-level GeoJSON cache — fetched once, reused across re-renders ──
+// ── Module-level GeoJSON cache ──
 let rizalFloodCache = null;
 let rizalFloodFetchPromise = null;
 
@@ -307,7 +393,7 @@ const getRizalFloodData = () => {
   return rizalFloodFetchPromise;
 };
 
-// ── Assign Parcels Modal — fully isolated so checkbox ticks never re-render Riders ──
+// ── Assign Parcels Modal ──
 const ASSIGN_SORT_OPTIONS = [
   { value: "id_desc", label: "ID: Newest" },
   { value: "id_asc", label: "ID: Oldest" },
@@ -563,7 +649,6 @@ function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
 
         {/* Body */}
         <div className="riders-modal-body assign-modal-body">
-          {/* ── STEP 1: Parcel Selection ── */}
           {step === "parcels" && (
             <div className="assign-parcels-shell">
               <div className="assign-search-sort-row">
@@ -671,7 +756,6 @@ function AssignParcelsModal({ riders, onClose, onAssigned, refreshRiders }) {
             </div>
           )}
 
-          {/* ── STEP 2: Rider Selection ── */}
           {step === "rider" && (
             <div className="assign-rider-shell">
               <div className="assign-search-bar">
@@ -827,7 +911,6 @@ export default function Riders() {
   const navigate = useNavigate();
   const { notifyRiderViolation } = useNotification();
 
-  // ── FIX: track which violations have already been notified this session ──
   const notifiedViolationsRef = useRef(new Set());
 
   const [riders, setRiders] = useState([]);
@@ -866,8 +949,9 @@ export default function Riders() {
   const [fullWeatherCurrent, setFullWeatherCurrent] = useState(null);
   const [fullWeatherForecast, setFullWeatherForecast] = useState([]);
   const [showFullWeatherPanel, setShowFullWeatherPanel] = useState(false);
-const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
-const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  const [tableSearchTerm, setTableSearchTerm] = useState("");
+  const [fullMapModalOpen, setFullMapModalOpen] = useState(false);
+  const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);
+  const [tableSearchTerm, setTableSearchTerm] = useState("");
   const [tableSortBy, setTableSortBy] = useState("name_asc");
   const [tableFilterBy, setTableFilterBy] = useState("all");
   const [tablePage, setTablePage] = useState(1);
@@ -889,12 +973,16 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
   const [perfParcelsSearch, setPerfParcelsSearch] = useState("");
   const [perfParcelsFilter, setPerfParcelsFilter] = useState("all");
 
+  // ── Flood zone state ──
+  const [floodZoneRiders, setFloodZoneRiders] = useState([]);
+  const [floodGeoJsonLoaded, setFloodGeoJsonLoaded] = useState(null);
+
   const tableSortOptions = useMemo(
     () => [
       { value: "name_asc", label: "Name (A–Z)" },
       { value: "name_desc", label: "Name (Z–A)" },
       { value: "delivered_desc", label: "Most Delivered" },
-      { value: "cancelled_desc", label: "Most Cancelled" },
+      { value: "cancelled_desc", label: "Most Delayed" },
     ],
     [],
   );
@@ -903,16 +991,35 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     () => [
       { value: "all", label: "All Riders" },
       { value: "has_deliveries", label: "Has Deliveries" },
-      { value: "high_cancelled", label: "High Cancelled (5+)" },
+      { value: "high_cancelled", label: "High Delayed (5+)" },
     ],
     [],
   );
 
+  // ── Load GeoJSON and store in state ──
   useEffect(() => {
-    getRizalFloodData().catch(() => {});
+    getRizalFloodData()
+      .then((data) => setFloodGeoJsonLoaded(data))
+      .catch(() => {});
   }, []);
 
-  // Real-time violation notifications via Supabase subscription
+  // ── Compute which riders are in flood zones ──
+  useEffect(() => {
+    if (!floodGeoJsonLoaded || !riderLocations.length) {
+      setFloodZoneRiders([]);
+      return;
+    }
+    const inZone = riderLocations.filter(
+      (r) =>
+        r.lat !== null &&
+        r.lng !== null &&
+        isPointInGeoJson(r.lat, r.lng, floodGeoJsonLoaded),
+    );
+    setFloodZoneRiders(inZone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floodGeoJsonLoaded, riders]);
+
+  // Real-time violation notifications
   useEffect(() => {
     const channel = supabaseClient
       .channel("violation-alerts")
@@ -1035,6 +1142,7 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     () => riders.reduce((s, r) => s + Number(r?.deliveredParcels || 0), 0),
     [riders],
   );
+  // totalCancelled now represents delayed (attempt2_status === "failed")
   const totalCancelled = useMemo(
     () => riders.reduce((s, r) => s + Number(r?.cancelledParcels || 0), 0),
     [riders],
@@ -1176,6 +1284,7 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     }));
   }, []);
 
+  // ── CHANGE 1: fetchRiderMetrics — select attempt2_status and count delayed ──
   const fetchRiderMetrics = useCallback(async (ridersData = []) => {
     const riderIds = (ridersData || []).map((r) => r.user_id).filter(Boolean);
     if (riderIds.length === 0) {
@@ -1187,9 +1296,10 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
         cancelledParcels: 0,
       }));
     }
+    // CHANGED: added attempt2_status to select
     const { data: parcelsData, error: parcelsError } = await supabaseClient
       .from("parcels")
-      .select("assigned_rider_id, status, created_at")
+      .select("assigned_rider_id, status, created_at, attempt2_status")
       .in("assigned_rider_id", riderIds);
     if (parcelsError) throw parcelsError;
     const statsByRiderId = new Map();
@@ -1214,7 +1324,8 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
         if (parcelDayKey === todayKey) deliveredToday++;
       }
       if (n === "on going") stats.ongoingParcels++;
-      if (n === "cancelled" || n === "canceled") {
+      // CHANGED: count delayed as attempt2_status === "failed"
+      if (normalizeStatus(parcel?.attempt2_status) === "failed") {
         stats.cancelledParcels++;
         if (parcelDayKey === todayKey) cancelledToday++;
       }
@@ -1573,10 +1684,25 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     allMarkersByRiderRef.current = new Map();
     allRouteLinesRef.current.forEach((l) => map.removeLayer(l));
     allRouteLinesRef.current = [];
+
     riderLocations.forEach((rider) => {
+      const inFloodZone =
+        floodGeoJsonLoaded &&
+        activeMapLayer === "flood" &&
+        isPointInGeoJson(rider.lat, rider.lng, floodGeoJsonLoaded);
+      const markerIcon = inFloodZone
+        ? L.divIcon({
+            className: "rider-flood-marker-wrap",
+            html: `<span class="rider-flood-pulse" aria-hidden="true"></span><img src="/images/rider.png" class="rider-flood-img" alt="rider" />`,
+            iconSize: [44, 44],
+            iconAnchor: [22, 44],
+            popupAnchor: [0, -44],
+          })
+        : riderIcon;
+
       const marker = L.marker([rider.lat, rider.lng], {
-        icon: riderIcon,
-        zIndexOffset: 1200,
+        icon: markerIcon,
+        zIndexOffset: inFloodZone ? 1400 : 1200,
         riseOnHover: true,
       })
         .addTo(map)
@@ -1588,6 +1714,7 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
       allMarkersRef.current.push(marker);
       allMarkersByRiderRef.current.set(rider.username, marker);
     });
+
     if (!hasAutoCenteredAllMapRef.current && allMarkersRef.current.length > 1) {
       map.fitBounds(L.featureGroup(allMarkersRef.current).getBounds().pad(0.2));
       hasAutoCenteredAllMapRef.current = true;
@@ -1601,7 +1728,7 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     }
     setTimeout(() => map.invalidateSize(), 120);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, riderLocations]);
+  }, [loading, riderLocations, activeMapLayer, floodGeoJsonLoaded]);
 
   useEffect(() => {
     if (!isMapsPage || !focusedRiderQuery) return;
@@ -1687,10 +1814,25 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     fullMarkersByRiderRef.current = new Map();
     fullRouteLinesRef.current.forEach((l) => map.removeLayer(l));
     fullRouteLinesRef.current = [];
+
     riderLocations.forEach((rider) => {
+      const inFloodZone =
+        floodGeoJsonLoaded &&
+        activeMapLayer === "flood" &&
+        isPointInGeoJson(rider.lat, rider.lng, floodGeoJsonLoaded);
+      const markerIcon = inFloodZone
+        ? L.divIcon({
+            className: "rider-flood-marker-wrap",
+            html: `<span class="rider-flood-pulse" aria-hidden="true"></span><img src="/images/rider.png" class="rider-flood-img" alt="rider" />`,
+            iconSize: [48, 48],
+            iconAnchor: [24, 48],
+            popupAnchor: [0, -48],
+          })
+        : riderIcon;
+
       const marker = L.marker([rider.lat, rider.lng], {
-        icon: riderIcon,
-        zIndexOffset: 1300,
+        icon: markerIcon,
+        zIndexOffset: inFloodZone ? 1500 : 1300,
         riseOnHover: true,
       })
         .addTo(map)
@@ -1702,6 +1844,7 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
       fullMarkersRef.current.push(marker);
       fullMarkersByRiderRef.current.set(rider.username, marker);
     });
+
     if (
       !hasAutoCenteredFullMapRef.current &&
       fullMarkersRef.current.length > 1
@@ -1720,36 +1863,31 @@ const [focusedRiderForFullMap, setFocusedRiderForFullMap] = useState(null);  con
     }
     setTimeout(() => map.invalidateSize(), 120);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullMapModalOpen, riderLocations]);
+  }, [fullMapModalOpen, riderLocations, activeMapLayer, floodGeoJsonLoaded]);
 
-useEffect(() => {
-  if (!fullMapModalOpen || !focusedRiderForFullMap) return;
-  const timer = setTimeout(() => {
-    const map = fullLeafletMapRef.current;
-    if (!map) return;
-    const { lat, lng, username } = focusedRiderForFullMap;
-    if (lat == null || lng == null) return;
-
-    map.flyTo([lat, lng], 16, {
-      animate: true,
-      duration: 1.4,        // seconds — smooth but not sluggish
-      easeLinearity: 0.25,  // lower = more ease-in/out curve
-    });
-
-    // Open popup after the fly animation finishes
-    map.once("moveend", () => {
-      const marker = fullMarkersByRiderRef.current.get(username);
-      if (marker) {
-        marker.openPopup();
-        marker.getPopup?.()?.update?.();
-      }
-    });
-
-    setFocusedRiderForFullMap(null);
-  }, 450); // give the modal + tiles a beat to render first
-
-  return () => clearTimeout(timer);
-}, [fullMapModalOpen, focusedRiderForFullMap]);
+  useEffect(() => {
+    if (!fullMapModalOpen || !focusedRiderForFullMap) return;
+    const timer = setTimeout(() => {
+      const map = fullLeafletMapRef.current;
+      if (!map) return;
+      const { lat, lng, username } = focusedRiderForFullMap;
+      if (lat == null || lng == null) return;
+      map.flyTo([lat, lng], 16, {
+        animate: true,
+        duration: 1.4,
+        easeLinearity: 0.25,
+      });
+      map.once("moveend", () => {
+        const marker = fullMarkersByRiderRef.current.get(username);
+        if (marker) {
+          marker.openPopup();
+          marker.getPopup?.()?.update?.();
+        }
+      });
+      setFocusedRiderForFullMap(null);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [fullMapModalOpen, focusedRiderForFullMap]);
 
   useEffect(() => {
     const map = fullLeafletMapRef.current;
@@ -2030,20 +2168,21 @@ useEffect(() => {
     setTrackModalOpen(false);
   };
 
-const openRiderOnMapsPage = (rider) => {
-  const hasLiveLocation = rider?.lat !== null && rider?.lng !== null;
-  const isOnline = isActiveRiderStatus(rider?.status);
-  if (!isOnline || !hasLiveLocation) {
-    setTrackFailMessage(
-      `${getRiderDisplayName(rider)} is offline or not available on the live rider map.`,
-    );
-    setShowTrackFailModal(true);
-    return;
-  }
-  setFocusedRiderForFullMap(rider);
-  setFullMapModalOpen(true);
-};
+  const openRiderOnMapsPage = (rider) => {
+    const hasLiveLocation = rider?.lat !== null && rider?.lng !== null;
+    const isOnline = isActiveRiderStatus(rider?.status);
+    if (!isOnline || !hasLiveLocation) {
+      setTrackFailMessage(
+        `${getRiderDisplayName(rider)} is offline or not available on the live rider map.`,
+      );
+      setShowTrackFailModal(true);
+      return;
+    }
+    setFocusedRiderForFullMap(rider);
+    setFullMapModalOpen(true);
+  };
 
+  // ── CHANGE 4: openInfoModal — select attempt2_status, count delayed ──
   const openInfoModal = async (riderName) => {
     setInfoModalOpen(true);
     setLoadingInfo(true);
@@ -2066,9 +2205,10 @@ const openRiderOnMapsPage = (rider) => {
         setInfoError("Rider information not found.");
         return;
       }
+      // CHANGED: added attempt2_status to select
       const { data: parcelsData, error: parcelsError } = await supabaseClient
         .from("parcels")
-        .select("status, assigned_rider_id, created_at")
+        .select("status, assigned_rider_id, created_at, attempt2_status")
         .eq("assigned_rider_id", riderData.user_id);
       setLoadingViolationLogs(true);
       const { data: violationData, error: violationError } =
@@ -2097,8 +2237,9 @@ const openRiderOnMapsPage = (rider) => {
         ongoingParcels: parcels.filter(
           (p) => normalizeStatus(p.status) === "on going",
         ).length,
+        // CHANGED: count delayed as attempt2_status === "failed"
         cancelledParcels: parcels.filter(
-          (p) => normalizeStatus(p.status) === "cancelled",
+          (p) => normalizeStatus(p?.attempt2_status) === "failed",
         ).length,
         quotaTarget: RIDER_DELIVERY_QUOTA,
         dailyQuotaTarget: RIDER_DAILY_QUOTA,
@@ -2484,8 +2625,9 @@ const openRiderOnMapsPage = (rider) => {
                     Across all riders
                   </span>
                 </div>
+                {/* CHANGE 2: "Total Cancelled" → "Total Delayed" */}
                 <div className="rider-stat-card is-cancelled">
-                  <span className="rider-stat-label">Total Cancelled</span>
+                  <span className="rider-stat-label">Total Delayed</span>
                   <span className="rider-stat-value">
                     {totalCancelled.toLocaleString()}
                   </span>
@@ -2612,7 +2754,9 @@ const openRiderOnMapsPage = (rider) => {
                         error={weatherError}
                       />
                     )}
-                    {activeMapLayer === "flood" && <FloodLegend />}
+                    {activeMapLayer === "flood" && (
+                      <FloodRidersPanel riders={floodZoneRiders} />
+                    )}
                   </div>
                 </div>
 
@@ -2653,9 +2797,8 @@ const openRiderOnMapsPage = (rider) => {
                             Delivered
                           </th>
                           <th className="col-metric col-ongoing">On-Going</th>
-                          <th className="col-metric col-cancelled">
-                            Cancelled
-                          </th>
+                          {/* CHANGE 3: "Cancelled" → "Delayed" */}
+                          <th className="col-metric col-cancelled">Delayed</th>
                           <th className="col-action">Track</th>
                         </tr>
                       </thead>
@@ -3020,7 +3163,9 @@ const openRiderOnMapsPage = (rider) => {
                     error={fullWeatherError}
                   />
                 )}
-                {activeMapLayer === "flood" && <FloodLegend />}
+                {activeMapLayer === "flood" && (
+                  <FloodRidersPanel riders={floodZoneRiders} />
+                )}
               </div>
             </div>
           </div>
@@ -3370,14 +3515,14 @@ const openRiderOnMapsPage = (rider) => {
                   {perfSuccessRate}%
                 </strong>
               </div>
+              {/* CHANGE 7: "CANCEL RATE" → "DELAY RATE" */}
               <div className="rp2-header-stat">
-                <span className="rp2-header-stat-label">CANCEL RATE</span>
+                <span className="rp2-header-stat-label">DELAY RATE</span>
                 <strong className="rp2-header-stat-value rp2-red">
                   {perfCancelRate}%
                 </strong>
               </div>
             </div>
-
             <div className="rp2-tabs">
               <button
                 type="button"
@@ -3432,7 +3577,6 @@ const openRiderOnMapsPage = (rider) => {
                 </span>
               </button>
             </div>
-
             {perfActiveTab === "overview" && (
               <div className="rp2-body">
                 <div className="rp2-left">
@@ -3440,7 +3584,6 @@ const openRiderOnMapsPage = (rider) => {
                     <span className="rp2-section-bar" />
                     QUOTA PROGRESS
                   </div>
-
                   <div className="rp2-donut-wrap">
                     <svg viewBox="0 0 120 120" className="rp2-donut-svg">
                       <circle className="rp2-donut-bg" cx="60" cy="60" r="48" />
@@ -3461,14 +3604,12 @@ const openRiderOnMapsPage = (rider) => {
                       <span className="rp2-donut-sub">OF QUOTA</span>
                     </div>
                   </div>
-
                   <p className="rp2-donut-count">
                     <strong>{selectedRiderInfo.deliveredParcels ?? 0}</strong>
                     {" / "}
                     {selectedRiderInfo.quotaTarget ?? RIDER_DELIVERY_QUOTA}{" "}
                     delivered
                   </p>
-
                   <div className="rp2-status-rows">
                     <div className="rp2-status-row">
                       <span>Status</span>
@@ -3488,7 +3629,6 @@ const openRiderOnMapsPage = (rider) => {
                     </div>
                   </div>
                 </div>
-
                 <div className="rp2-right">
                   <div className="rp2-section-label">
                     <span className="rp2-section-bar" />
@@ -3507,7 +3647,8 @@ const openRiderOnMapsPage = (rider) => {
                         cls: "rp2-bar-amber",
                       },
                       {
-                        label: "Cancelled",
+                        // CHANGE 5: "Cancelled" → "Delayed"
+                        label: "Delayed",
                         value: selectedRiderInfo.cancelledParcels ?? 0,
                         cls: "rp2-bar-red",
                       },
@@ -3526,7 +3667,6 @@ const openRiderOnMapsPage = (rider) => {
                       );
                     })}
                   </div>
-
                   <div className="rp2-section-label" style={{ marginTop: 12 }}>
                     <span className="rp2-section-bar" />
                     WEEKLY TREND
@@ -3557,9 +3697,8 @@ const openRiderOnMapsPage = (rider) => {
                       </span>
                     </div>
                     <div className="rp2-trend-card">
-                      <span className="rp2-trend-card-label">
-                        CANCELLATIONS
-                      </span>
+                      {/* CHANGE 6: "CANCELLATIONS" → "DELAYED" */}
+                      <span className="rp2-trend-card-label">DELAYED</span>
                       <strong className="rp2-trend-card-value rp2-red">
                         {selectedRiderInfo.cancelledParcels ?? 0}
                       </strong>
@@ -3580,7 +3719,6 @@ const openRiderOnMapsPage = (rider) => {
                       </svg>
                     </div>
                   </div>
-
                   <div className="rp2-section-label" style={{ marginTop: 12 }}>
                     <span className="rp2-section-bar" />
                     EFFICIENCY METRICS
@@ -3610,7 +3748,6 @@ const openRiderOnMapsPage = (rider) => {
                 </div>
               </div>
             )}
-
             {perfActiveTab === "parcels" && (
               <div className="rp2-parcels-body">
                 <div className="rp2-parcels-toolbar">
@@ -3653,7 +3790,6 @@ const openRiderOnMapsPage = (rider) => {
                     ))}
                   </div>
                 </div>
-
                 {perfParcelsLoading ? (
                   <div className="rp2-parcels-loading">
                     <div className="assign-spinner" />
@@ -3804,7 +3940,6 @@ const openRiderOnMapsPage = (rider) => {
             <div className="riders-modal-header">
               <h2>{selectedRiderDisplayName} — Violations</h2>
             </div>
-
             {loadingViolationLogs ? (
               <div className="riders-modal-body">
                 <PageSpinner label="Loading violation logs..." />
@@ -3875,7 +4010,6 @@ const openRiderOnMapsPage = (rider) => {
                     </span>
                   </button>
                 </div>
-
                 {violationsActiveTab === "overview" && (
                   <div className="viol-analytics-body">
                     <div className="viol-analytics-left">
@@ -3908,8 +4042,7 @@ const openRiderOnMapsPage = (rider) => {
                                 {level}
                               </span>
                               <span className="viol-risk-hint">
-                                {total} Total Violation
-                                {total !== 1 ? "s" : ""}
+                                {total} Total Violation{total !== 1 ? "s" : ""}
                               </span>
                             </div>
                             <div className="viol-risk-bar-track">
@@ -3929,7 +4062,6 @@ const openRiderOnMapsPage = (rider) => {
                         );
                       })()}
                     </div>
-
                     <div className="viol-analytics-right">
                       <div className="viol-section-label">
                         <span className="viol-section-bar" />
@@ -3960,7 +4092,6 @@ const openRiderOnMapsPage = (rider) => {
                           );
                         })}
                       </div>
-
                       <div
                         className="viol-section-label"
                         style={{ marginTop: 14 }}
@@ -4016,7 +4147,6 @@ const openRiderOnMapsPage = (rider) => {
                     </div>
                   </div>
                 )}
-
                 {violationsActiveTab === "logs" && (
                   <div className="viol-logs-body">
                     <div className="viol-logs-table-wrap">
@@ -4081,7 +4211,6 @@ const openRiderOnMapsPage = (rider) => {
             className="rider-create-modal-wrap"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* ── Form panel (single column, no brand panel) ── */}
             <div className="rcm-form-panel">
               <div className="rcm-form-header">
                 <h2>Create Rider Account</h2>
@@ -4106,9 +4235,7 @@ const openRiderOnMapsPage = (rider) => {
                   </svg>
                 </button>
               </div>
-
               <form className="rcm-form" onSubmit={handleCreateRider}>
-                {/* Username */}
                 <div className="rcm-field">
                   <label htmlFor="create-rider-username" className="rcm-label">
                     <svg
@@ -4151,8 +4278,6 @@ const openRiderOnMapsPage = (rider) => {
                     </div>
                   </div>
                 </div>
-
-                {/* Email */}
                 <div className="rcm-field">
                   <label htmlFor="create-rider-email" className="rcm-label">
                     <svg
@@ -4178,8 +4303,6 @@ const openRiderOnMapsPage = (rider) => {
                     disabled={creatingRider}
                   />
                 </div>
-
-                {/* Password */}
                 <div className="rcm-field">
                   <label htmlFor="create-rider-password" className="rcm-label">
                     <svg
@@ -4267,7 +4390,6 @@ const openRiderOnMapsPage = (rider) => {
                     </div>
                   </div>
                 </div>
-
                 {createRiderError && (
                   <div className="rcm-error">
                     <svg
@@ -4285,7 +4407,6 @@ const openRiderOnMapsPage = (rider) => {
                     {createRiderError}
                   </div>
                 )}
-
                 <div className="rcm-actions">
                   <button
                     type="button"
@@ -4332,7 +4453,7 @@ const openRiderOnMapsPage = (rider) => {
         </div>
       )}
 
-      {/* ══ MANUAL ASSIGN PARCELS MODAL ══ */}
+      {/* ══ ASSIGN PARCELS MODAL ══ */}
       {assignModalOpen && (
         <AssignParcelsModal
           riders={riders}

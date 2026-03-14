@@ -353,6 +353,23 @@ body.tnav-hidden .dashboard-page {
   color: #14b8a6;
   background: rgba(20, 184, 166, 0.09);
 }
+.stat-card.accent-orange::after {
+  background: radial-gradient(ellipse at 90% 0%, #f97316, transparent 70%);
+}
+
+.stat-card.accent-orange .stat-icon {
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.09);
+}
+
+body.dark .stat-card.accent-orange::after {
+  opacity: 0.055;
+}
+
+body.dark .stat-card.accent-orange .stat-icon {
+  color: #fb923c;
+  background: rgba(249, 115, 22, 0.16);
+}
 
 /* ─── Value ──────────────────────────────────────────────────────────────────── */
 .stat-value {
