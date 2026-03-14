@@ -999,11 +999,12 @@ const Parcel = () => {
                         <div className="vpd-proof-panel-label">
                           Proof of Delivery
                         </div>
+                        {/* key forces a clean remount when the image URL changes,
+                            so is-loaded always starts absent without a ref callback
+                            that would fire (and strip the class) on every re-render. */}
                         <div
+                          key={viewParcel.parcel_image_proof}
                           className="vpd-proof-panel-img-wrap"
-                          ref={(el) => {
-                            if (el) el.classList.remove("is-loaded");
-                          }}
                         >
                           <img
                             src={viewParcel.parcel_image_proof}
