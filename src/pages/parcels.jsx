@@ -1048,11 +1048,11 @@ const Parcel = () => {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="parcels-modal-header">
-                    <h3>Track Parcel</h3>
+                    <h3>Delivery Location</h3>
                   </div>
                   <div className="parcels-modal-body parcel-track-body">
                     <p>
-                      Tracking{" "}
+                      Parcel{" "}
                       <strong>#{trackingParcel?.parcel_id || "-"}</strong>
                     </p>
                     <div className="parcel-track-map-wrap">
