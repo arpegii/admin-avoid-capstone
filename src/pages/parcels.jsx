@@ -4,7 +4,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
-import { useNotification } from "../contexts/NotificationContext";
 import { useImport } from "../contexts/ImportContext";
 import "../styles/global.css";
 import "../styles/parcels.css";
@@ -222,7 +221,6 @@ const validateCsvRows = (rows, headers) => {
 // ─────────────────────────────────────────────────────────────
 
 const Parcel = () => {
-  const { notifyParcelDelivered } = useNotification();
   const { startImport, bgImport } = useImport();
 
   const [parcels, setParcels] = useState([]);
@@ -302,25 +300,6 @@ const Parcel = () => {
 
       setParcels(parcelsWithRiderNames);
       setParcelTotalRows(parcelsWithRiderNames.length);
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const deliveredToday = parcelsWithRiderNames.filter((p) => {
-        const createdDate = new Date(p.created_at);
-        const isDelivered = ["successfully delivered", "delivered"].includes(
-          String(p.status || "")
-            .trim()
-            .toLowerCase(),
-        );
-        return isDelivered && createdDate >= today;
-      });
-
-      deliveredToday.slice(0, 3).forEach((parcel) => {
-        notifyParcelDelivered(
-          parcel.parcel_id,
-          parcel.riderFullName || "Customer",
-        );
-      });
     } catch (err) {
       console.error("Failed to load parcels:", err);
       setParcels([]);
@@ -999,9 +978,6 @@ const Parcel = () => {
                         <div className="vpd-proof-panel-label">
                           Proof of Delivery
                         </div>
-                        {/* key forces a clean remount when the image URL changes,
-                            so is-loaded always starts absent without a ref callback
-                            that would fire (and strip the class) on every re-render. */}
                         <div
                           key={viewParcel.parcel_image_proof}
                           className="vpd-proof-panel-img-wrap"
