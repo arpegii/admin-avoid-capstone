@@ -880,6 +880,28 @@ body.dark .stat-card.accent-orange .stat-icon {
   border-radius: 20px 20px 0 0;
 }
 
+.rpt-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rpt-modal-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
 .rpt-modal-header::before,
 .rpt-modal-header::after {
   display: none;
@@ -1135,6 +1157,15 @@ body.dark .stat-card.accent-orange .stat-icon {
 .rpt-pill-icon {
   font-size: 1.2rem;
   line-height: 1;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rpt-pill-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .rpt-pill-label {
@@ -1149,6 +1180,11 @@ body.dark .stat-card.accent-orange .stat-icon {
 .rpt-format-pill-active .rpt-pill-label,
 .rpt-format-pill-active:hover .rpt-pill-label {
   color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.rpt-format-pill-active .rpt-pill-icon,
+.rpt-format-pill-active:hover .rpt-pill-icon {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .rpt-pill-desc {

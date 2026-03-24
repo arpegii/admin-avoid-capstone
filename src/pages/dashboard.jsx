@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import Sidebar from "../components/sidebar";
 import { supabaseClient } from "../App";
@@ -31,6 +31,9 @@ import {
   FaExclamationTriangle,
   FaPercent,
   FaTrophy,
+  FaFilePdf,
+  FaFileExcel,
+  FaTimes,
 } from "react-icons/fa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -42,7 +45,7 @@ import "../styles/dashboard.css";
 import PageSpinner from "../components/PageSpinner";
 import { exportReportAsWorkbook } from "../utils/reportExcel";
 
-// ─── Utility helpers ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Utility helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const humanizeLabel = (label) => {
   if (!label) return "";
@@ -154,6 +157,17 @@ const isCancelledStatus = (value) => {
   return n === "cancelled" || n === "canceled";
 };
 
+const isAttemptSuccessStatus = (value) => {
+  const n = normalizeStatus(value);
+  return [
+    "successfully delivered",
+    "delivered",
+    "successful",
+    "success",
+    "completed",
+  ].includes(n);
+};
+
 const extractYearKey = (value) => {
   if (value === null || value === undefined || value === "") return null;
   if (value instanceof Date && !Number.isNaN(value.getTime()))
@@ -202,6 +216,14 @@ const getViolationType = (log = {}) =>
   log?.type ||
   log?.violationName ||
   "Unknown violation";
+
+const getFloodRiderName = (row = {}) =>
+  row?.name ||
+  row?.rider_name ||
+  row?.username ||
+  row?.full_name ||
+  row?.user_name ||
+  "Unknown rider";
 
 const getViolationRiderName = (log = {}) => {
   for (const v of [
@@ -279,7 +301,6 @@ const riderPerfColumns = [
   { value: "email", label: "Email" },
   { value: "fname", label: "First name" },
   { value: "lname", label: "Last name" },
-  { value: "gender", label: "Gender" },
   { value: "doj", label: "Date of join" },
 ];
 
@@ -433,6 +454,61 @@ const buildHourlyCounts = (rows = [], dateKey) => {
   return { labels, values };
 };
 
+const buildChartAnnotation = (spec) => {
+  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.values))
+    return "";
+  const values = spec.values.map((v) => Number(v) || 0);
+  const labels = spec.labels.map((l) => String(l));
+  if (!values.length || !labels.length) return "";
+  const total = values.reduce((a, b) => a + b, 0);
+  const maxIndex = values.reduce(
+    (best, v, i) => (v > values[best] ? i : best),
+    0,
+  );
+
+  if (spec.type === "line") {
+    if (values.length >= 2) {
+      const last = values[values.length - 1];
+      const prev = values[values.length - 2];
+      if (prev === 0) {
+        return last > 0
+          ? `Rebound in ${labels[labels.length - 1]} (${last})`
+          : `Flat in ${labels[labels.length - 1]}`;
+      }
+      const change = ((last - prev) / Math.abs(prev)) * 100;
+      const dir = change >= 0 ? "Up" : "Down";
+      return `${dir} ${Math.abs(change).toFixed(1)}% vs ${labels[labels.length - 2]}`;
+    }
+    return `Latest: ${labels[labels.length - 1]} (${values[values.length - 1]})`;
+  }
+
+  if (spec.type === "doughnut" || spec.type === "pie") {
+    if (total <= 0) return "";
+    const share = ((values[maxIndex] / total) * 100).toFixed(1);
+    return `${labels[maxIndex]} leads at ${share}%`;
+  }
+
+  if (spec.type === "bar") {
+    if (labels.length === 2) {
+      const [a, b] = values;
+      if (a === b) return "Even split between both metrics";
+      return a > b
+        ? `${labels[0]} exceeds ${labels[1]}`
+        : `${labels[1]} exceeds ${labels[0]}`;
+    }
+    return `${labels[maxIndex]} highest (${values[maxIndex]})`;
+  }
+
+  if (total > 0) return `${labels[maxIndex]} highest (${values[maxIndex]})`;
+  return "";
+};
+
+const withChartAnnotations = (charts = []) =>
+  charts.map((spec) => ({
+    ...spec,
+    annotation: spec.annotation || buildChartAnnotation(spec),
+  }));
+
 const topEntries = (mapObject, limit = 5) =>
   Object.entries(mapObject || {})
     .sort((a, b) => b[1] - a[1])
@@ -448,20 +524,17 @@ const countBy = (rows = [], resolver) => {
   return map;
 };
 
-// ─── Analytics Builders ────────────────────────────────────────────────────────
+// â”€â”€â”€ Analytics Builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const buildParcelsAnalytics = (parcels = []) => {
   const deliveredRows = parcels.filter((p) => isDeliveredStatus(p?.status));
   const delivered = deliveredRows.length;
-  const cancelled = parcels.filter((p) => isCancelledStatus(p?.status)).length;
   const delayed = parcels.filter(
     (p) => normalizeStatus(p?.attempt2_status) === "failed",
   ).length;
-  const undelivered = Math.max(parcels.length - delivered - cancelled, 0);
-  const firstAttemptSuccessCount = deliveredRows.filter(
-    (p) =>
-      normalizeStatus(p?.attempt1_status) === "success" ||
-      normalizeStatus(p?.attempt1_status) === "successfully delivered",
+  const undelivered = Math.max(parcels.length - delivered - delayed, 0);
+  const firstAttemptSuccessCount = deliveredRows.filter((p) =>
+    isAttemptSuccessStatus(p?.attempt1_status),
   ).length;
   const monthlyDeliveries = buildMonthlyCounts(deliveredRows, "created_at");
   const yearlyDeliveries = buildYearlyCounts(deliveredRows, "created_at");
@@ -475,74 +548,98 @@ const buildParcelsAnalytics = (parcels = []) => {
       .filter(Boolean),
   );
   const avgPerActiveDay = activeDaySet.size ? delivered / activeDaySet.size : 0;
+  const deliveryRate = getSafePercent(delivered, parcels.length);
+  const delayRate = getSafePercent(delayed, parcels.length);
+  const firstAttemptSuccessRate = getSafePercent(
+    firstAttemptSuccessCount,
+    delivered,
+  );
+
+  const attemptFailureMap = countBy(parcels, (p) => {
+    const status = normalizeStatus(p?.attempt1_status);
+    if (!status) return null;
+    if (isAttemptSuccessStatus(status)) return null;
+    return status;
+  });
+  const attemptFailureTotal = Object.values(attemptFailureMap).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+  const failureReasons = topEntries(attemptFailureMap, 6).map(
+    ([reason, count]) => ({
+      reason: toTitleCase(reason),
+      count,
+      share: attemptFailureTotal
+        ? Number(((count / attemptFailureTotal) * 100).toFixed(1))
+        : 0,
+    }),
+  );
+
+  const charts = withChartAnnotations([
+    {
+      title: "Parcel Status Distribution",
+      type: "doughnut",
+      labels: ["Delivered", "Delayed", "In Progress"],
+      values: [delivered, delayed, undelivered],
+      colors: ["#16a34a", "#f59e0b", "#94a3b8"],
+    },
+    {
+      title: "Monthly Deliveries",
+      type: "line",
+      labels: monthlyDeliveries.labels,
+      values: monthlyDeliveries.values,
+      datasetLabel: "Deliveries",
+      colors: ["#0ea5e9"],
+    },
+    {
+      title: "Delay Rate (%)",
+      type: "bar",
+      labels: ["Delay %"],
+      values: [Number(delayRate.toFixed(1))],
+      datasetLabel: "Delay %",
+      colors: ["#f59e0b"],
+    },
+    {
+      title:
+        yearlyDeliveries.labels.length > 1
+          ? "Yearly Deliveries Trend"
+          : "Monthly Deliveries Trend",
+      type: "line",
+      labels:
+        yearlyDeliveries.labels.length > 1
+          ? yearlyDeliveries.labels
+          : monthlyDeliveries.labels,
+      values:
+        yearlyDeliveries.labels.length > 1
+          ? yearlyDeliveries.values
+          : monthlyDeliveries.values,
+      datasetLabel: "Deliveries",
+      colors: ["#14b8a6"],
+    },
+  ]);
 
   return {
     summaryRows: [
       ["Total Parcels", String(parcels.length)],
       ["Delivered", String(delivered)],
-      ["Cancelled", String(cancelled)],
       ["In Progress / Other", String(undelivered)],
       ["Delayed", String(delayed)],
-      [
-        "Delivery Rate",
-        `${getSafePercent(delivered, parcels.length).toFixed(1)}%`,
-      ],
-      [
-        "Cancellation Rate",
-        `${getSafePercent(cancelled, parcels.length).toFixed(1)}%`,
-      ],
-      ["Delay Rate", `${getSafePercent(delayed, parcels.length).toFixed(1)}%`],
-      [
-        "1st Attempt Success Rate",
-        `${getSafePercent(firstAttemptSuccessCount, delivered).toFixed(1)}%`,
-      ],
-      ["Avg Deliveries / Active Day", avgPerActiveDay.toFixed(2)],
+      ["Delivery Rate", `${deliveryRate.toFixed(1)}%`],
+      ["Delay Rate", `${delayRate.toFixed(1)}%`],
+      ["1st Attempt Success Rate", `${firstAttemptSuccessRate.toFixed(1)}%`],
+      ["Avg Deliveries", avgPerActiveDay.toFixed(1)],
     ],
-    charts: [
-      {
-        title: "Parcel Status Distribution",
-        type: "doughnut",
-        labels: ["Delivered", "Cancelled", "In Progress"],
-        values: [delivered, cancelled, undelivered],
-        colors: ["#16a34a", "#ef4444", "#94a3b8"],
-      },
-      {
-        title: "Monthly Deliveries",
-        type: "line",
-        labels: monthlyDeliveries.labels,
-        values: monthlyDeliveries.values,
-        datasetLabel: "Deliveries",
-        colors: ["#0ea5e9"],
-      },
-      {
-        title: "Delay vs Cancellation Rate (%)",
-        type: "bar",
-        labels: ["Delay %", "Cancellation %"],
-        values: [
-          Number(getSafePercent(delayed, parcels.length).toFixed(1)),
-          Number(getSafePercent(cancelled, parcels.length).toFixed(1)),
-        ],
-        datasetLabel: "Rate",
-        colors: ["#f59e0b", "#ef4444"],
-      },
-      {
-        title:
-          yearlyDeliveries.labels.length > 1
-            ? "Yearly Deliveries Trend"
-            : "Monthly Deliveries Trend",
-        type: "line",
-        labels:
-          yearlyDeliveries.labels.length > 1
-            ? yearlyDeliveries.labels
-            : monthlyDeliveries.labels,
-        values:
-          yearlyDeliveries.labels.length > 1
-            ? yearlyDeliveries.values
-            : monthlyDeliveries.values,
-        datasetLabel: "Deliveries",
-        colors: ["#14b8a6"],
-      },
-    ],
+    charts,
+    failureReasons,
+    metrics: {
+      totalParcels: parcels.length,
+      delivered,
+      delayed,
+      deliveryRate,
+      delayRate,
+      firstAttemptSuccessRate,
+      attemptFailureTotal,
+    },
   };
 };
 
@@ -550,6 +647,7 @@ const buildRiderPerformanceAnalytics = (
   riders = [],
   parcels = [],
   violations = [],
+  floodAffected = [],
 ) => {
   const deliveredParcels = parcels.filter((p) => isDeliveredStatus(p?.status));
   const riderDeliveryMap = countBy(
@@ -558,10 +656,6 @@ const buildRiderPerformanceAnalytics = (
   );
   const riderTotalMap = countBy(
     parcels,
-    (p) => getAssignedRiderDisplay(p) || "Unassigned",
-  );
-  const riderCancelMap = countBy(
-    parcels.filter((p) => isCancelledStatus(p?.status)),
     (p) => getAssignedRiderDisplay(p) || "Unassigned",
   );
   const riderDelayMap = countBy(
@@ -586,6 +680,11 @@ const buildRiderPerformanceAnalytics = (
   const weekdayViolations = buildWeekdayCounts(violations, "date");
   const monthlyJoins = buildMonthlyCounts(riders, "created_at");
   const yearlyJoins = buildYearlyCounts(riders, "created_at");
+  const monthlyFloods = buildMonthlyCounts(floodAffected, "date");
+  const floodByRider = countBy(floodAffected, (row) =>
+    String(getFloodRiderName(row) || "Unknown"),
+  );
+  const topFloodedRiders = topEntries(floodByRider, 8);
   const genderMap = countBy(riders, (r) => String(r?.gender || "Unknown"));
   const activeRiders = riders.filter(
     (r) => r?.status === "active" || r?.status === "Active",
@@ -596,29 +695,123 @@ const buildRiderPerformanceAnalytics = (
       riderNames.length
     : 0;
   const firstAttemptByRider = {};
+  const secondAttemptByRider = {};
   deliveredParcels.forEach((p) => {
     const name = getAssignedRiderDisplay(p);
     if (!name) return;
     if (!firstAttemptByRider[name])
       firstAttemptByRider[name] = { success: 0, total: 0 };
     firstAttemptByRider[name].total += 1;
-    if (
-      normalizeStatus(p?.attempt1_status) === "success" ||
-      normalizeStatus(p?.attempt1_status) === "successfully delivered"
-    ) {
+    if (isAttemptSuccessStatus(p?.attempt1_status)) {
       firstAttemptByRider[name].success += 1;
     }
+    // 2nd attempt: only count if 1st failed but 2nd succeeded
+    if (
+      !isAttemptSuccessStatus(p?.attempt1_status) &&
+      isAttemptSuccessStatus(p?.attempt2_status)
+    ) {
+      if (!secondAttemptByRider[name])
+        secondAttemptByRider[name] = { success: 0, total: 0 };
+      secondAttemptByRider[name].total += 1;
+      secondAttemptByRider[name].success += 1;
+    }
   });
-  const topRiderFirstAttempt = Object.entries(firstAttemptByRider)
-    .map(([name, { success, total }]) => [
-      name,
-      total > 0 ? Math.round((success / total) * 100) : 0,
-    ])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8);
+  const riderFirstAttemptRows = Object.entries(firstAttemptByRider)
+    .map(([name, { success, total }]) => {
+      const secondAttempt = secondAttemptByRider[name] || {
+        success: 0,
+        total: 0,
+      };
+      const secondRate =
+        secondAttempt.total > 0
+          ? Math.round((secondAttempt.success / secondAttempt.total) * 100)
+          : 0;
+      return {
+        name,
+        success,
+        total,
+        rate: total > 0 ? Math.round((success / total) * 100) : 0,
+        secondRate,
+      };
+    })
+    .sort((a, b) => b.total - a.total || b.rate - a.rate)
+    .slice(0, 15);
+  const topRiderFirstAttempt = riderFirstAttemptRows
+    .slice()
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 8)
+    .map((r) => [r.name, r.rate]);
 
   const topRider = topDeliverers[0];
   const mostFlagged = topFlaggedRiders[0];
+
+  const charts = withChartAnnotations([
+    {
+      title: "Top Riders by Deliveries",
+      type: "bar",
+      labels: topDeliverers.map(([l]) => l),
+      values: topDeliverers.map(([, c]) => c),
+      datasetLabel: "Deliveries",
+      colors: ["#16a34a"],
+    },
+    {
+      title: "Rider 1st Attempt Success Rate (%)",
+      type: "bar",
+      labels: topRiderFirstAttempt.map(([l]) => l),
+      values: topRiderFirstAttempt.map(([, v]) => v),
+      datasetLabel: "Success %",
+      colors: ["#0ea5e9"],
+    },
+    {
+      title: "Most Flagged Riders (Violations)",
+      type: "bar",
+      labels: topFlaggedRiders.map(([l]) => l),
+      values: topFlaggedRiders.map(([, c]) => c),
+      datasetLabel: "Violations",
+      colors: ["#ef4444"],
+    },
+    {
+      title: "Flood-Affected Riders by Incident Count",
+      type: "bar",
+      labels: topFloodedRiders.map(([l]) => l),
+      values: topFloodedRiders.map(([, c]) => c),
+      datasetLabel: "Flood Incidents",
+      colors: ["#06b6d4"],
+    },
+    {
+      title: "Monthly Violation Trend",
+      type: "line",
+      labels: monthlyViolations.labels,
+      values: monthlyViolations.values,
+      datasetLabel: "Violations",
+      colors: ["#8b5cf6"],
+    },
+    {
+      title: "Violations by Weekday",
+      type: "bar",
+      labels: weekdayViolations.labels,
+      values: weekdayViolations.values,
+      datasetLabel: "Violations",
+      colors: ["#ec4899"],
+    },
+
+    {
+      title: "Monthly Rider Joins",
+      type: "line",
+      labels: monthlyJoins.labels,
+      values: monthlyJoins.values,
+      colors: ["#14b8a6"],
+      datasetLabel: "New Riders",
+    },
+    {
+      title: "Flood Alerts by Month",
+      type: "line",
+      labels: monthlyFloods.labels,
+      values: monthlyFloods.values,
+      colors: ["#38bdf8"],
+      datasetLabel: "Flood Alerts",
+    },
+  ]);
 
   return {
     summaryRows: [
@@ -637,17 +830,16 @@ const buildRiderPerformanceAnalytics = (
           ? `${mostFlagged[0]} (${mostFlagged[1]} violations)`
           : "N/A",
       ],
+
+      ["Flood Alerts", String(floodAffected.length || 0)],
       [
-        "Gender Breakdown",
-        Object.entries(genderMap)
-          .map(([g, c]) => `${g}: ${c}`)
-          .join(" · ") || "N/A",
+        "Flood Affected Riders",
+        String(Object.keys(floodByRider || {}).length || 0),
       ],
     ],
     riderPerfRows: topEntries(riderTotalMap, 20).map(([name]) => ({
       name,
       delivered: riderDeliveryMap[name] || 0,
-      cancelled: riderCancelMap[name] || 0,
       delayed: riderDelayMap[name] || 0,
       violations: violationByRider[name] || 0,
       deliveryRate: riderTotalMap[name]
@@ -656,71 +848,25 @@ const buildRiderPerformanceAnalytics = (
           )
         : 0,
     })),
-    charts: [
-      {
-        title: "Top Riders by Deliveries",
-        type: "bar",
-        labels: topDeliverers.map(([l]) => l),
-        values: topDeliverers.map(([, c]) => c),
-        datasetLabel: "Deliveries",
-        colors: ["#16a34a"],
-      },
-      {
-        title: "Rider 1st Attempt Success Rate (%)",
-        type: "bar",
-        labels: topRiderFirstAttempt.map(([l]) => l),
-        values: topRiderFirstAttempt.map(([, v]) => v),
-        datasetLabel: "Success %",
-        colors: ["#0ea5e9"],
-      },
-      {
-        title: "Most Flagged Riders (Violations)",
-        type: "bar",
-        labels: topFlaggedRiders.map(([l]) => l),
-        values: topFlaggedRiders.map(([, c]) => c),
-        datasetLabel: "Violations",
-        colors: ["#ef4444"],
-      },
-      {
-        title: "Top Violation Types",
-        type: "bar",
-        labels: topViolationTypes.map(([l]) => l),
-        values: topViolationTypes.map(([, c]) => c),
-        datasetLabel: "Incidents",
-        colors: ["#f59e0b"],
-      },
-      {
-        title: "Monthly Violation Trend",
-        type: "line",
-        labels: monthlyViolations.labels,
-        values: monthlyViolations.values,
-        datasetLabel: "Violations",
-        colors: ["#8b5cf6"],
-      },
-      {
-        title: "Violations by Weekday",
-        type: "bar",
-        labels: weekdayViolations.labels,
-        values: weekdayViolations.values,
-        datasetLabel: "Violations",
-        colors: ["#ec4899"],
-      },
-      {
-        title: "Gender Distribution",
-        type: "doughnut",
-        labels: Object.keys(genderMap),
-        values: Object.values(genderMap),
-        colors: ["#3b82f6", "#ec4899", "#22c55e", "#f59e0b"],
-      },
-      {
-        title: "Monthly Rider Joins",
-        type: "line",
-        labels: monthlyJoins.labels,
-        values: monthlyJoins.values,
-        colors: ["#14b8a6"],
-        datasetLabel: "New Riders",
-      },
-    ],
+    riderFirstAttemptRows,
+    floodAffectedRows: (floodAffected || []).map((row) => ({
+      name: getFloodRiderName(row),
+      date: row?.date || row?.created_at || null,
+      lat: row?.lat ?? row?.latitude ?? null,
+      lng: row?.lng ?? row?.longitude ?? null,
+      address: row?.location || row?.place_name || row?.address || null,
+    })),
+    charts,
+    metrics: {
+      totalRiders: riders.length,
+      activeRiders: activeRiders || riders.length,
+      totalDeliveries: deliveredParcels.length,
+      totalViolations: violations.length,
+      totalFloodAlerts: floodAffected.length || 0,
+      avgDeliveriesPerRider,
+      topPerformer: topRider ? topRider[0] : null,
+      mostFlagged: mostFlagged ? mostFlagged[0] : null,
+    },
   };
 };
 
@@ -732,11 +878,15 @@ const buildReportAnalyticsBundle = (reportType, data) => {
       (data || []).find((s) => s?.section === "Riders")?.data || [];
     const violations =
       (data || []).find((s) => s?.section === "Violations")?.data || [];
+    const floodAffected =
+      (data || []).find((s) => s?.section === "Flood Affected Riders")?.data ||
+      [];
     const parcelAnalytics = buildParcelsAnalytics(parcels);
     const riderPerfAnalytics = buildRiderPerformanceAnalytics(
       riders,
       parcels,
       violations,
+      floodAffected,
     );
     return {
       sections: [
@@ -744,12 +894,18 @@ const buildReportAnalyticsBundle = (reportType, data) => {
           title: "Parcels",
           summaryRows: parcelAnalytics.summaryRows,
           charts: parcelAnalytics.charts,
+          failureReasons: parcelAnalytics.failureReasons,
         },
         {
           title: "Rider Performance",
           summaryRows: riderPerfAnalytics.summaryRows,
-          charts: riderPerfAnalytics.charts.slice(0, 4),
+          charts: [
+            ...riderPerfAnalytics.charts.slice(0, 5),
+            ...riderPerfAnalytics.charts.slice(-2),
+          ],
           riderPerfRows: riderPerfAnalytics.riderPerfRows,
+          riderFirstAttemptRows: riderPerfAnalytics.riderFirstAttemptRows,
+          floodAffectedRows: riderPerfAnalytics.floodAffectedRows,
         },
       ],
       summaryRows: [
@@ -766,14 +922,14 @@ const buildReportAnalyticsBundle = (reportType, data) => {
           )?.[1] || "0%",
         ],
         [
-          "Cancelled",
-          parcelAnalytics.summaryRows.find(([k]) => k === "Cancelled")?.[1] ||
-            "0",
-        ],
-        [
           "Delayed",
           parcelAnalytics.summaryRows.find(([k]) => k === "Delayed")?.[1] ||
             "0",
+        ],
+        [
+          "Delay Rate",
+          parcelAnalytics.summaryRows.find(([k]) => k === "Delay Rate")?.[1] ||
+            "0%",
         ],
         [
           "1st Attempt Success",
@@ -795,10 +951,17 @@ const buildReportAnalyticsBundle = (reportType, data) => {
             ([k]) => k === "Most Flagged Rider",
           )?.[1] || "N/A",
         ],
+        [
+          "Flood Alerts",
+          riderPerfAnalytics.summaryRows.find(
+            ([k]) => k === "Flood Alerts",
+          )?.[1] || "0",
+        ],
       ],
       charts: [
         ...parcelAnalytics.charts.slice(0, 2),
         ...riderPerfAnalytics.charts.slice(0, 3),
+        ...riderPerfAnalytics.charts.slice(-1),
       ],
     };
   }
@@ -810,7 +973,15 @@ const buildReportAnalyticsBundle = (reportType, data) => {
       (data || []).find((s) => s?.section === "Parcels")?.data || [];
     const violations =
       (data || []).find((s) => s?.section === "Violations")?.data || [];
-    return buildRiderPerformanceAnalytics(riders, parcels, violations);
+    const floodAffected =
+      (data || []).find((s) => s?.section === "Flood Affected Riders")?.data ||
+      [];
+    return buildRiderPerformanceAnalytics(
+      riders,
+      parcels,
+      violations,
+      floodAffected,
+    );
   }
   return { summaryRows: [], charts: [] };
 };
@@ -868,7 +1039,11 @@ const buildChartImageFromSpec = async (spec, width = 900, height = 360) => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   const dataUrl = canvas.toDataURL("image/png");
   chart.destroy();
-  return { title: spec.title || "Chart", dataUrl };
+  return {
+    title: spec.title || "Chart",
+    dataUrl,
+    annotation: spec.annotation || "",
+  };
 };
 
 const buildReportChartImages = async (chartSpecs = []) => {
@@ -885,8 +1060,40 @@ const resolveReportGeneratedBy = async () => {
     const { data, error } = await supabaseClient.auth.getUser();
     if (error) throw error;
     const user = data?.user;
+    const userId = user?.id;
+    const userEmail = user?.email;
+
+    // ── Priority 1: admin_profile table (most accurate for admins) ──
+    if (userId) {
+      const { data: adminRows } = await supabaseClient
+        .from("admin_profile")
+        .select("first_name, last_name")
+        .eq("id", userId)
+        .limit(1);
+
+      const admin = adminRows?.[0];
+      const adminName =
+        `${admin?.first_name || ""} ${admin?.last_name || ""}`.trim();
+      if (adminName) return adminName;
+    }
+
+    // ── Priority 2: try by email if user_id didn't match ──
+    if (userEmail) {
+      const { data: adminByEmail } = await supabaseClient
+        .from("admin_profile")
+        .select("first_name, last_name")
+        .eq("email", userEmail)
+        .limit(1);
+
+      const admin = adminByEmail?.[0];
+      const adminName =
+        `${admin?.first_name || ""} ${admin?.last_name || ""}`.trim();
+      if (adminName) return adminName;
+    }
+
+    // ── Priority 3: Supabase auth metadata fallback ──
     const metadata = user?.user_metadata || {};
-    const explicitName = String(
+    const metaName = String(
       metadata.full_name ||
         metadata.name ||
         [
@@ -896,20 +1103,10 @@ const resolveReportGeneratedBy = async () => {
           .filter(Boolean)
           .join(" "),
     ).trim();
-    if (explicitName) return explicitName;
-    const userEmail = user?.email;
+    if (metaName) return metaName;
+
+    // ── Priority 4: derive from email ──
     if (userEmail) {
-      const { data: profileRows } = await supabaseClient
-        .from("users")
-        .select("fname,lname,username,email")
-        .eq("email", userEmail)
-        .limit(1);
-      const profile = profileRows?.[0];
-      const profileName = String(
-        `${profile?.fname || ""} ${profile?.lname || ""}`,
-      ).trim();
-      if (profileName) return profileName;
-      if (profile?.username) return String(profile.username);
       const localPart = String(userEmail)
         .split("@")[0]
         .replace(/[._-]+/g, " ");
@@ -920,13 +1117,14 @@ const resolveReportGeneratedBy = async () => {
           .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
           .join(" ");
     }
+
     return "Unknown User";
   } catch {
     return "Unknown User";
   }
 };
 
-// ─── Animated number hook ─────────────────────────────────────────────────────
+// â”€â”€â”€ Animated number hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const useAnimatedNumber = (target, duration = 420) => {
   const [display, setDisplay] = useState(target);
@@ -964,7 +1162,7 @@ const useAnimatedNumber = (target, duration = 420) => {
   return display;
 };
 
-// ─── Transition key hook ──────────────────────────────────────────────────────
+// â”€â”€â”€ Transition key hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const useTransitionKey = (dep) => {
   const [key, setKey] = useState(0);
@@ -978,7 +1176,7 @@ const useTransitionKey = (dep) => {
   return key;
 };
 
-// ─── FloatSelect ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ FloatSelect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FLOAT_SELECT_STYLE_ID = "float-select-injected-styles";
 const injectFloatSelectStyles = () => {
@@ -1250,7 +1448,7 @@ const FloatSelect = ({
   );
 };
 
-// ─── KPI Chart Modal Config ───────────────────────────────────────────────────
+// â”€â”€â”€ KPI Chart Modal Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // NOTE: buildChartData now receives `selectedYear` as second arg so yearly tabs
 // can be conditionally excluded when a specific year is selected.
 
@@ -1588,7 +1786,7 @@ const buildKpiChartConfig = (selectedYear) => {
   };
 };
 
-// ─── KPI Chart Modal Component ────────────────────────────────────────────────
+// â”€â”€â”€ KPI Chart Modal Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
   // Build config dynamically based on currently selected year
@@ -1749,7 +1947,7 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Modal Header ── */}
+        {/* â”€â”€ Modal Header â”€â”€ */}
         <div
           style={{
             background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}cc 100%)`,
@@ -1830,11 +2028,11 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
               lineHeight: 1,
             }}
           >
-            ✕
+            <FaTimes />
           </button>
         </div>
 
-        {/* ── Modal Body ── */}
+        {/* â”€â”€ Modal Body â”€â”€ */}
         <div style={{ padding: 20, overflowY: "auto", background: "#f8fafc" }}>
           {/* Summary pills */}
           <div
@@ -1944,7 +2142,7 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
   );
 };
 
-// ─── REDESIGNED Stat Card ─────────────────────────────────────────────────────
+// â”€â”€â”€ REDESIGNED Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const StatCard = ({
   icon,
@@ -1983,7 +2181,7 @@ const StatCard = ({
             <span
               className={`stat-trend ${trendUp ? "stat-trend-up" : "stat-trend-down"}`}
             >
-              {trendUp ? "↑" : "↓"} {trend.replace(/^[+-]/, "")}
+              {trendUp ? "Up" : "Down"} {trend.replace(/^[+-]/, "")}
             </span>
           )}
         </div>
@@ -2014,7 +2212,7 @@ const StatCard = ({
   );
 };
 
-// ─── Chart card wrapper ───────────────────────────────────────────────────────
+// â”€â”€â”€ Chart card wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ChartCard = ({ title, subtitle, children, className = "" }) => (
   <div className={`chart-card ${className}`.trim()}>
@@ -2026,7 +2224,7 @@ const ChartCard = ({ title, subtitle, children, className = "" }) => (
   </div>
 );
 
-// ─── Horizontal bar list ──────────────────────────────────────────────────────
+// â”€â”€â”€ Horizontal bar list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const HorizontalBarList = ({
   items,
@@ -2078,7 +2276,7 @@ const HorizontalBarList = ({
   );
 };
 
-// ─── Report Type SVG Icons ────────────────────────────────────────────────────
+// â”€â”€â”€ Report Type SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const IconParcel = () => (
   <svg
@@ -2143,7 +2341,7 @@ const REPORT_TYPE_OPTIONS = [
   { value: "overall", label: "Overall Reports", Icon: IconOverall },
 ];
 
-// ─── Recharts: Shared custom tooltip ─────────────────────────────────────────
+// â”€â”€â”€ Recharts: Shared custom tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RcTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -2199,7 +2397,7 @@ const RcTooltip = ({ active, payload, label }) => {
   );
 };
 
-// ─── Recharts Chart 1: Deliveries vs Delays Line Chart ───────────────────────
+// â”€â”€â”€ Recharts Chart 1: Deliveries vs Delays Line Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DeliveriesLineChart = ({
   monthGrowth = [],
@@ -2281,7 +2479,7 @@ const DeliveriesLineChart = ({
   );
 };
 
-// ─── Recharts Chart 2: Status Breakdown Donut Chart ──────────────────────────
+// â”€â”€â”€ Recharts Chart 2: Status Breakdown Donut Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DONUT_COLORS = ["#16a34a", "#ef4444", "#94a3b8"];
 const DONUT_LABELS = ["Delivered", "Cancelled", "In Progress"];
@@ -2429,7 +2627,7 @@ const StatusDonutChart = ({
   );
 };
 
-// ─── Recharts Chart 3: Violations Trend Bar Chart ────────────────────────────
+// â”€â”€â”€ Recharts Chart 3: Violations Trend Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ViolationsTrendChart = ({
   violationLogs = [],
@@ -2553,7 +2751,7 @@ const ViolationsTrendChart = ({
   );
 };
 
-// ─── Recharts Chart 4: Rate Overview Bar Chart ───────────────────────────────
+// â”€â”€â”€ Recharts Chart 4: Rate Overview Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RateOverviewBar = (props) => {
   const { x, y, width, height, fill } = props;
@@ -2655,15 +2853,363 @@ const RateOverviewChart = ({
   );
 };
 
-// ─── PDF Generation Helpers ───────────────────────────────────────────────────
+// â”€â”€â”€ PDF Generation Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const PDF_BRAND_RED = [163, 0, 0];
-const PDF_BRAND_DARK = [15, 23, 42];
+const PDF_BRAND_RED = [153, 0, 0];
+const PDF_BRAND_DARK = [17, 24, 39];
 const PDF_SLATE_600 = [71, 85, 105];
 const PDF_SLATE_400 = [148, 163, 184];
 const PDF_SLATE_100 = [241, 245, 249];
 const PDF_WHITE = [255, 255, 255];
 const PDF_BORDER = [226, 232, 240];
+const PDF_SUCCESS = [22, 163, 74];
+const PDF_WARNING = [202, 138, 4];
+const PDF_DANGER = [220, 38, 38];
+const PDF_ALERT_BG = [254, 242, 242];
+const PDF_WARN_BG = [254, 249, 195];
+const PDF_COVER_BG = [248, 250, 252];
+const PDF_ACCENT = [185, 28, 28];
+
+const KPI_BENCHMARKS = {
+  "Delivery Rate": { target: 90, warn: 80, higherIsBetter: true, unit: "%" },
+  "1st Attempt Success Rate": {
+    target: 70,
+    warn: 60,
+    higherIsBetter: true,
+    unit: "%",
+  },
+  "1st Attempt Success": {
+    target: 70,
+    warn: 60,
+    higherIsBetter: true,
+    unit: "%",
+  },
+  "Delay Rate": {
+    target: 5,
+    warn: 10,
+    higherIsBetter: false,
+    unit: "%",
+  },
+};
+
+const parsePercentValue = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = parseFloat(String(value).replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getKpiBenchmarkConfig = (label) => KPI_BENCHMARKS[label] || null;
+
+const getKpiStatus = (label, value) => {
+  const config = getKpiBenchmarkConfig(label);
+  if (!config) return null;
+  const numeric = parsePercentValue(value);
+  if (numeric === null) return null;
+  if (config.higherIsBetter) {
+    if (numeric >= config.target) return "good";
+    if (numeric >= config.warn) return "warn";
+    return "bad";
+  }
+  if (numeric <= config.target) return "good";
+  if (numeric <= config.warn) return "warn";
+  return "bad";
+};
+
+const getKpiStatusColor = (status) => {
+  if (status === "good") return PDF_SUCCESS;
+  if (status === "warn") return PDF_WARNING;
+  if (status === "bad") return PDF_DANGER;
+  return PDF_BRAND_DARK;
+};
+
+const getBenchmarkLabel = (status, config) => {
+  const bench = `${config.target}${config.unit || ""}`;
+  if (!status) return `Bench: ${bench}`;
+  if (config.higherIsBetter) {
+    if (status === "good") return `Above ${bench} benchmark`;
+    if (status === "warn") return `Near ${bench} benchmark`;
+    return `Below ${bench} benchmark`;
+  }
+  if (status === "good") return `Below ${bench} benchmark`;
+  if (status === "warn") return `Near ${bench} benchmark`;
+  return `Above ${bench} benchmark`;
+};
+
+const buildSummaryValueMap = (rows = []) =>
+  rows.reduce((acc, [label, value]) => {
+    acc[label] = value;
+    return acc;
+  }, {});
+
+const buildCriticalAlerts = (reportType, reportAnalytics) => {
+  const alerts = [];
+  const rows = reportAnalytics?.summaryRows || [];
+  rows.forEach(([label, value]) => {
+    const status = getKpiStatus(label, value);
+    const config = getKpiBenchmarkConfig(label);
+    if (!config || status !== "bad") return;
+    alerts.push({
+      level: "critical",
+      text: `${label} is ${getBenchmarkLabel(status, config).toLowerCase()} (${value}).`,
+    });
+  });
+
+  if (reportType === "rider_performance") {
+    const totalViolations = reportAnalytics?.metrics?.totalViolations || 0;
+    if (totalViolations > 0) {
+      alerts.push({
+        level: "warning",
+        text: `Violations recorded: ${totalViolations}. Prioritize coaching for flagged riders.`,
+      });
+    }
+    const floodAlerts = reportAnalytics?.metrics?.totalFloodAlerts || 0;
+    if (floodAlerts > 0) {
+      alerts.push({
+        level: "warning",
+        text: `Flood alerts recorded: ${floodAlerts}. Confirm rider safety and reassign routes.`,
+      });
+    }
+  }
+  if (reportType === "overall") {
+    const totalViolations = reportAnalytics?.summaryRows?.find(
+      ([k]) => k === "Total Violations",
+    )?.[1];
+    const numeric = parseInt(totalViolations, 10);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      alerts.push({
+        level: "warning",
+        text: `Total violations logged: ${numeric}. Reinforce compliance and safety.`,
+      });
+    }
+    const floodAlerts = parseInt(
+      reportAnalytics?.summaryRows?.find(([k]) => k === "Flood Alerts")?.[1],
+      10,
+    );
+    if (Number.isFinite(floodAlerts) && floodAlerts > 0) {
+      alerts.push({
+        level: "warning",
+        text: `Flood alerts recorded: ${floodAlerts}. Adjust routing and rider assignments.`,
+      });
+    }
+  }
+
+  return alerts;
+};
+
+const buildRecommendations = (reportType, reportAnalytics) => {
+  const recs = [];
+  const rows = reportAnalytics?.summaryRows || [];
+  const map = buildSummaryValueMap(rows);
+  const deliveryRate = parsePercentValue(map["Delivery Rate"]);
+  const firstAttemptRate =
+    parsePercentValue(map["1st Attempt Success Rate"]) ||
+    parsePercentValue(map["1st Attempt Success"]);
+  const delayRate = parsePercentValue(map["Delay Rate"]);
+
+  if (Number.isFinite(deliveryRate) && deliveryRate < 90) {
+    recs.push(
+      "Improve routing and pickup scheduling to lift the delivery rate toward the 90% benchmark.",
+    );
+  }
+  if (Number.isFinite(firstAttemptRate) && firstAttemptRate < 70) {
+    recs.push(
+      "Strengthen address validation and pre-delivery contact to raise first-attempt success.",
+    );
+  }
+  if (Number.isFinite(delayRate) && delayRate > 5) {
+    recs.push(
+      "Add cut-off reminders and proactive status updates to curb delivery delays.",
+    );
+  }
+
+  if (reportType === "rider_performance" || reportType === "overall") {
+    const totalViolations =
+      reportAnalytics?.metrics?.totalViolations ||
+      parseInt(map["Total Violations"], 10) ||
+      0;
+    if (Number.isFinite(totalViolations) && totalViolations > 0) {
+      recs.push(
+        "Run refresher training for riders with repeated violations and track weekly improvements.",
+      );
+    }
+    const floodAlerts =
+      reportAnalytics?.metrics?.totalFloodAlerts ||
+      parseInt(map["Flood Alerts"], 10) ||
+      0;
+    if (Number.isFinite(floodAlerts) && floodAlerts > 0) {
+      recs.push(
+        "Review flood-affected zones and update route plans to reduce rider exposure.",
+      );
+    }
+    const topPerformer =
+      reportAnalytics?.metrics?.topPerformer || map["Top Performer"];
+    if (topPerformer) {
+      recs.push(
+        `Recognize ${topPerformer} and share best practices across the rider team.`,
+      );
+    }
+  }
+
+  if (!recs.length) {
+    recs.push(
+      "Maintain current operating cadence and continue monitoring KPI benchmarks.",
+    );
+  }
+
+  return recs;
+};
+
+const buildExecutiveSummary = (
+  reportType,
+  reportAnalytics,
+  dateRange = "All time",
+) => {
+  const rows = reportAnalytics?.summaryRows || [];
+  const map = buildSummaryValueMap(rows);
+  const totalParcels = map["Total Parcels"];
+  const deliveryRate = map["Delivery Rate"];
+  const firstAttempt =
+    map["1st Attempt Success Rate"] || map["1st Attempt Success"];
+  const delayRate = map["Delay Rate"];
+  const totalRiders = map["Total Riders"];
+  const totalDeliveries = map["Total Deliveries"];
+  const totalViolations = map["Total Violations"];
+  const floodAlerts = map["Flood Alerts"];
+  const topPerformer = map["Top Performer"];
+  const mostFlagged = map["Most Flagged Rider"];
+  const paragraphs = [];
+
+  if (reportType === "parcels") {
+    paragraphs.push(
+      `This parcels report covers ${dateRange} with ${totalParcels || "0"} parcels processed. Delivery rate is ${deliveryRate || "0%"} and first-attempt success is ${firstAttempt || "0%"}.`,
+    );
+    paragraphs.push(`Delays (attempt 2 failed) are ${delayRate || "0%"}.`);
+  } else if (reportType === "rider_performance") {
+    paragraphs.push(
+      `Rider performance for ${dateRange} includes ${totalRiders || "0"} riders delivering ${totalDeliveries || "0"} parcels.`,
+    );
+    if (topPerformer) {
+      paragraphs.push(`Top performer: ${topPerformer}.`);
+    }
+    if (mostFlagged) {
+      paragraphs.push(`Most flagged rider: ${mostFlagged}.`);
+    }
+    if (totalViolations) {
+      paragraphs.push(`Total violations logged: ${totalViolations}.`);
+    }
+    if (floodAlerts && String(floodAlerts) !== "0") {
+      paragraphs.push(`Flood alerts recorded: ${floodAlerts}.`);
+    }
+  } else {
+    paragraphs.push(
+      `Overall operations summary for ${dateRange} shows ${totalParcels || "0"} parcels and ${totalRiders || "0"} riders.`,
+    );
+    paragraphs.push(
+      `Delivery rate is ${deliveryRate || "0%"} with first-attempt success at ${firstAttempt || "0%"}.`,
+    );
+    if (topPerformer) {
+      paragraphs.push(`Top performer: ${topPerformer}.`);
+    }
+    if (mostFlagged) {
+      paragraphs.push(`Most flagged rider: ${mostFlagged}.`);
+    }
+    if (floodAlerts && String(floodAlerts) !== "0") {
+      paragraphs.push(`Flood alerts recorded: ${floodAlerts}.`);
+    }
+  }
+
+  return paragraphs;
+};
+
+const buildHighlightCards = (reportType, reportAnalytics) => {
+  const rows = reportAnalytics?.summaryRows || [];
+  const map = buildSummaryValueMap(rows);
+  if (reportType === "parcels") {
+    return [
+      {
+        label: "Total Parcels",
+        value: map["Total Parcels"] || "0",
+      },
+      {
+        label: "Delivery Rate",
+        value: map["Delivery Rate"] || "0%",
+        status: getKpiStatus("Delivery Rate", map["Delivery Rate"]),
+      },
+      {
+        label: "1st Attempt Success",
+        value: map["1st Attempt Success Rate"] || "0%",
+        status: getKpiStatus(
+          "1st Attempt Success Rate",
+          map["1st Attempt Success Rate"],
+        ),
+      },
+    ];
+  }
+  if (reportType === "rider_performance") {
+    return [
+      {
+        label: "Total Riders",
+        value: map["Total Riders"] || "0",
+      },
+      {
+        label: "Total Deliveries",
+        value: map["Total Deliveries"] || "0",
+      },
+      {
+        label: "Total Violations",
+        value: map["Total Violations"] || "0",
+      },
+    ];
+  }
+  return [
+    {
+      label: "Total Parcels",
+      value: map["Total Parcels"] || "0",
+    },
+    {
+      label: "Delivery Rate",
+      value: map["Delivery Rate"] || "0%",
+      status: getKpiStatus("Delivery Rate", map["Delivery Rate"]),
+    },
+    {
+      label: "Total Riders",
+      value: map["Total Riders"] || "0",
+    },
+  ];
+};
+
+const buildTocItems = (reportType) => {
+  if (reportType === "parcels") {
+    return [
+      "Executive Summary",
+      "Key Metrics",
+      "Analytics Charts",
+      "Raw Data",
+      "Recommendations",
+    ];
+  }
+  if (reportType === "rider_performance") {
+    return [
+      "Executive Summary",
+      "Key Metrics",
+      "Rider 1st Attempt Rates",
+      "Analytics Charts",
+      "Rider Performance Breakdown",
+      "Raw Data",
+      "Recommendations",
+    ];
+  }
+  return [
+    "Executive Summary",
+    "Overview Metrics",
+    "Parcels Section",
+    "Rider Performance Section",
+    "Flood-Affected Riders",
+    "Raw Data",
+    "Recommendations",
+  ];
+};
 
 const pdfAddCoverHeader = (
   doc,
@@ -2674,28 +3220,32 @@ const pdfAddCoverHeader = (
   generatedAt,
   logoDataUrl,
 ) => {
+  // Main red header bar - larger and more professional
   doc.setFillColor(...PDF_BRAND_RED);
-  doc.rect(0, 0, pageWidth, 38, "F");
-  doc.setFillColor(200, 16, 46);
-  doc.rect(0, 34, pageWidth, 4, "F");
-  if (logoDataUrl) {
-    try {
-      doc.addImage(logoDataUrl, "PNG", 10, 7, 24, 24);
-    } catch (_) {}
-  }
-  const textX = logoDataUrl ? 40 : 14;
+  doc.rect(0, 0, pageWidth, 24, "F");
+
+  // Header text - title on left
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(22);
   doc.setTextColor(...PDF_WHITE);
-  doc.text(reportTitle, textX, 20);
+  doc.text(reportTitle, 14, 16);
+
+  // Right side info - date range, generated by, timestamp (less crowded)
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(255, 200, 200);
-  doc.text(
-    `${dateRange}   ·   Generated by: ${generatedBy || "Unknown"}   ·   ${generatedAt}`,
-    textX,
-    28,
-  );
+  doc.setFontSize(7);
+  doc.setTextColor(...PDF_WHITE);
+
+  const headerRightX = pageWidth - 50;
+  doc.text(dateRange, headerRightX, 8, { align: "right" });
+  doc.text(`Generated by: ${generatedBy || "Admin"}`, headerRightX, 12, {
+    align: "right",
+  });
+  doc.text(generatedAt, headerRightX, 16, { align: "right" });
+
+  // Light gray section below header for breathing room
+  doc.setFillColor(...PDF_COVER_BG);
+  doc.rect(0, 24, pageWidth, 20, "F");
+
   doc.setTextColor(...PDF_BRAND_DARK);
 };
 
@@ -2720,11 +3270,11 @@ const loadLogoDataUrl = () =>
 
 const pdfAddRunningHeader = (doc, pageWidth, reportTitle) => {
   doc.setFillColor(...PDF_BRAND_RED);
-  doc.rect(0, 0, pageWidth, 9, "F");
+  doc.rect(0, 0, pageWidth, 8, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_WHITE);
-  doc.text(reportTitle.toUpperCase(), pageWidth / 2, 6, { align: "center" });
+  doc.text(reportTitle.toUpperCase(), pageWidth / 2, 5.5, { align: "center" });
   doc.setTextColor(...PDF_BRAND_DARK);
 };
 
@@ -2739,7 +3289,7 @@ const pdfAddPageFooter = (
   doc.setFillColor(...PDF_SLATE_100);
   doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
   doc.setDrawColor(...PDF_BORDER);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.25);
   doc.line(0, pageHeight - 10, pageWidth, pageHeight - 10);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
@@ -2751,22 +3301,308 @@ const pdfAddPageFooter = (
 };
 
 const pdfSectionHeading = (doc, text, y, pageWidth) => {
-  doc.setFillColor(...PDF_BRAND_DARK);
-  doc.roundedRect(10, y - 5, pageWidth - 20, 9, 1, 1, "F");
+  doc.setFillColor(...PDF_SLATE_100);
+  doc.roundedRect(10, y - 5, pageWidth - 20, 9, 2, 2, "F");
   doc.setFillColor(...PDF_BRAND_RED);
-  doc.roundedRect(10, y - 5, 3, 9, 1, 1, "F");
+  doc.roundedRect(10, y - 5, 3, 9, 2, 2, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.setTextColor(...PDF_WHITE);
-  doc.text(text.toUpperCase(), 17, y);
   doc.setTextColor(...PDF_BRAND_DARK);
-  return y + 6;
+  doc.text(text.toUpperCase(), 17, y);
+  doc.setDrawColor(...PDF_BORDER);
+  doc.setLineWidth(0.4);
+  doc.line(10, y + 3.5, pageWidth - 10, y + 3.5);
+  doc.setTextColor(...PDF_BRAND_DARK);
+  return y + 7;
+};
+
+const pdfAddParagraphs = (
+  doc,
+  paragraphs,
+  x,
+  y,
+  maxWidth,
+  lineHeight = 4.2,
+) => {
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...PDF_BRAND_DARK);
+  (paragraphs || []).forEach((para) => {
+    if (!para) return;
+    const lines = doc.splitTextToSize(String(para), maxWidth);
+    doc.text(lines, x, y);
+    y += lines.length * lineHeight + 3;
+  });
+  return y;
+};
+
+const pdfAddHighlights = (doc, highlights, startY, pageWidth) => {
+  if (!highlights?.length) return startY;
+  const cards = highlights.slice(0, 3);
+  const gap = 6;
+  const cardW = (pageWidth - 20 - gap * 2) / 3;
+  const cardH = 20;
+  let x = 10;
+  let y = startY;
+  cards.forEach((card) => {
+    doc.setFillColor(...PDF_WHITE);
+    doc.setDrawColor(...PDF_BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.8);
+    doc.setTextColor(...PDF_SLATE_400);
+    doc.text(String(card.label), x + 4, y + 6);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...getKpiStatusColor(card.status));
+    doc.text(String(card.value), x + 4, y + 14);
+    x += cardW + gap;
+  });
+  return y + cardH + 6;
+};
+
+const pdfAddBulletList = (doc, items, x, y, maxWidth) => {
+  if (!items?.length) return y;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...PDF_BRAND_DARK);
+  items.forEach((item) => {
+    const lines = doc.splitTextToSize(String(item), maxWidth - 6);
+    if (!lines.length) return;
+    doc.text(`- ${lines[0]}`, x, y);
+    y += 4.2;
+    for (let i = 1; i < lines.length; i += 1) {
+      doc.text(lines[i], x + 4, y);
+      y += 4.2;
+    }
+    y += 2;
+  });
+  return y;
+};
+
+const pdfAddAlertBoxes = (doc, alerts, x, y, maxWidth) => {
+  if (!alerts?.length) return y;
+  alerts.forEach((alert) => {
+    const isCritical = alert.level === "critical";
+    const bg = isCritical ? PDF_ALERT_BG : PDF_WARN_BG;
+    const stroke = isCritical ? PDF_DANGER : PDF_WARNING;
+    const lines = doc.splitTextToSize(alert.text, maxWidth - 10);
+    const boxH = lines.length * 4.2 + 6;
+    doc.setFillColor(...bg);
+    doc.setDrawColor(...stroke);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(x, y, maxWidth, boxH, 2, 2, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...stroke);
+    doc.text(isCritical ? "ALERT" : "NOTICE", x + 4, y + 4.5);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(lines, x + 4, y + 9);
+    y += boxH + 4;
+  });
+  doc.setTextColor(...PDF_BRAND_DARK);
+  return y;
+};
+
+const pdfAddTableOfContents = (doc, items, pageWidth) => {
+  let y = 18;
+  y = pdfSectionHeading(doc, "Table of Contents", y, pageWidth);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...PDF_BRAND_DARK);
+  const listX = 14;
+  const listW = pageWidth - 28;
+  doc.setFillColor(...PDF_WHITE);
+  doc.setDrawColor(...PDF_BORDER);
+  doc.setLineWidth(0.3);
+  const boxH = (items?.length || 0) * 6 + 8;
+  doc.roundedRect(listX - 2, y - 3, listW + 4, boxH, 2, 2, "FD");
+  (items || []).forEach((item, idx) => {
+    doc.text(`${idx + 1}. ${item}`, listX, y + 2);
+    y += 6;
+  });
+  return y;
+};
+
+const pdfDrawCallout = (doc, text, x, y, maxW) => {
+  if (!text) return;
+  const lines = doc.splitTextToSize(text, maxW - 6);
+  const boxH = lines.length * 4 + 4;
+  doc.setFillColor(...PDF_WARN_BG);
+  doc.setDrawColor(...PDF_WARNING);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(x, y, maxW, boxH, 2, 2, "FD");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.setTextColor(120, 53, 15);
+  doc.text(lines, x + 3, y + 3.5);
+  doc.setTextColor(...PDF_BRAND_DARK);
+};
+
+const pdfFailureAnalysisTable = (
+  doc,
+  failureReasons,
+  startY,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  if (!failureReasons?.length) return startY;
+  if (startY + 30 > pageHeight - 14) {
+    doc.addPage();
+    pdfAddRunningHeader(doc, pageWidth, reportTitle);
+    startY = 16;
+  }
+  startY = pdfSectionHeading(
+    doc,
+    "Failure / Attempt Analysis",
+    startY,
+    pageWidth,
+  );
+  startY += 2;
+  autoTable(doc, {
+    startY,
+    margin: { left: 10, right: 10 },
+    head: [["Reason (Attempt 1)", "Count", "Share of Failures"]],
+    body: failureReasons.map((r) => [r.reason, String(r.count), `${r.share}%`]),
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8,
+      textColor: [31, 41, 55],
+      lineColor: PDF_BORDER,
+      lineWidth: 0.18,
+      cellPadding: 2.5,
+    },
+    headStyles: {
+      fillColor: PDF_BRAND_RED,
+      textColor: PDF_WHITE,
+      fontStyle: "bold",
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    columnStyles: {
+      1: { halign: "center" },
+      2: { halign: "center" },
+    },
+  });
+  return doc.lastAutoTable.finalY + 8;
+};
+
+const pdfRiderFirstAttemptTable = (
+  doc,
+  riderFirstAttemptRows,
+  startY,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  if (!riderFirstAttemptRows?.length) return startY;
+  if (startY + 30 > pageHeight - 14) {
+    doc.addPage();
+    pdfAddRunningHeader(doc, pageWidth, reportTitle);
+    startY = 16;
+  }
+  startY = pdfSectionHeading(doc, "Rider 1st Attempt Rates", startY, pageWidth);
+  startY += 2;
+  autoTable(doc, {
+    startY,
+    margin: { left: 10, right: 10 },
+    head: [["Rider", "1st Attempt Success", "2nd Attempt Success"]],
+    body: riderFirstAttemptRows.map((r) => [
+      r.name,
+      `${r.rate}%`,
+      `${r.secondRate}%`,
+    ]),
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8,
+      textColor: [31, 41, 55],
+      lineColor: PDF_BORDER,
+      lineWidth: 0.18,
+      cellPadding: 2.5,
+    },
+    headStyles: {
+      fillColor: PDF_BRAND_RED,
+      textColor: PDF_WHITE,
+      fontStyle: "bold",
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    columnStyles: {
+      1: { halign: "center" },
+      2: { halign: "center" },
+    },
+    didParseCell: (tableData) => {
+      if (tableData.section !== "body") return;
+      if (tableData.column.index === 1 || tableData.column.index === 2) {
+        const val = parseInt(tableData.cell.raw, 10);
+        if (val >= 80) tableData.cell.styles.textColor = PDF_SUCCESS;
+        else if (val >= 60) tableData.cell.styles.textColor = PDF_WARNING;
+        else tableData.cell.styles.textColor = PDF_DANGER;
+        tableData.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  return doc.lastAutoTable.finalY + 8;
+};
+
+const pdfFloodAffectedTable = (
+  doc,
+  floodAffectedRows,
+  startY,
+  pageWidth,
+  pageHeight,
+  reportTitle,
+) => {
+  if (!floodAffectedRows?.length) return startY;
+  if (startY + 30 > pageHeight - 14) {
+    doc.addPage();
+    pdfAddRunningHeader(doc, pageWidth, reportTitle);
+    startY = 16;
+  }
+  startY = pdfSectionHeading(doc, "Flood-Affected Riders", startY, pageWidth);
+  startY += 2;
+  autoTable(doc, {
+    startY,
+    margin: { left: 10, right: 10 },
+    head: [["Rider", "Date", "Location"]],
+    body: floodAffectedRows.map((r) => [
+      r.name || "Unknown",
+      formatPdfDate(r.date),
+      r.address || `${r.lat}, ${r.lng}` || "-",
+    ]),
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8,
+      textColor: [31, 41, 55],
+      lineColor: PDF_BORDER,
+      lineWidth: 0.18,
+      cellPadding: 2.5,
+    },
+    headStyles: {
+      fillColor: PDF_BRAND_RED,
+      textColor: PDF_WHITE,
+      fontStyle: "bold",
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    columnStyles: {
+      1: { halign: "center" },
+    },
+  });
+  return doc.lastAutoTable.finalY + 8;
 };
 
 const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
   const cols = 3;
   const boxW = (pageWidth - 20 - (cols - 1) * 5) / cols;
-  const boxH = 16;
+  const boxH = 18;
   const gap = 5;
   let x = 10,
     y = startY;
@@ -2783,11 +3619,13 @@ const pdfKpiGrid = (doc, rows, startY, pageWidth) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(...PDF_SLATE_400);
-    doc.text(String(label), x + 4, y + 6);
+    doc.text(String(label), x + 4, y + 5.5);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10.5);
-    doc.setTextColor(...PDF_BRAND_DARK);
-    doc.text(String(value), x + 4, y + 13);
+    doc.setFontSize(10);
+    const status = getKpiStatus(label, value);
+    const valueColor = getKpiStatusColor(status);
+    doc.setTextColor(...valueColor);
+    doc.text(String(value), x + 4, y + 12);
     x += boxW + gap;
   });
 
@@ -2839,6 +3677,16 @@ const pdfChartGrid = (
       chartW - 2,
       chartH - 2,
     );
+    if (ci.annotation) {
+      const calloutW = Math.min(70, chartW - 6);
+      pdfDrawCallout(
+        doc,
+        ci.annotation,
+        x + chartW - calloutW - 3,
+        y + labelH + 3,
+        calloutW,
+      );
+    }
   });
 
   const lastRow = Math.floor((chartImages.length - 1) / cols);
@@ -2873,8 +3721,7 @@ const pdfRiderPerfTable = (
     [
       "Rider Name",
       "Delivered",
-      "Cancelled",
-      "Delayed",
+      "Delayed (Attempt 2 Failed)",
       "Violations",
       "Delivery Rate",
     ],
@@ -2882,7 +3729,6 @@ const pdfRiderPerfTable = (
   const body = riderPerfRows.map((r) => [
     r.name,
     String(r.delivered),
-    String(r.cancelled),
     String(r.delayed),
     String(r.violations),
     `${r.deliveryRate}%`,
@@ -2903,7 +3749,7 @@ const pdfRiderPerfTable = (
       cellPadding: 2.5,
     },
     headStyles: {
-      fillColor: PDF_BRAND_DARK,
+      fillColor: PDF_BRAND_RED,
       textColor: PDF_WHITE,
       fontStyle: "bold",
       halign: "left",
@@ -2913,21 +3759,21 @@ const pdfRiderPerfTable = (
       0: { cellWidth: "auto" },
       1: { halign: "center" },
       2: { halign: "center" },
+      2: { halign: "center" },
       3: { halign: "center" },
       4: { halign: "center" },
-      5: { halign: "center" },
     },
     didParseCell: (tableData) => {
       if (tableData.section !== "body") return;
       const col = tableData.column.index;
-      if (col === 5) {
+      if (col === 4) {
         const val = parseInt(tableData.cell.raw, 10);
         if (val >= 80) tableData.cell.styles.textColor = [22, 163, 74];
         else if (val >= 50) tableData.cell.styles.textColor = [202, 138, 4];
         else tableData.cell.styles.textColor = [220, 38, 38];
         tableData.cell.styles.fontStyle = "bold";
       }
-      if (col === 4 && parseInt(tableData.cell.raw, 10) > 0) {
+      if (col === 3 && parseInt(tableData.cell.raw, 10) > 0) {
         tableData.cell.styles.textColor = [220, 38, 38];
         tableData.cell.styles.fontStyle = "bold";
       }
@@ -2968,7 +3814,7 @@ const buildPdfDoc = async (
   });
   const dateRange =
     selStart && selEnd
-      ? `${formatPdfDate(selStart)} – ${formatPdfDate(selEnd)}`
+      ? `${formatPdfDate(selStart)} - ${formatPdfDate(selEnd)}`
       : "All time";
 
   pdfAddCoverHeader(
@@ -2981,6 +3827,32 @@ const buildPdfDoc = async (
     logoDataUrl,
   );
   let y = 46;
+  const executiveSummary = buildExecutiveSummary(
+    selType,
+    reportAnalytics,
+    dateRange,
+  );
+  const alerts = buildCriticalAlerts(selType, reportAnalytics);
+  const recommendations = buildRecommendations(selType, reportAnalytics);
+
+  y = pdfSectionHeading(doc, "Executive Summary", y, pageWidth);
+  y += 3;
+  y = pdfAddHighlights(
+    doc,
+    buildHighlightCards(selType, reportAnalytics),
+    y,
+    pageWidth,
+  );
+  y = pdfAddParagraphs(doc, executiveSummary, 14, y, pageWidth - 28);
+  y = pdfAddAlertBoxes(doc, alerts, 14, y, pageWidth - 28);
+
+  doc.addPage();
+  pdfAddRunningHeader(doc, pageWidth, reportTitle);
+  pdfAddTableOfContents(doc, buildTocItems(selType), pageWidth);
+
+  doc.addPage();
+  pdfAddRunningHeader(doc, pageWidth, reportTitle);
+  y = 16;
 
   if (selType === "overall" && reportAnalytics?.sections?.length) {
     for (const section of reportAnalytics.sections) {
@@ -2994,6 +3866,22 @@ const buildPdfDoc = async (
       if (section.summaryRows?.length) {
         y = pdfKpiGrid(doc, section.summaryRows, y, pageWidth);
         y += 4;
+      }
+      if (section.title === "Parcels" && section.failureReasons?.length) {
+        // Failure analysis removed
+      }
+      if (
+        section.title === "Rider Performance" &&
+        section.riderFirstAttemptRows?.length
+      ) {
+        y = pdfRiderFirstAttemptTable(
+          doc,
+          section.riderFirstAttemptRows,
+          y,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+        );
       }
       if (section.charts?.length) {
         const sectionImages = [];
@@ -3035,6 +3923,19 @@ const buildPdfDoc = async (
       y += 3;
       y = pdfKpiGrid(doc, reportAnalytics.summaryRows, y, pageWidth);
       y += 6;
+    }
+    if (
+      selType === "rider_performance" &&
+      reportAnalytics?.riderFirstAttemptRows?.length
+    ) {
+      y = pdfRiderFirstAttemptTable(
+        doc,
+        reportAnalytics.riderFirstAttemptRows,
+        y,
+        pageWidth,
+        pageHeight,
+        reportTitle,
+      );
     }
     if (reportChartImages?.length) {
       if (y + 78 > pageHeight - 14) {
@@ -3086,7 +3987,7 @@ const buildPdfDoc = async (
     overflow: "linebreak",
   };
   const tableHeadStyles = {
-    fillColor: PDF_BRAND_DARK,
+    fillColor: PDF_BRAND_RED,
     textColor: PDF_WHITE,
     fontStyle: "bold",
     halign: "left",
@@ -3095,6 +3996,9 @@ const buildPdfDoc = async (
 
   if (selType === "overall") {
     data.forEach((section) => {
+      // Skip Flood Affected Riders in overall report (shown in Rider Performance section)
+      if (section.section === "Flood Affected Riders") return;
+
       if (y > pageHeight - 28) {
         doc.addPage();
         pdfAddRunningHeader(doc, pageWidth, reportTitle);
@@ -3125,21 +4029,23 @@ const buildPdfDoc = async (
             ]
           : section.section === "Violations"
             ? [["Name", "Violation", "Date"]]
-            : [
-                [
-                  "Parcel ID",
-                  "Recipient",
-                  "Phone",
-                  "Address",
-                  "Rider",
-                  "Status",
-                  "Att.1 Status",
-                  "Att.1 Date",
-                  "Att.2 Status",
-                  "Att.2 Date",
-                  "Created",
-                ],
-              ];
+            : section.section === "Flood Affected Riders"
+              ? [["Name", "Date", "Lat", "Lng"]]
+              : [
+                  [
+                    "Parcel ID",
+                    "Recipient",
+                    "Phone",
+                    "Address",
+                    "Rider",
+                    "Status",
+                    "Att.1 Status",
+                    "Att.1 Date",
+                    "Att.2 Status",
+                    "Att.2 Date",
+                    "Created",
+                  ],
+                ];
 
       const body = section.data.map((row) =>
         section.section === "Riders"
@@ -3158,19 +4064,26 @@ const buildPdfDoc = async (
                 formatPdfCellValue(row.violation, "violation"),
                 formatPdfCellValue(row.date, "date"),
               ]
-            : [
-                formatPdfCellValue(row.parcel_id, "parcel_id"),
-                formatPdfCellValue(row.recipient_name, "recipient_name"),
-                formatPdfCellValue(row.recipient_phone, "recipient_phone"),
-                formatPdfCellValue(row.address, "address"),
-                formatPdfCellValue(row.assigned_rider, "assigned_rider"),
-                formatPdfCellValue(row.status, "status"),
-                formatPdfCellValue(row.attempt1_status, "attempt1_status"),
-                formatPdfCellValue(row.attempt1_date, "attempt1_date"),
-                formatPdfCellValue(row.attempt2_status, "attempt2_status"),
-                formatPdfCellValue(row.attempt2_date, "attempt2_date"),
-                formatPdfCellValue(row.created_at, "created_at"),
-              ],
+            : section.section === "Flood Affected Riders"
+              ? [
+                  formatPdfCellValue(getFloodRiderName(row), "name"),
+                  formatPdfCellValue(row.date || row.created_at, "date"),
+                  formatPdfCellValue(row.lat, "lat"),
+                  formatPdfCellValue(row.lng, "lng"),
+                ]
+              : [
+                  formatPdfCellValue(row.parcel_id, "parcel_id"),
+                  formatPdfCellValue(row.recipient_name, "recipient_name"),
+                  formatPdfCellValue(row.recipient_phone, "recipient_phone"),
+                  formatPdfCellValue(row.address, "address"),
+                  formatPdfCellValue(row.assigned_rider, "assigned_rider"),
+                  formatPdfCellValue(row.status, "status"),
+                  formatPdfCellValue(row.attempt1_status, "attempt1_status"),
+                  formatPdfCellValue(row.attempt1_date, "attempt1_date"),
+                  formatPdfCellValue(row.attempt2_status, "attempt2_status"),
+                  formatPdfCellValue(row.attempt2_date, "attempt2_date"),
+                  formatPdfCellValue(row.created_at, "created_at"),
+                ],
       );
 
       autoTable(doc, {
@@ -3266,6 +4179,7 @@ const buildPdfDoc = async (
       });
       y = doc.lastAutoTable.finalY + 10;
     }
+
   } else {
     const head = columns.map(humanizeLabel);
     const body = data.map((row) =>
@@ -3284,6 +4198,13 @@ const buildPdfDoc = async (
     });
   }
 
+  doc.addPage();
+  pdfAddRunningHeader(doc, pageWidth, reportTitle);
+  y = 16;
+  y = pdfSectionHeading(doc, "Recommendations", y, pageWidth);
+  y += 3;
+  pdfAddBulletList(doc, recommendations, 14, y, pageWidth - 28);
+
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
@@ -3293,7 +4214,7 @@ const buildPdfDoc = async (
   return doc;
 };
 
-// ─── Main Dashboard Component ─────────────────────────────────────────────────
+// â”€â”€â”€ Main Dashboard Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
@@ -3345,7 +4266,7 @@ const Dashboard = () => {
   const [topRiderAvatars, setTopRiderAvatars] = useState({});
   const [kpiModalKey, setKpiModalKey] = useState(null);
 
-  // ── Refs ──
+  // â”€â”€ Refs â”€â”€
   const yearFilterRef = useRef(null);
   const violationMapRef = useRef(null);
   const violationLeafletMapRef = useRef(null);
@@ -3360,7 +4281,7 @@ const Dashboard = () => {
     year: "numeric",
   });
 
-  // ── Inject animation + popup styles once ──
+  // â”€â”€ Inject animation + popup styles once â”€â”€
   useEffect(() => {
     const styleId = "dash-value-anim-styles";
     if (document.getElementById(styleId)) return;
@@ -3406,7 +4327,7 @@ const Dashboard = () => {
     document.head.appendChild(style);
   }, []);
 
-  // ── Animated values ──
+  // â”€â”€ Animated values â”€â”€
   const transitionKey = useTransitionKey(selectedYear);
   const animTotalParcels = useAnimatedNumber(dashboardData.totalParcels);
   const animDelivered = useAnimatedNumber(dashboardData.delivered);
@@ -4095,7 +5016,7 @@ const Dashboard = () => {
     loadAnalytics();
   }, [selectedYear, yearFilterReady, availableYears, currentYear]);
 
-  // ── Fetch profile pictures for most flagged riders ──
+  // â”€â”€ Fetch profile pictures for most flagged riders â”€â”€
   useEffect(() => {
     if (!dashboardData.topFlaggedRiders.length) return;
     async function fetchFlaggedRiderAvatars() {
@@ -4122,7 +5043,7 @@ const Dashboard = () => {
     fetchFlaggedRiderAvatars();
   }, [dashboardData.topFlaggedRiders]);
 
-  // ── Fetch profile pictures for top riders ──
+  // â”€â”€ Fetch profile pictures for top riders â”€â”€
   useEffect(() => {
     if (!dashboardData.topRiders.length) return;
     async function fetchTopRiderAvatars() {
@@ -4189,7 +5110,7 @@ const Dashboard = () => {
     [dashboardData.topRiders, topRiderAvatars],
   );
 
-  // ── Map effects ──
+  // â”€â”€ Map effects â”€â”€
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
     const existing = violationLeafletMapRef.current;
@@ -4264,7 +5185,7 @@ const Dashboard = () => {
     };
   }, []);
 
-  // ── Report logic ──
+  // â”€â”€ Report logic â”€â”€
   const fetchReportData = async (selType, selStart, selEnd, selCol) => {
     let data = [],
       columns = [];
@@ -4322,10 +5243,19 @@ const Dashboard = () => {
       if (selEnd) vq = vq.lte("date", `${selEnd}T23:59:59`);
       const { data: violations, error: vErr } = await vq;
       if (vErr) throw vErr;
+      let fq = supabaseClient
+        .from("rider_flood_affected")
+        .select("*")
+        .order("date", { ascending: false });
+      if (selStart) fq = fq.gte("date", selStart);
+      if (selEnd) fq = fq.lte("date", `${selEnd}T23:59:59`);
+      const { data: floodAffected, error: fErr } = await fq;
+      if (fErr) throw fErr;
       data = [
         { section: "Riders", data: riders || [] },
         { section: "Parcels", data: normalizeParcelsForReport(parcels) },
         { section: "Violations", data: violations || [] },
+        { section: "Flood Affected Riders", data: floodAffected || [] },
       ];
       columns = null;
     } else if (selType === "overall") {
@@ -4350,17 +5280,26 @@ const Dashboard = () => {
         .order("date", { ascending: false });
       if (selStart) vq = vq.gte("date", selStart);
       if (selEnd) vq = vq.lte("date", `${selEnd}T23:59:59`);
-      const [parcels, ridersRes, violationsRes] = await Promise.all([
+      let fq = supabaseClient
+        .from("rider_flood_affected")
+        .select("*")
+        .order("date", { ascending: false });
+      if (selStart) fq = fq.gte("date", selStart);
+      if (selEnd) fq = fq.lte("date", `${selEnd}T23:59:59`);
+      const [parcels, ridersRes, violationsRes, floodRes] = await Promise.all([
         fetchAllPages(pq),
         rq,
         vq,
+        fq,
       ]);
       if (ridersRes.error) throw ridersRes.error;
       if (violationsRes.error) throw violationsRes.error;
+      if (floodRes.error) throw floodRes.error;
       data = [
         { section: "Riders", data: ridersRes.data },
         { section: "Parcels", data: normalizeParcelsForReport(parcels) },
         { section: "Violations", data: violationsRes.data || [] },
+        { section: "Flood Affected Riders", data: floodRes.data || [] },
       ];
       columns = null;
     }
@@ -4381,6 +5320,8 @@ const Dashboard = () => {
         "pnumber",
       ];
     if (sectionName === "Violations") return ["name", "violation", "date"];
+    if (sectionName === "Flood Affected Riders")
+      return ["name", "date", "lat", "lng", "user_id"];
     return [
       "parcel_id",
       "recipient_name",
@@ -4493,7 +5434,7 @@ const Dashboard = () => {
     return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% YoY`;
   }, [dashboardData.yearGrowth]);
 
-  // ── Derived animated display values ──
+  // â”€â”€ Derived animated display values â”€â”€
   const animDeliveryRate =
     analyticsSummary.totalParcels > 0
       ? (animDelivered / analyticsSummary.totalParcels) * 100
@@ -4534,7 +5475,7 @@ const Dashboard = () => {
           <PageSpinner fullScreen label="Loading dashboard..." />
         ) : (
           <>
-            {/* ── Header ── */}
+            {/* â”€â”€ Header â”€â”€ */}
             <div className="dash-header">
               <div className="dash-header-copy">
                 <h1 className="page-title">Dashboard</h1>
@@ -4568,13 +5509,13 @@ const Dashboard = () => {
             <div
               className={`analytics-dashboard-grid ${isYearSwitching ? "year-switching" : ""}`}
             >
-              {/* ── Row 1: KPI Cards ── */}
+              {/* â”€â”€ Row 1: KPI Cards â”€â”€ */}
               <div className="kpi-row">
                 <StatCard
                   icon={<FaBoxOpen />}
                   label="Parcels"
                   value={Math.round(animTotalParcels).toLocaleString()}
-                  sub={selectedYear === "All" ? "all time" : selectedYear}
+                  sub={selectedYear === "All" ? "All time" : selectedYear}
                   accent="sky"
                   animKey={transitionKey}
                   onChartClick={() => setKpiModalKey("totalParcels")}
@@ -4609,7 +5550,7 @@ const Dashboard = () => {
                 />
               </div>
 
-              {/* ── Row 2: Secondary KPIs ── */}
+              {/* â”€â”€ Row 2: Secondary KPIs â”€â”€ */}
               <div className="kpi-row">
                 <StatCard
                   icon={<FaPercent />}
@@ -4668,14 +5609,14 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* ── Row 3: Delivery trend + Status mix ── */}
+              {/* â”€â”€ Row 3: Delivery trend + Status mix â”€â”€ */}
               <div className="charts-row-main">
                 <ChartCard
                   title="Deliveries vs. Delays"
                   subtitle={
                     selectedYear === "All"
                       ? "by year"
-                      : `by month · ${selectedYear}`
+                      : `by month - ${selectedYear}`
                   }
                 >
                   <DeliveriesLineChart
@@ -4694,7 +5635,7 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 4: Top Riders + Most Flagged ── */}
+              {/* â”€â”€ Row 4: Top Riders + Most Flagged â”€â”€ */}
               <div className="charts-row-riders">
                 <ChartCard title="Top Riders" subtitle="">
                   {topRidersWithAvatars.length > 0 ? (
@@ -4738,7 +5679,7 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* ── Row 5: Rate Overview + Violations Trend ── */}
+              {/* â”€â”€ Row 5: Rate Overview + Violations Trend â”€â”€ */}
               <div className="charts-row-violations">
                 <ChartCard title="Rate Overview" subtitle="">
                   <RateOverviewChart
@@ -4758,7 +5699,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* ── Row 6: Map ── */}
+              {/* â”€â”€ Row 6: Map â”€â”€ */}
               <div className="charts-row-map-solo">
                 <div className="chart-card">
                   <div className="analytics-map-header">
@@ -4796,7 +5737,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* ── KPI Chart Modal — now passes selectedYear so tabs update reactively ── */}
+      {/* â”€â”€ KPI Chart Modal â€” now passes selectedYear so tabs update reactively â”€â”€ */}
       {kpiModalKey && (
         <KpiChartModal
           kpiKey={kpiModalKey}
@@ -4806,7 +5747,7 @@ const Dashboard = () => {
         />
       )}
 
-      {/* ── Fullscreen Map Modal ── */}
+      {/* â”€â”€ Fullscreen Map Modal â”€â”€ */}
       {violationMapModalOpen && (
         <div
           className="dashboard-modal-overlay violation-fullscreen-overlay"
@@ -4838,7 +5779,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ── Report Modal ── */}
+      {/* â”€â”€ Report Modal â”€â”€ */}
       {reportModalOpen && (
         <div
           className="dashboard-modal-overlay"
@@ -4858,6 +5799,14 @@ const Dashboard = () => {
                   <p>Export your logistics data as PDF or Excel</p>
                 </div>
               </div>
+              <button
+                type="button"
+                className="rpt-modal-close"
+                onClick={() => setReportModalOpen(false)}
+                aria-label="Close report modal"
+              >
+                <FaTimes />
+              </button>
             </div>
             <div className="rpt-modal-body">
               <div className="rpt-form-col">
@@ -4920,7 +5869,9 @@ const Dashboard = () => {
                       className={`rpt-format-pill ${format === "pdf" ? "rpt-format-pill-active" : ""}`}
                       onClick={() => setFormat("pdf")}
                     >
-                      <span className="rpt-pill-icon">📄</span>
+                      <span className="rpt-pill-icon">
+                        <FaFilePdf />
+                      </span>
                       <span className="rpt-pill-label">PDF</span>
                       <span className="rpt-pill-desc">Print-ready</span>
                     </button>
@@ -4929,7 +5880,9 @@ const Dashboard = () => {
                       className={`rpt-format-pill ${format === "xlsx" ? "rpt-format-pill-active" : ""}`}
                       onClick={() => setFormat("xlsx")}
                     >
-                      <span className="rpt-pill-icon">📊</span>
+                      <span className="rpt-pill-icon">
+                        <FaFileExcel />
+                      </span>
                       <span className="rpt-pill-label">Excel</span>
                       <span className="rpt-pill-desc">Spreadsheet</span>
                     </button>
@@ -4954,7 +5907,7 @@ const Dashboard = () => {
                       <span
                         className={`rpt-summary-val ${!reportSummaryStart ? "rpt-summary-placeholder" : ""}`}
                       >
-                        {reportSummaryStart || "—"}
+                        {reportSummaryStart || "-"}
                       </span>
                     </div>
                     <div className="rpt-summary-row">
@@ -4962,7 +5915,7 @@ const Dashboard = () => {
                       <span
                         className={`rpt-summary-val ${!reportSummaryEnd ? "rpt-summary-placeholder" : ""}`}
                       >
-                        {reportSummaryEnd || "—"}
+                        {reportSummaryEnd || "-"}
                       </span>
                     </div>
                     <div className="rpt-summary-divider" />
@@ -5008,7 +5961,7 @@ const Dashboard = () => {
                           Overall Report
                         </div>
                         <p>
-                          Comprehensive view of parcels and rider performance —
+                          Comprehensive view of parcels and rider performance -
                           all metrics in one document.
                         </p>
                       </>
@@ -5023,7 +5976,7 @@ const Dashboard = () => {
                 >
                   {isGeneratingReport ? (
                     <>
-                      <span className="rpt-btn-spinner" /> Generating…
+                      <span className="rpt-btn-spinner" /> Generating...
                     </>
                   ) : (
                     <>
@@ -5037,7 +5990,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ── Validation Modal ── */}
+      {/* â”€â”€ Validation Modal â”€â”€ */}
       {showReportValidation && (
         <div
           className="dashboard-modal-overlay"

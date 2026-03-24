@@ -2,10 +2,18 @@
 // Uses OpenCage Geocoding API (free tier, no credit card, good PH coverage)
 
 export default async function handler(req, res) {
-  const { address } = req.query;
+  const { address, lat, lng } = req.query;
 
+  // Handle reverse geocoding (lat/lng to address)
+  if (lat !== undefined && lng !== undefined) {
+    return handleReverseGeocoding(req, res, lat, lng);
+  }
+
+  // Handle forward geocoding (address to lat/lng)
   if (!address || !address.trim()) {
-    return res.status(400).json({ found: false, error: "No address provided" });
+    return res
+      .status(400)
+      .json({ found: false, error: "No address or coordinates provided" });
   }
 
   const apiKey = process.env.OPENCAGE_API_KEY;
@@ -33,6 +41,49 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ found: false, lat: null, lng: null });
+}
+
+// ── Reverse Geocoding (Coordinates to Address) ──────────────────────────────
+
+async function handleReverseGeocoding(req, res, lat, lng) {
+  const apiKey = process.env.OPENCAGE_API_KEY;
+  if (!apiKey) {
+    return res
+      .status(500)
+      .json({ found: false, error: "OPENCAGE_API_KEY not configured" });
+  }
+
+  try {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+
+    if (!isFinite(latNum) || !isFinite(lngNum)) {
+      return res
+        .status(400)
+        .json({ found: false, error: "Invalid coordinates" });
+    }
+
+    const encoded = encodeURIComponent(`${latNum},${lngNum}`);
+    const url = `https://api.opencagedata.com/geocode/v1/json?q=${encoded}&key=${apiKey}&countrycode=ph&limit=1&no_annotations=1`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(200).json({ found: false, address: null });
+    }
+
+    const data = await response.json();
+
+    if (!data.results?.length) {
+      return res.status(200).json({ found: false, address: null });
+    }
+
+    const formatted = data.results[0].formatted || null;
+    return res
+      .status(200)
+      .json({ found: true, address: formatted, lat: latNum, lng: lngNum });
+  } catch {
+    return res.status(200).json({ found: false, address: null });
+  }
 }
 
 // ── Build progressive fallback queries ──────────────────────────────────────

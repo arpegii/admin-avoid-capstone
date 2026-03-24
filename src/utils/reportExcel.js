@@ -8,7 +8,11 @@ const getExcelJs = async () => {
 };
 
 const FONT_FAMILY = "Calibri";
-const STATUS_COLUMNS = new Set(["status", "attempt1_status", "attempt2_status"]);
+const STATUS_COLUMNS = new Set([
+  "status",
+  "attempt1_status",
+  "attempt2_status",
+]);
 
 const COLORS = {
   brand: "FFB91C1C",
@@ -47,19 +51,34 @@ const borderThin = (argb = COLORS.slate200) => ({
 const styles = {
   banner: {
     fill: fillSolid(COLORS.brand),
-    font: { name: FONT_FAMILY, bold: true, size: 15, color: { argb: COLORS.white } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 15,
+      color: { argb: COLORS.white },
+    },
     alignment: { horizontal: "left", vertical: "middle" },
     border: borderThin(COLORS.brandDark),
   },
   sectionHeading: {
     fill: fillSolid(COLORS.slate900),
-    font: { name: FONT_FAMILY, bold: true, size: 10.5, color: { argb: COLORS.white } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 10.5,
+      color: { argb: COLORS.white },
+    },
     alignment: { horizontal: "left", vertical: "middle" },
     border: borderThin(COLORS.slate900),
   },
   metaLabel: {
     fill: fillSolid(COLORS.slate100),
-    font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.slate700 } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 9,
+      color: { argb: COLORS.slate700 },
+    },
     alignment: { horizontal: "left", vertical: "middle" },
     border: borderThin(COLORS.slate200),
   },
@@ -71,19 +90,34 @@ const styles = {
   },
   kpiLabel: {
     fill: fillSolid(COLORS.slate100),
-    font: { name: FONT_FAMILY, bold: true, size: 8.5, color: { argb: COLORS.slate500 } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 8.5,
+      color: { argb: COLORS.slate500 },
+    },
     alignment: { horizontal: "left", vertical: "bottom" },
     border: borderThin(COLORS.slate200),
   },
   kpiValue: {
     fill: fillSolid(COLORS.white),
-    font: { name: FONT_FAMILY, bold: true, size: 13, color: { argb: COLORS.slate900 } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 13,
+      color: { argb: COLORS.slate900 },
+    },
     alignment: { horizontal: "left", vertical: "top" },
     border: borderThin(COLORS.slate200),
   },
   tableHeader: {
     fill: fillSolid(COLORS.brand),
-    font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.white } },
+    font: {
+      name: FONT_FAMILY,
+      bold: true,
+      size: 9,
+      color: { argb: COLORS.white },
+    },
     alignment: { horizontal: "left", vertical: "middle", wrapText: true },
     border: borderThin(COLORS.brandDark),
   },
@@ -101,7 +135,12 @@ const styles = {
   },
   emptyState: {
     fill: fillSolid(COLORS.rowAlt),
-    font: { name: FONT_FAMILY, italic: true, size: 9, color: { argb: COLORS.slate500 } },
+    font: {
+      name: FONT_FAMILY,
+      italic: true,
+      size: 9,
+      color: { argb: COLORS.slate500 },
+    },
     alignment: { horizontal: "center", vertical: "middle" },
     border: borderThin(COLORS.slate200),
   },
@@ -144,23 +183,29 @@ const formatDateTime = (value) => {
   });
 };
 
-const toDisplayCase = (value) =>
-  String(value || "")
-    .trim()
-    .replace(/[_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .toLowerCase()
-    .replace(/(^|[\s-])([a-z])/g, (_, prefix, char) => `${prefix}${char.toUpperCase()}`);
+const toDisplayCase = (value) => {
+  if (!value) return "";
+  const str = String(value).trim();
+  if (!str) return "";
+  // General title case for display
+  return str
+    .split(/[\s_-]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
 
 const toStatusCase = (value) => {
   const normalized = normalizeText(value);
-  if (normalized === "on going") return "On-Going";
+  if (normalized === "on going") return "On Going";
   if (normalized === "pending") return "Pending";
-  if (normalized === "cancelled" || normalized === "canceled") return "Cancelled";
+  if (normalized === "cancelled" || normalized === "canceled")
+    return "Cancelled";
   if (normalized === "failed") return "Failed";
   if (normalized === "successfully delivered") return "Successfully Delivered";
   if (normalized === "success") return "Success";
   if (normalized === "received") return "Received";
+  if (normalized === "in progress") return "In Progress";
+  if (normalized === "delivered") return "Delivered";
   return toDisplayCase(value);
 };
 
@@ -168,7 +213,10 @@ const formatCellValue = (value, columnKey) => {
   if (value === null || value === undefined) return "";
 
   if (typeof value === "object" && value !== null) {
-    const fullName = [value.fname, value.lname].filter(Boolean).join(" ").trim();
+    const fullName = [value.fname, value.lname]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     if (fullName) return fullName;
     if (value.username) return String(value.username);
     return "";
@@ -185,7 +233,8 @@ const formatCellValue = (value, columnKey) => {
 
   const raw = String(value).trim();
   if (!raw) return "";
-  if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw;
+  if (/email/i.test(columnKey) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw))
+    return raw;
   if (/status/i.test(columnKey)) return toStatusCase(raw);
   if (/(^id$|_id$|phone)/i.test(columnKey)) return raw;
   if (columnKey === "username") return raw;
@@ -213,25 +262,45 @@ const statusStyleFor = (value) => {
   if (normalized.includes("deliver") || normalized.includes("success")) {
     return {
       fill: fillSolid(COLORS.successBg),
-      font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.successText } },
+      font: {
+        name: FONT_FAMILY,
+        bold: true,
+        size: 9,
+        color: { argb: COLORS.successText },
+      },
     };
   }
   if (normalized.includes("cancel")) {
     return {
       fill: fillSolid(COLORS.dangerBg),
-      font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.dangerText } },
+      font: {
+        name: FONT_FAMILY,
+        bold: true,
+        size: 9,
+        color: { argb: COLORS.dangerText },
+      },
     };
   }
   if (normalized.includes("fail")) {
     return {
       fill: fillSolid(COLORS.warnBg),
-      font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.warnText } },
+      font: {
+        name: FONT_FAMILY,
+        bold: true,
+        size: 9,
+        color: { argb: COLORS.warnText },
+      },
     };
   }
   if (normalized.includes("pending") || normalized.includes("progress")) {
     return {
       fill: fillSolid(COLORS.infoBg),
-      font: { name: FONT_FAMILY, bold: true, size: 9, color: { argb: COLORS.infoText } },
+      font: {
+        name: FONT_FAMILY,
+        bold: true,
+        size: 9,
+        color: { argb: COLORS.infoText },
+      },
     };
   }
   return null;
@@ -240,7 +309,11 @@ const statusStyleFor = (value) => {
 const getColumnWidth = (rows, columnKey, humanizeLabel) => {
   const header = String(humanizeLabel(columnKey) || columnKey || "").length;
   const maxData = rows.reduce(
-    (max, row) => Math.max(max, String(formatCellValue(row[columnKey], columnKey) || "").length),
+    (max, row) =>
+      Math.max(
+        max,
+        String(formatCellValue(row[columnKey], columnKey) || "").length,
+      ),
     0,
   );
   return Math.min(Math.max(header, maxData) + 3, 45);
@@ -299,13 +372,21 @@ const buildSummarySheet = (workbook, options) => {
   worksheet.columns = Array.from({ length: 6 }, () => ({ width: 22 }));
 
   worksheet.mergeCells(1, 1, 1, 6);
-  setCell(worksheet, 1, 1, `${humanizeLabel(reportType)} Report`, styles.banner);
+  setCell(
+    worksheet,
+    1,
+    1,
+    `${humanizeLabel(reportType)} Report`,
+    styles.banner,
+  );
   worksheet.getRow(1).height = 30;
 
   const metaRows = [
     ["Report Type", humanizeLabel(reportType)],
     ["Date Range", formatDateRange(startDate, endDate)],
-    ...(reportType === "parcels" ? [["Column Scope", humanizeLabel(selectedColumn || "all")]] : []),
+    ...(reportType === "parcels"
+      ? [["Column Scope", humanizeLabel(selectedColumn || "all")]]
+      : []),
     ["Generated By", generatedBy || "Unknown User"],
     [
       "Generated At",
@@ -390,7 +471,13 @@ const buildChartsSheet = (workbook, reportChartImages, reportAnalytics) => {
   let row = 3;
   (reportChartImages || []).slice(0, 8).forEach((chartImage, index) => {
     worksheet.mergeCells(row, 1, row, 8);
-    setCell(worksheet, row, 1, chartImage.title || `Chart ${index + 1}`, styles.sectionHeading);
+    setCell(
+      worksheet,
+      row,
+      1,
+      chartImage.title || `Chart ${index + 1}`,
+      styles.sectionHeading,
+    );
     worksheet.getRow(row).height = 20;
     row += 1;
 
@@ -411,13 +498,25 @@ const buildChartsSheet = (workbook, reportChartImages, reportAnalytics) => {
         row += 15;
       } catch {
         worksheet.mergeCells(row, 1, row, 8);
-        setCell(worksheet, row, 1, "Unable to render chart image.", styles.emptyState);
+        setCell(
+          worksheet,
+          row,
+          1,
+          "Unable to render chart image.",
+          styles.emptyState,
+        );
         worksheet.getRow(row).height = 20;
         row += 1;
       }
     } else {
       worksheet.mergeCells(row, 1, row, 8);
-      setCell(worksheet, row, 1, "No chart image available.", styles.emptyState);
+      setCell(
+        worksheet,
+        row,
+        1,
+        "No chart image available.",
+        styles.emptyState,
+      );
       worksheet.getRow(row).height = 20;
       row += 1;
     }
@@ -450,9 +549,12 @@ const buildDataSheet = (workbook, rows, columns, humanizeLabel, sheetTitle) => {
   const columnsToUse = resolvedColumns.length ? resolvedColumns : ["value"];
   const totalColumns = columnsToUse.length;
 
-  const worksheet = workbook.addWorksheet(sanitizeSheetName(sheetTitle, "Data"), {
-    views: [{ state: "frozen", ySplit: 2 }],
-  });
+  const worksheet = workbook.addWorksheet(
+    sanitizeSheetName(sheetTitle, "Data"),
+    {
+      views: [{ state: "frozen", ySplit: 2 }],
+    },
+  );
 
   worksheet.columns = columnsToUse.map((columnKey) => ({
     key: columnKey,
@@ -464,7 +566,13 @@ const buildDataSheet = (workbook, rows, columns, humanizeLabel, sheetTitle) => {
   worksheet.getRow(1).height = 26;
 
   columnsToUse.forEach((columnKey, columnIndex) => {
-    setCell(worksheet, 2, columnIndex + 1, humanizeLabel(columnKey), styles.tableHeader);
+    setCell(
+      worksheet,
+      2,
+      columnIndex + 1,
+      humanizeLabel(columnKey),
+      styles.tableHeader,
+    );
   });
   worksheet.getRow(2).height = 20;
 
@@ -475,18 +583,31 @@ const buildDataSheet = (workbook, rows, columns, humanizeLabel, sheetTitle) => {
 
   if (!safeRows.length) {
     worksheet.mergeCells(3, 1, 3, totalColumns);
-    setCell(worksheet, 3, 1, "No rows found for the selected filters.", styles.emptyState);
+    setCell(
+      worksheet,
+      3,
+      1,
+      "No rows found for the selected filters.",
+      styles.emptyState,
+    );
     worksheet.getRow(3).height = 20;
     return;
   }
 
   safeRows.forEach((record, rowIndex) => {
     const targetRow = rowIndex + 3;
-    const baseRowStyle = rowIndex % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
+    const baseRowStyle =
+      rowIndex % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
 
     columnsToUse.forEach((columnKey, columnIndex) => {
       const formattedValue = formatCellValue(record[columnKey], columnKey);
-      const cell = setCell(worksheet, targetRow, columnIndex + 1, formattedValue, baseRowStyle);
+      const cell = setCell(
+        worksheet,
+        targetRow,
+        columnIndex + 1,
+        formattedValue,
+        baseRowStyle,
+      );
 
       if (STATUS_COLUMNS.has(columnKey)) {
         const tone = statusStyleFor(formattedValue);
@@ -495,7 +616,11 @@ const buildDataSheet = (workbook, rows, columns, humanizeLabel, sheetTitle) => {
             ...baseRowStyle,
             fill: tone.fill,
             font: tone.font,
-            alignment: { horizontal: "center", vertical: "middle", wrapText: true },
+            alignment: {
+              horizontal: "center",
+              vertical: "middle",
+              wrapText: true,
+            },
           });
         }
       }
@@ -562,6 +687,7 @@ export const exportReportAsWorkbook = async ({
   if (reportType === "overall" && Array.isArray(data)) {
     data.forEach((section) => {
       if (!section?.data?.length) return;
+      if (section.section === "Flood Affected Riders") return;
       const sectionColumns = resolveSectionColumns(section.section);
       buildDataSheet(
         workbook,

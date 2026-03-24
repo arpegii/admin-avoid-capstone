@@ -17,14 +17,12 @@ import PageSpinner from "../components/PageSpinner";
 
 const OPENWEATHER_API_KEY = "792874a9880224b30b884c44090d0f05";
 const FORCE_POLYLINE_PREVIEW = false;
-const RIDER_DELIVERY_QUOTA = 150;
+const RIDER_DELIVERY_QUOTA = 70;
 const RIDER_QUOTA_REACHED_THRESHOLD = 0.9;
 const RIDER_TABLE_PAGE_SIZE = 10;
 const RIDER_INSIGHT_PAGE_SIZE = 5;
 const RIDER_ACTIVITY_HISTORY_LIMIT = 60;
-const RIDER_DAILY_QUOTA = Math.ceil(
-  RIDER_DELIVERY_QUOTA * RIDER_QUOTA_REACHED_THRESHOLD,
-);
+const RIDER_DAILY_QUOTA = RIDER_DELIVERY_QUOTA;
 
 const normalizeStatus = (value) =>
   String(value || "")
@@ -66,12 +64,18 @@ const calculateQuotaStreak = (parcels = [], dailyQuota = RIDER_DAILY_QUOTA) => {
   let streak = 0;
   const cursor = new Date();
   cursor.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 366; i++) {
+  const todayKeyCursor = toLocalDayKey(cursor);
+  if ((deliveredPerDay[todayKeyCursor] || 0) < dailyQuota) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  for (let i = 0; i < 366; i += 1) {
     const key = toLocalDayKey(cursor);
     if ((deliveredPerDay[key] || 0) >= dailyQuota) {
-      streak++;
+      streak += 1;
       cursor.setDate(cursor.getDate() - 1);
-    } else break;
+    } else {
+      break;
+    }
   }
   const todayKey = toLocalDayKey(new Date());
   const todayCount = deliveredPerDay[todayKey] || 0;
@@ -1096,7 +1100,6 @@ export default function Riders() {
   );
   const hasMetQuota = deliveredForQuota >= quotaMetTarget;
   const hasMetFullQuota = deliveredForQuota >= safeQuotaTarget;
-  const isIncentiveEligible = hasMetQuota;
   const quotaStatusLabel = hasMetQuota ? "QUOTA REACHED" : "BELOW QUOTA";
   const quotaStrokeDasharray = `${quotaPercent * 3.02} 302`;
 
@@ -3617,14 +3620,6 @@ export default function Riders() {
                         className={`rp2-chip ${hasMetQuota ? "rp2-chip-green" : "rp2-chip-red"}`}
                       >
                         {quotaStatusLabel}
-                      </span>
-                    </div>
-                    <div className="rp2-status-row">
-                      <span>Incentive</span>
-                      <span
-                        className={`rp2-chip ${isIncentiveEligible ? "rp2-chip-eligible" : "rp2-chip-pending"}`}
-                      >
-                        {isIncentiveEligible ? "ELIGIBLE" : "PENDING"}
                       </span>
                     </div>
                   </div>
