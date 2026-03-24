@@ -215,6 +215,121 @@ body,
   align-items: center;
 }
 
+/* Mobile menu toggle */
+.tnav-mobile-toggle {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    transform 0.18s;
+}
+
+.tnav-mobile-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.tnav-mobile-toggle.is-open {
+  transform: rotate(90deg);
+}
+
+.tnav-mobile-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 2, 2, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 120;
+  border: none;
+}
+
+.tnav-mobile-scrim.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tnav-mobile-panel {
+  position: fixed;
+  top: var(--tnav-h);
+  left: 12px;
+  right: 12px;
+  background: rgba(12, 2, 2, 0.96);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px;
+  transform: translateY(-8px) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  z-index: 140;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.tnav-mobile-panel.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.tnav-mobile-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tnav-mobile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    color 0.18s;
+}
+
+.tnav-mobile-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tnav-mobile-link--active {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.tnav-mobile-link-icon {
+  display: inline-flex;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.tnav-mobile-link-label {
+  flex: 1;
+}
+
 .tnav-list {
   list-style: none;
   margin: 0;
@@ -1422,8 +1537,11 @@ body.dark h6 {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .tnav-nav {
     display: none;
+  }
+  .tnav-mobile-toggle {
+    display: inline-flex;
   }
 }

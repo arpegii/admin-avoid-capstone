@@ -1124,8 +1124,6 @@ const resolveReportGeneratedBy = async () => {
   }
 };
 
-// â”€â”€â”€ Animated number hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 const useAnimatedNumber = (target, duration = 420) => {
   const [display, setDisplay] = useState(target);
   const rafRef = useRef(null);
@@ -4179,7 +4177,6 @@ const buildPdfDoc = async (
       });
       y = doc.lastAutoTable.finalY + 10;
     }
-
   } else {
     const head = columns.map(humanizeLabel);
     const body = data.map((row) =>

@@ -8,6 +8,7 @@ import {
   FaCog,
   FaSignOutAlt,
   FaPen,
+  FaBars,
   FaChevronDown,
 } from "react-icons/fa";
 import { useAuth } from "../contexts/AuthContext";
@@ -28,9 +29,27 @@ export default function Sidebar() {
   const [profilePictureUrl, setProfilePictureUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isMobileNav, setIsMobileNav] = useState(false);
   const profileRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobileNav(media.matches);
+    update();
+    if (media.addEventListener) {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname, isMobileNav]);
 
   useEffect(() => {
     async function findAdminProfileData() {
@@ -151,6 +170,11 @@ export default function Sidebar() {
 
     const handleScroll = () => {
       if (!scrollEls.length) return;
+      if (isMobileNav) {
+        nav.classList.remove("tnav--hidden");
+        document.body.classList.remove("tnav-hidden");
+        return;
+      }
       const isModalOpen = !!document.querySelector(
         ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
       );
@@ -167,6 +191,11 @@ export default function Sidebar() {
 
     const handleWheel = (event) => {
       if (!scrollEls.length) return;
+      if (isMobileNav) {
+        nav.classList.remove("tnav--hidden");
+        document.body.classList.remove("tnav-hidden");
+        return;
+      }
       const isModalOpen = !!document.querySelector(
         ".riders-modal-overlay, .parcels-modal-overlay, .dashboard-modal-overlay, .modal-overlay, .reports-validation-modal",
       );
@@ -231,7 +260,7 @@ export default function Sidebar() {
       nav.classList.remove("tnav--hidden");
       document.body.classList.remove("tnav-hidden");
     };
-  }, [location.pathname]);
+  }, [location.pathname, isMobileNav]);
 
   const getInitials = () => {
     if (profilePictureUrl) return "";
@@ -386,6 +415,16 @@ export default function Sidebar() {
           {/* ── Divider ── */}
           <span className="tnav-divider" aria-hidden="true" />
 
+          <button
+            type="button"
+            className={`tnav-mobile-toggle ${mobileNavOpen ? "is-open" : ""}`}
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileNavOpen}
+            aria-controls="tnav-mobile-panel"
+          >
+            <FaBars aria-hidden="true" />
+          </button>
           {/* ── Nav links ── */}
           <nav className="tnav-nav" aria-label="Main menu">
             <ul className="tnav-list">
@@ -394,7 +433,10 @@ export default function Sidebar() {
                   <button
                     type="button"
                     className={`tnav-link ${isActive(item.href) ? "tnav-link--active" : ""}`}
-                    onClick={() => navigate(item.href)}
+                    onClick={() => {
+                      navigate(item.href);
+                      setMobileNavOpen(false);
+                    }}
                   >
                     <span className="tnav-link-icon" aria-hidden="true">
                       {item.icon}
@@ -494,9 +536,49 @@ export default function Sidebar() {
           </div>
         </div>
       </header>
+      {isMobileNav && (
+        <>
+          <button
+            type="button"
+            className={`tnav-mobile-scrim ${mobileNavOpen ? "is-open" : ""}`}
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden={!mobileNavOpen}
+          />
+          <div
+            id="tnav-mobile-panel"
+            className={`tnav-mobile-panel ${mobileNavOpen ? "is-open" : ""}`}
+            role="dialog"
+            aria-label="Mobile navigation"
+          >
+            <nav className="tnav-mobile-nav" aria-label="Main menu">
+              {menuItems.map((item) => (
+                <button
+                  key={item.href}
+                  type="button"
+                  className={`tnav-mobile-link ${isActive(item.href) ? "tnav-mobile-link--active" : ""}`}
+                  onClick={() => {
+                    navigate(item.href);
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <span className="tnav-mobile-link-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                  <span className="tnav-mobile-link-label">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
 
       {/* Floating background import panel — persists across all pages */}
       {renderBgImportPanel()}
     </>
   );
 }
+
+
+
+
+
