@@ -161,6 +161,63 @@ const getRiderDisplayName = (rider) => {
   return fullName || rider?.username || "Unknown Rider";
 };
 
+const toEditableText = (value) =>
+  value === null || value === undefined ? "" : String(value);
+
+const sanitizePhilippinePhoneInput = (value) => {
+  const digits = toEditableText(value).replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0")) return digits.slice(1, 11);
+  if (digits.startsWith("63")) return digits.slice(2, 12);
+  return digits.slice(0, 10);
+};
+
+const normalizePhilippinePhoneNumber = (value) => {
+  const sanitized = sanitizePhilippinePhoneInput(value);
+  if (!sanitized) return null;
+  if (/^9\d{9}$/.test(sanitized)) return `+63${sanitized}`;
+  return null;
+};
+
+const createRiderEditFormState = (rider = null) => ({
+  username: toEditableText(rider?.username),
+  email: toEditableText(rider?.email),
+  pnumber: sanitizePhilippinePhoneInput(rider?.pnumber),
+});
+
+const buildComparableRiderEditValues = (source = null) => ({
+  username: toEditableText(source?.username).trim(),
+  email: toEditableText(source?.email).trim().toLowerCase(),
+  pnumber: sanitizePhilippinePhoneInput(source?.pnumber),
+});
+
+const validateRiderEditForm = (form) => {
+  const username = toEditableText(form?.username).trim();
+  const email = toEditableText(form?.email).trim().toLowerCase();
+  const phoneNumber = sanitizePhilippinePhoneInput(form?.pnumber);
+
+  if (!username) return "Username is required.";
+  if (!/^[A-Za-z0-9_]{3,}$/.test(username)) {
+    return "Username must be at least 3 characters and use letters, numbers, or underscore only.";
+  }
+  if (!email) return "Email is required.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return "Enter a valid email address.";
+  }
+  if (phoneNumber && !/^9\d{9}$/.test(phoneNumber)) {
+    return "Phone number must be a valid Philippine mobile number.";
+  }
+  return "";
+};
+
+const buildRiderEditPayload = (form) => {
+  return {
+    username: toEditableText(form?.username).trim(),
+    email: toEditableText(form?.email).trim().toLowerCase(),
+    pnumber: normalizePhilippinePhoneNumber(form?.pnumber),
+  };
+};
+
 const formatRelativeTime = (value) => {
   if (!(value instanceof Date) || Number.isNaN(value.getTime()))
     return "No activity";
@@ -926,6 +983,14 @@ export default function Riders() {
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [infoError, setInfoError] = useState("");
   const [selectedRiderInfo, setSelectedRiderInfo] = useState(null);
+  const [riderEditMode, setRiderEditMode] = useState(false);
+  const [riderEditForm, setRiderEditForm] = useState(() =>
+    createRiderEditFormState(),
+  );
+  const [editRiderError, setEditRiderError] = useState("");
+  const [editRiderSuccess, setEditRiderSuccess] = useState("");
+  const [saveRiderConfirmOpen, setSaveRiderConfirmOpen] = useState(false);
+  const [savingRiderChanges, setSavingRiderChanges] = useState(false);
   const [performanceModalOpen, setPerformanceModalOpen] = useState(false);
   const [violationLogsModalOpen, setViolationLogsModalOpen] = useState(false);
   const [riderViolationLogs, setRiderViolationLogs] = useState([]);
@@ -1066,6 +1131,22 @@ export default function Riders() {
     return () => clearTimeout(t);
   }, [showTrackFailModal]);
 
+  useEffect(() => {
+    if (selectedRiderInfo && !riderEditMode) {
+      setRiderEditForm(createRiderEditFormState(selectedRiderInfo));
+      return;
+    }
+    if (!selectedRiderInfo) {
+      setRiderEditForm(createRiderEditFormState());
+    }
+  }, [selectedRiderInfo, riderEditMode]);
+
+  useEffect(() => {
+    if (!editRiderSuccess) return;
+    const t = setTimeout(() => setEditRiderSuccess(""), 2400);
+    return () => clearTimeout(t);
+  }, [editRiderSuccess]);
+
   const normalizedCreateUsername = createUsername.trim();
   const usernameLengthValid = normalizedCreateUsername.length >= 3;
   const usernamePatternValid = /^[A-Za-z0-9_]+$/.test(normalizedCreateUsername);
@@ -1116,6 +1197,21 @@ export default function Riders() {
   const selectedRiderDisplayName = useMemo(
     () => getRiderDisplayName(selectedRiderInfo),
     [selectedRiderInfo],
+  );
+  const riderEditCurrentValues = useMemo(
+    () => buildComparableRiderEditValues(selectedRiderInfo),
+    [selectedRiderInfo],
+  );
+  const riderEditPendingValues = useMemo(
+    () => buildComparableRiderEditValues(riderEditForm),
+    [riderEditForm],
+  );
+  const riderEditDirty = useMemo(
+    () =>
+      Boolean(selectedRiderInfo) &&
+      JSON.stringify(riderEditCurrentValues) !==
+        JSON.stringify(riderEditPendingValues),
+    [riderEditCurrentValues, riderEditPendingValues, selectedRiderInfo],
   );
 
   const topRiders = useMemo(
@@ -2191,6 +2287,12 @@ export default function Riders() {
     setLoadingInfo(true);
     setInfoError("");
     setSelectedRiderInfo(null);
+    setRiderEditMode(false);
+    setRiderEditForm(createRiderEditFormState());
+    setEditRiderError("");
+    setEditRiderSuccess("");
+    setSaveRiderConfirmOpen(false);
+    setSavingRiderChanges(false);
     setViolationLogsModalOpen(false);
     setRiderViolationLogs([]);
     setViolationLogsError("");
@@ -2260,15 +2362,113 @@ export default function Riders() {
   openInfoModalRef.current = openInfoModal;
 
   const closeInfoModal = () => {
+    if (savingRiderChanges) return;
     setInfoModalOpen(false);
     setPerformanceModalOpen(false);
     setViolationLogsModalOpen(false);
     setSelectedRiderInfo(null);
+    setRiderEditMode(false);
+    setRiderEditForm(createRiderEditFormState());
+    setEditRiderError("");
+    setEditRiderSuccess("");
+    setSaveRiderConfirmOpen(false);
     setInfoError("");
     setPhotoPreviewOpen(false);
     setRiderViolationLogs([]);
     setViolationLogsError("");
     setLoadingViolationLogs(false);
+  };
+
+  const handleRiderEditChange = (field, value) => {
+    const nextValue =
+      field === "pnumber" ? sanitizePhilippinePhoneInput(value) : value;
+    setRiderEditForm((prev) => ({ ...prev, [field]: nextValue }));
+    if (editRiderError) setEditRiderError("");
+    if (editRiderSuccess) setEditRiderSuccess("");
+  };
+
+  const startRiderEdit = () => {
+    if (!selectedRiderInfo) return;
+    setRiderEditForm(createRiderEditFormState(selectedRiderInfo));
+    setEditRiderError("");
+    setEditRiderSuccess("");
+    setSaveRiderConfirmOpen(false);
+    setRiderEditMode(true);
+  };
+
+  const cancelRiderEdit = () => {
+    setRiderEditForm(createRiderEditFormState(selectedRiderInfo));
+    setEditRiderError("");
+    setEditRiderSuccess("");
+    setSaveRiderConfirmOpen(false);
+    setRiderEditMode(false);
+  };
+
+  const openSaveRiderConfirmation = () => {
+    const validationError = validateRiderEditForm(riderEditForm);
+    if (validationError) {
+      setEditRiderError(validationError);
+      return;
+    }
+    if (!riderEditDirty) {
+      setEditRiderError("Make a change before saving.");
+      return;
+    }
+    setEditRiderError("");
+    setSaveRiderConfirmOpen(true);
+  };
+
+  const handleSaveRiderChanges = async () => {
+    if (!selectedRiderInfo?.user_id) {
+      setEditRiderError("Rider information is missing.");
+      setSaveRiderConfirmOpen(false);
+      return;
+    }
+
+    const validationError = validateRiderEditForm(riderEditForm);
+    if (validationError) {
+      setEditRiderError(validationError);
+      setSaveRiderConfirmOpen(false);
+      return;
+    }
+
+    setSavingRiderChanges(true);
+    setEditRiderError("");
+    setEditRiderSuccess("");
+
+    try {
+      const payload = buildRiderEditPayload(riderEditForm);
+      const { data: updatedRider, error: updateError } = await supabaseClient
+        .from("users")
+        .update(payload)
+        .eq("user_id", selectedRiderInfo.user_id)
+        .select(
+          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url",
+        )
+        .single();
+
+      if (updateError) throw updateError;
+
+      setSelectedRiderInfo((prev) => ({
+        ...(prev || {}),
+        ...(updatedRider || payload),
+      }));
+      setRiderEditMode(false);
+      setSaveRiderConfirmOpen(false);
+      setEditRiderSuccess("Rider details saved.");
+
+      const data = await refreshRiders();
+      if (data) {
+        setRiders(data);
+        setLastUpdatedAt(new Date());
+      }
+    } catch (err) {
+      console.error("Failed to update rider information:", err);
+      setSaveRiderConfirmOpen(false);
+      setEditRiderError(err?.message || "Failed to save rider changes.");
+    } finally {
+      setSavingRiderChanges(false);
+    }
   };
 
   const fetchAssignedParcels = useCallback(async (riderId) => {
@@ -3246,8 +3446,62 @@ export default function Riders() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: 600, maxWidth: "92%" }}
           >
-            <div className="riders-modal-header">
+            <div className="riders-modal-header rider-info-modal-header">
               <h2>Rider Information</h2>
+              <div className="rider-info-header-actions">
+                {!loadingInfo && !infoError && selectedRiderInfo ? (
+                  riderEditMode ? (
+                    <>
+                      <button
+                        type="button"
+                        className="rider-modal-action-btn rider-modal-action-btn-secondary"
+                        onClick={cancelRiderEdit}
+                        disabled={savingRiderChanges}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="rider-modal-action-btn rider-modal-action-btn-primary"
+                        onClick={openSaveRiderConfirmation}
+                        disabled={savingRiderChanges || !riderEditDirty}
+                      >
+                        Save Changes
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rider-modal-action-btn rider-modal-action-btn-secondary"
+                      onClick={startRiderEdit}
+                    >
+                      Edit
+                    </button>
+                  )
+                ) : null}
+                <button
+                  type="button"
+                  className="rcm-close-btn"
+                  onClick={closeInfoModal}
+                  aria-label="Close rider information"
+                  disabled={savingRiderChanges}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 4L12 12"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M12 4L4 12"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="riders-modal-body rider-info-body">
               {loadingInfo ? (
@@ -3278,6 +3532,16 @@ export default function Riders() {
                 <p className="rider-info-error">{infoError}</p>
               ) : (
                 <div className="rider-info-shell">
+                  {editRiderError ? (
+                    <p className="rider-info-error rider-info-feedback">
+                      {editRiderError}
+                    </p>
+                  ) : null}
+                  {editRiderSuccess ? (
+                    <p className="rider-info-success rider-info-feedback">
+                      {editRiderSuccess}
+                    </p>
+                  ) : null}
                   <div className="rider-info-hero">
                     <span
                       className={`rider-streak-pill rider-streak-pill-corner ${selectedRiderInfo?.metDailyQuotaToday ? "is-met" : "is-miss"}`}
@@ -3351,15 +3615,49 @@ export default function Riders() {
                     </div>
                     <div className="rider-info-main">
                       <div className="rider-info-headline">
-                        <h3>{selectedRiderDisplayName}</h3>
-                        <p>
-                          {selectedRiderInfo?.email || "No email available"}
-                        </p>
+                        {riderEditMode ? (
+                          <div className="rider-info-edit-head">
+                            <label className="rider-edit-field rider-edit-field-inline">
+                              <span>Username</span>
+                              <input
+                                type="text"
+                                value={riderEditForm.username}
+                                onChange={(e) =>
+                                  handleRiderEditChange(
+                                    "username",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Username"
+                              />
+                            </label>
+                            <label className="rider-edit-field rider-edit-field-inline">
+                              <span>Email</span>
+                              <input
+                                type="email"
+                                value={riderEditForm.email}
+                                onChange={(e) =>
+                                  handleRiderEditChange("email", e.target.value)
+                                }
+                                placeholder="Email address"
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <>
+                            <h3>{selectedRiderDisplayName}</h3>
+                            <p>
+                              {selectedRiderInfo?.email || "No email available"}
+                            </p>
+                          </>
+                        )}
                         <div className="rider-status-row">
                           {(() => {
                             const n =
                               selectedRiderInfo?.status?.toLowerCase() || "";
-                            const statusClass = ["online", "active"].includes(n)
+                            const statusClass = ["online", "active"].includes(
+                              n,
+                            )
                               ? "is-online"
                               : ["offline", "inactive"].includes(n)
                                 ? "is-offline"
@@ -3461,7 +3759,26 @@ export default function Riders() {
                   <div className="rider-info-grid">
                     <div className="rider-info-item">
                       <span>Phone</span>
-                      <strong>{selectedRiderInfo?.pnumber || "-"}</strong>
+                      {riderEditMode ? (
+                        <label className="rider-edit-field">
+                          <div className="rider-phone-input-group">
+                            <span className="rider-phone-prefix">+63</span>
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={10}
+                              value={riderEditForm.pnumber}
+                              onChange={(e) =>
+                                handleRiderEditChange("pnumber", e.target.value)
+                              }
+                              placeholder="9XXXXXXXXX"
+                            />
+                          </div>
+                        </label>
+                      ) : (
+                        <strong>{selectedRiderInfo?.pnumber || "-"}</strong>
+                      )}
                     </div>
                     <div className="rider-info-item">
                       <span>First Name</span>
@@ -3491,7 +3808,65 @@ export default function Riders() {
         </div>
       )}
 
-      {/* ══ PERFORMANCE MODAL ══ */}
+      {/* Confirm Save Modal */}
+      {saveRiderConfirmOpen && selectedRiderInfo && (
+        <div
+          className="riders-modal-overlay"
+          style={{
+            zIndex: 1100,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onClick={() => {
+            if (!savingRiderChanges) setSaveRiderConfirmOpen(false);
+          }}
+        >
+          <div
+            className="riders-modal-content rider-confirm-modal"
+            style={{ width: 420, maxWidth: "92%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="riders-modal-header">
+              <h2>Confirm Save</h2>
+            </div>
+            <div className="riders-modal-body rider-confirm-body">
+              <p>
+                Save the edited details for{" "}
+                <strong>
+                  {selectedRiderDisplayName ||
+                    riderEditForm.username ||
+                    "this rider"}
+                </strong>
+                ?
+              </p>
+              <p className="rider-confirm-note">
+                The rider profile will be updated in the database.
+              </p>
+              <div className="rider-confirm-actions">
+                <button
+                  type="button"
+                  className="rcm-btn-cancel"
+                  onClick={() => setSaveRiderConfirmOpen(false)}
+                  disabled={savingRiderChanges}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rcm-btn-submit"
+                  onClick={handleSaveRiderChanges}
+                  disabled={savingRiderChanges}
+                >
+                  {savingRiderChanges ? "Saving..." : "Confirm Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Performance Modal */}
       {performanceModalOpen && selectedRiderInfo && (
         <div
           className="riders-modal-overlay"

@@ -1417,20 +1417,65 @@ body.dark .weather-forecast-chip strong {
   display: grid;
   gap: 14px;
 }
+.rider-info-modal-header {
+  align-items: center;
+}
+.rider-info-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rider-modal-action-btn {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rider-modal-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.rider-modal-action-btn-secondary {
+  background: var(--c-surface-2);
+  color: var(--c-text-2);
+}
+.rider-modal-action-btn-secondary:hover:not(:disabled) {
+  background: var(--c-surface-3);
+  border-color: var(--c-border-strong, #d1d5db);
+}
+.rider-modal-action-btn-primary {
+  border-color: rgba(232, 25, 44, 0.25);
+  background: linear-gradient(135deg, #c9122a, #e8192c);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(201, 18, 42, 0.24);
+}
+.rider-modal-action-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #a50e22, #c9122a);
+  transform: translateY(-1px);
+}
 .rider-info-hero {
   display: grid;
   grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "streak streak"
+    "profile main";
   gap: 14px;
-  align-items: center;
+  align-items: start;
   padding: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--c-border);
   background: var(--c-surface-2);
-  position: relative;
 }
 .rider-info-profile {
+  grid-area: profile;
   display: flex;
   justify-content: center;
+  align-self: center;
 }
 .rider-avatar-btn {
   border: none;
@@ -1468,13 +1513,23 @@ body.dark .weather-forecast-chip strong {
   border: 2px solid rgba(232, 25, 44, 0.2);
 }
 .rider-info-main {
+  grid-area: main;
   display: grid;
   gap: 8px;
   width: 100%;
+  min-width: 0;
+  align-content: start;
 }
 .rider-info-headline {
   display: grid;
   gap: 5px;
+  width: 100%;
+}
+.rider-info-edit-head {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
 }
 .rider-info-headline h3 {
   margin: 0;
@@ -1493,6 +1548,79 @@ body.dark .weather-forecast-chip strong {
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
+}
+.rider-edit-field {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+}
+.rider-edit-field span {
+  color: var(--c-text-3);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+}
+.rider-edit-field input,
+.rider-edit-field select {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: 8px 11px;
+  font: inherit;
+}
+.rider-edit-field input:focus,
+.rider-edit-field select:focus {
+  outline: none;
+  border-color: rgba(232, 25, 44, 0.45);
+  box-shadow: 0 0 0 3px rgba(232, 25, 44, 0.12);
+}
+.rider-phone-input-group {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.rider-phone-input-group:focus-within {
+  border-color: rgba(232, 25, 44, 0.45);
+  box-shadow: 0 0 0 3px rgba(232, 25, 44, 0.12);
+}
+.rider-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+  background: var(--c-surface-2);
+  border-right: 1px solid var(--c-border);
+  color: var(--c-text-2);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.rider-phone-input-group input {
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.rider-phone-input-group input:focus {
+  box-shadow: none;
+}
+.rider-edit-field-inline {
+  min-width: 0;
+}
+.rider-edit-field-status {
+  min-width: 180px;
 }
 
 .rider-status-pill {
@@ -1534,9 +1662,10 @@ body.dark .weather-forecast-chip strong {
   border: 1px solid transparent;
 }
 .rider-streak-pill-corner {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  grid-area: streak;
+  position: static;
+  justify-self: end;
+  margin-bottom: 2px;
 }
 .rider-streak-icon {
   line-height: 1;
@@ -1632,6 +1761,41 @@ body.dark .weather-forecast-chip strong {
 }
 
 /* ── Photo Modal ── */
+.rider-info-feedback {
+  margin-bottom: 2px;
+}
+.rider-info-success {
+  margin: 0;
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--c-green);
+  font-size: 13px;
+  font-weight: 500;
+}
+.rider-confirm-modal {
+  overflow: hidden;
+}
+.rider-confirm-body {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+.rider-confirm-body p {
+  margin: 0;
+  color: var(--c-text);
+}
+.rider-confirm-note {
+  color: var(--c-text-3) !important;
+  font-size: 13px;
+}
+.rider-confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 .rider-photo-body {
   display: flex;
   justify-content: center;
@@ -3419,15 +3583,34 @@ body.dark .rp2-eff-pink strong {
   }
   .rider-info-hero {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "streak"
+      "profile"
+      "main";
     justify-items: center;
     text-align: center;
-    padding-top: 42px;
+    padding-top: 14px;
+  }
+  .rider-info-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
   .rider-info-headline {
     justify-items: center;
   }
+  .rider-info-edit-head {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
   .rider-status-row {
     justify-content: center;
+  }
+  .rider-streak-pill-corner {
+    justify-self: center;
+  }
+  .rider-edit-field-status {
+    min-width: 100%;
   }
   .rider-violations-fields {
     grid-template-columns: 1fr;
@@ -3449,6 +3632,18 @@ body.dark .rp2-eff-pink strong {
   }
 }
 @media (max-width: 480px) {
+  .rider-info-modal-header {
+    align-items: flex-start;
+  }
+  .rider-info-header-actions,
+  .rider-confirm-actions {
+    width: 100%;
+  }
+  .rider-modal-action-btn,
+  .rider-confirm-actions .rcm-btn-cancel,
+  .rider-confirm-actions .rcm-btn-submit {
+    flex: 1 1 100%;
+  }
   .rider-stats-strip {
     grid-template-columns: 1fr;
   }
