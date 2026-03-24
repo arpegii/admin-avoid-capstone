@@ -129,6 +129,26 @@ export const ImportProvider = ({
       // Fire-and-forget async loop
       (async () => {
         const enriched = [];
+        const normalizeOptional = (value) => {
+          if (value == null) return null;
+          const str = String(value).trim();
+          return str === "" ? null : str;
+        };
+        const syncParcelIdSequence = async () => {
+          try {
+            const { error } = await supabaseClient.rpc(
+              "sync_parcel_id_sequence",
+            );
+            if (error) throw error;
+            return true;
+          } catch (err) {
+            console.warn(
+              "Failed to sync parcel_id sequence via RPC:",
+              err?.message || err,
+            );
+            return false;
+          }
+        };
 
         for (let i = 0; i < rowsSnapshot.length; i++) {
           if (cancelRef.current) {
@@ -163,21 +183,21 @@ export const ImportProvider = ({
           const rawLng = parseFloat(lng);
 
           enriched.push({
-            recipient_name: row.recipient_name || null,
-            recipient_phone: row.recipient_phone || null,
-            address: row.address || null,
-            sender_name: row.sender_name || null,
-            sender_phone: row.sender_phone || null,
+            recipient_name: normalizeOptional(row.recipient_name),
+            recipient_phone: normalizeOptional(row.recipient_phone),
+            address: normalizeOptional(row.address),
+            sender_name: normalizeOptional(row.sender_name),
+            sender_phone: normalizeOptional(row.sender_phone),
             status: normalizeStatus(row.status, "on-going"),
             attempt1_status: row.attempt1_status
               ? normalizeStatus(row.attempt1_status, null)
               : null,
-            attempt1_date: row.attempt1_date || null,
+            attempt1_date: normalizeOptional(row.attempt1_date),
             attempt2_status: row.attempt2_status
               ? normalizeStatus(row.attempt2_status, null)
               : null,
-            attempt2_date: row.attempt2_date || null,
-            parcel_image_proof: row.parcel_image_proof || null,
+            attempt2_date: normalizeOptional(row.attempt2_date),
+            parcel_image_proof: normalizeOptional(row.parcel_image_proof),
             r_lat: isFinite(rawLat) ? rawLat : null,
             r_lng: isFinite(rawLng) ? rawLng : null,
           });
@@ -190,8 +210,20 @@ export const ImportProvider = ({
           return;
         }
 
+        const synced = await syncParcelIdSequence();
+        if (!synced) {
+          const msg =
+            "Missing or inaccessible RPC: sync_parcel_id_sequence. Create it in Supabase so parcel_id auto-increment stays in sync.";
+          setBgImport((prev) =>
+            prev ? { ...prev, status: "error", errorMsg: msg } : null,
+          );
+          if (onImportFailed) onImportFailed(msg, fileName);
+          return;
+        }
+
         // Batch insert in chunks of 50
         const chunkSize = 50;
+        let insertedCount = 0;
         for (let i = 0; i < enriched.length; i += chunkSize) {
           if (cancelRef.current) {
             setBgImport((prev) =>
@@ -200,7 +232,10 @@ export const ImportProvider = ({
             return;
           }
           const chunk = enriched.slice(i, i + chunkSize);
-          const { error } = await supabaseClient.from("parcels").insert(chunk);
+          const { data, error } = await supabaseClient
+            .from("parcels")
+            .insert(chunk)
+            .select("parcel_id");
           if (error) {
             console.error("CSV insert error:", error);
             setBgImport((prev) =>
@@ -211,13 +246,25 @@ export const ImportProvider = ({
             if (onImportFailed) onImportFailed(error.message, fileName);
             return;
           }
+          insertedCount += data?.length || 0;
+        }
+
+        if (insertedCount === 0) {
+          const msg =
+            "No rows were inserted. This usually means every row conflicted with a UNIQUE constraint.";
+          console.warn(msg);
+          setBgImport((prev) =>
+            prev ? { ...prev, status: "error", errorMsg: msg } : null,
+          );
+          if (onImportFailed) onImportFailed(msg, fileName);
+          return;
         }
 
         setBgImport((prev) =>
           prev ? { ...prev, status: "done", current: total } : null,
         );
 
-        if (onImportComplete) onImportComplete(total, fileName);
+        if (onImportComplete) onImportComplete(insertedCount, fileName);
         if (onDoneCallbackRef.current) onDoneCallbackRef.current();
 
         // Auto-dismiss after 6s
