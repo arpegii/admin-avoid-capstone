@@ -34,6 +34,7 @@ import {
   FaFilePdf,
   FaFileExcel,
   FaTimes,
+  FaSearch,
 } from "react-icons/fa";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -4233,6 +4234,7 @@ const Dashboard = () => {
     yearDelayGrowth: [],
     monthDelayGrowth: Array(12).fill(0),
     topRiders: [],
+    topCleanRiders: [],
     topViolationTypes: [],
     topFlaggedRiders: [],
     violationsByWeekday: Array(7).fill(0),
@@ -4248,6 +4250,11 @@ const Dashboard = () => {
   const [isYearSwitching, setIsYearSwitching] = useState(false);
   const [yearFilterReady, setYearFilterReady] = useState(false);
   const [violationMapModalOpen, setViolationMapModalOpen] = useState(false);
+  const [fullscreenMapSearchRider, setFullscreenMapSearchRider] = useState("");
+  const [selectedViolationRider, setSelectedViolationRider] = useState(null);
+  const [violationRiderSearchResults, setViolationRiderSearchResults] =
+    useState([]);
+  const [violationRiderAvatars, setViolationRiderAvatars] = useState({});
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -4261,6 +4268,7 @@ const Dashboard = () => {
   const [violationLogsError, setViolationLogsError] = useState("");
   const [flaggedRiderAvatars, setFlaggedRiderAvatars] = useState({});
   const [topRiderAvatars, setTopRiderAvatars] = useState({});
+  const [cleanRiderAvatars, setCleanRiderAvatars] = useState({});
   const [kpiModalKey, setKpiModalKey] = useState(null);
 
   // â”€â”€ Refs â”€â”€
@@ -4940,6 +4948,18 @@ const Dashboard = () => {
         const topFlaggedRiders = topEntries(flaggedRiderCount, 5).map(
           ([l, v]) => ({ label: l, value: v }),
         );
+        const cleanRiderCount = {};
+        Object.entries(riderCountsById).forEach(([_id, count]) => {
+          const riderName = riderNameById[_id] || _id;
+          const violationCount = flaggedRiderCount[riderName] || 0;
+          if (violationCount === 0 && count > 0) {
+            cleanRiderCount[riderName] = count;
+          }
+        });
+        const topCleanRiders = topEntries(cleanRiderCount, 5).map(([l, v]) => ({
+          label: l,
+          value: v,
+        }));
         const violationsByWeekday = Array(7).fill(0);
         allViolations.forEach((v) => {
           const d = new Date(v?.date);
@@ -4991,6 +5011,7 @@ const Dashboard = () => {
           yearDelayGrowth: yearDelayGrowthData,
           monthDelayGrowth: monthDelayCounts,
           topRiders,
+          topCleanRiders,
           topViolationTypes,
           topFlaggedRiders,
           violationsByWeekday,
@@ -5067,6 +5088,33 @@ const Dashboard = () => {
     fetchTopRiderAvatars();
   }, [dashboardData.topRiders]);
 
+  // â"€â"€ Fetch profile pictures for clean riders â"€â"€
+  useEffect(() => {
+    if (!dashboardData.topCleanRiders.length) return;
+    async function fetchCleanRiderAvatars() {
+      try {
+        const { data: allUsers, error } = await supabaseClient
+          .from("users")
+          .select("user_id, username, fname, lname, profile_url");
+        if (error) throw error;
+        const avatarMap = {};
+        (allUsers || []).forEach((u) => {
+          const profileUrl = u.profile_url || null;
+          if (u.username) avatarMap[u.username.toLowerCase()] = profileUrl;
+          const fullName = `${u.fname || ""} ${u.lname || ""}`
+            .trim()
+            .toLowerCase();
+          if (fullName) avatarMap[fullName] = profileUrl;
+          if (u.fname) avatarMap[u.fname.toLowerCase()] = profileUrl;
+        });
+        setCleanRiderAvatars(avatarMap);
+      } catch (err) {
+        console.error("Failed to fetch clean rider avatars:", err);
+      }
+    }
+    fetchCleanRiderAvatars();
+  }, [dashboardData.topCleanRiders]);
+
   const topFlaggedRidersWithAvatars = useMemo(
     () =>
       dashboardData.topFlaggedRiders.map((r) => {
@@ -5106,6 +5154,85 @@ const Dashboard = () => {
       }),
     [dashboardData.topRiders, topRiderAvatars],
   );
+
+  const topCleanRidersWithAvatars = useMemo(
+    () =>
+      dashboardData.topCleanRiders.map((r) => {
+        const label = r.label || "";
+        const exactKey = label.toLowerCase();
+        if (cleanRiderAvatars[exactKey] !== undefined)
+          return { ...r, avatarUrl: cleanRiderAvatars[exactKey] };
+        const stripped = label
+          .replace(/\s+[A-Z]\.\s+/g, " ")
+          .replace(/\s+[A-Z]\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        if (cleanRiderAvatars[stripped] !== undefined)
+          return { ...r, avatarUrl: cleanRiderAvatars[stripped] };
+        const firstName = label.split(" ")[0].toLowerCase();
+        return { ...r, avatarUrl: cleanRiderAvatars[firstName] || null };
+      }),
+    [dashboardData.topCleanRiders, cleanRiderAvatars],
+  );
+
+  const filteredViolationPointIndicators = useMemo(() => {
+    let filtered = violationPointIndicators;
+
+    // Filter by search term if provided
+    if (fullscreenMapSearchRider.trim()) {
+      const searchTerm = fullscreenMapSearchRider.toLowerCase().trim();
+      filtered = filtered.filter((point) => {
+        const riderName = (point.rider_name || "").toLowerCase();
+        const location = (point.location || "").toLowerCase();
+        return riderName.includes(searchTerm) || location.includes(searchTerm);
+      });
+    }
+
+    // Filter by selected rider if provided
+    if (selectedViolationRider) {
+      filtered = filtered.filter(
+        (point) =>
+          (point.rider_name || "").toLowerCase() ===
+          selectedViolationRider.toLowerCase(),
+      );
+    }
+
+    return filtered;
+  }, [
+    violationPointIndicators,
+    fullscreenMapSearchRider,
+    selectedViolationRider,
+  ]);
+
+  // Get unique rider names for search results
+  const violationRiderSearchDropdown = useMemo(() => {
+    if (!fullscreenMapSearchRider.trim()) return [];
+    const searchTerm = fullscreenMapSearchRider.toLowerCase().trim();
+    const uniqueRiders = new Map();
+
+    violationPointIndicators.forEach((point) => {
+      const riderName = point.rider_name || "";
+      if (
+        riderName.toLowerCase().includes(searchTerm) &&
+        !uniqueRiders.has(riderName)
+      ) {
+        uniqueRiders.set(riderName, {
+          name: riderName,
+          violationCount: 0,
+          profile_url: point.profile_url || null, // ← already there, just confirm
+        });
+      }
+    });
+
+    const riderArray = Array.from(uniqueRiders.values());
+    riderArray.forEach((rider) => {
+      rider.violationCount = violationPointIndicators.filter(
+        (p) => (p.rider_name || "").toLowerCase() === rider.name.toLowerCase(),
+      ).length;
+    });
+
+    return riderArray.sort((a, b) => b.violationCount - a.violationCount);
+  }, [violationPointIndicators, fullscreenMapSearchRider]);
 
   // â”€â”€ Map effects â”€â”€
   useEffect(() => {
@@ -5155,14 +5282,14 @@ const Dashboard = () => {
     }
     renderViolationHotspots(
       violationFullLeafletMapRef.current,
-      violationPointIndicators,
+      filteredViolationPointIndicators,
       violationFullLayerGroupRef,
       { autoCenter: true },
     );
     setTimeout(() => violationFullLeafletMapRef.current?.invalidateSize(), 120);
   }, [
     violationMapModalOpen,
-    violationPointIndicators,
+    filteredViolationPointIndicators,
     renderViolationHotspots,
     createLeafletMap,
   ]);
@@ -5632,9 +5759,9 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* â”€â”€ Row 4: Top Riders + Most Flagged â”€â”€ */}
-              <div className="charts-row-riders">
-                <ChartCard title="Top Riders" subtitle="">
+              {/* Row: Three Rider Analytics and Rate Overview */}
+              <div className="charts-row-three-riders">
+                <ChartCard title="Top Riders" subtitle="By Deliveries">
                   {topRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
                       items={topRidersWithAvatars.slice(0, 5)}
@@ -5654,11 +5781,31 @@ const Dashboard = () => {
                     </p>
                   )}
                 </ChartCard>
-                <ChartCard title="Most Flagged" subtitle="">
+                <ChartCard title="Top Performers" subtitle="No Violations">
+                  {topCleanRidersWithAvatars.length > 0 ? (
+                    <HorizontalBarList
+                      items={topCleanRidersWithAvatars.slice(0, 5)}
+                      colorClass="sky"
+                      showAvatar={true}
+                    />
+                  ) : (
+                    <p
+                      style={{
+                        textAlign: "center",
+                        color: "var(--dash-muted)",
+                        padding: "2rem 0",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      No performer data
+                    </p>
+                  )}
+                </ChartCard>
+                <ChartCard title="Most Flagged" subtitle="By Violations">
                   {topFlaggedRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
                       items={topFlaggedRidersWithAvatars.slice(0, 5)}
-                      colorClass="violet"
+                      colorClass="rose"
                       showAvatar={true}
                     />
                   ) : (
@@ -5676,7 +5823,6 @@ const Dashboard = () => {
                 </ChartCard>
               </div>
 
-              {/* â”€â”€ Row 5: Rate Overview + Violations Trend â”€â”€ */}
               <div className="charts-row-violations">
                 <ChartCard title="Rate Overview" subtitle="">
                   <RateOverviewChart
@@ -5755,11 +5901,150 @@ const Dashboard = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="violation-full-map-header">
-              <h2>Violation Heat Map</h2>
+              <div className="violation-map-header-left">
+                <h2>Violation Heat Map</h2>
+                <div className="violation-search-container">
+                  <div className="violation-search-wrapper">
+                    <FaSearch className="violation-search-icon" />
+                    <input
+                      type="text"
+                      placeholder="Search by rider name or location..."
+                      value={fullscreenMapSearchRider}
+                      onChange={(e) =>
+                        setFullscreenMapSearchRider(e.target.value)
+                      }
+                      className="violation-map-search-input"
+                    />
+                  </div>
+                  {/* Rider search results dropdown */}
+                  {/* Rider search results dropdown */}
+                  {violationRiderSearchDropdown.length > 0 &&
+                    ReactDOM.createPortal(
+                      <div
+                        className="violation-rider-dropdown"
+                        style={{
+                          position: "fixed",
+                          top: (() => {
+                            const el = document.querySelector(
+                              ".violation-search-container",
+                            );
+                            return el
+                              ? el.getBoundingClientRect().bottom + 6 + "px"
+                              : "60px";
+                          })(),
+                          left: (() => {
+                            const el = document.querySelector(
+                              ".violation-search-container",
+                            );
+                            return el
+                              ? el.getBoundingClientRect().left + "px"
+                              : "200px";
+                          })(),
+                          width: (() => {
+                            const el = document.querySelector(
+                              ".violation-search-container",
+                            );
+                            return el
+                              ? el.getBoundingClientRect().width + "px"
+                              : "300px";
+                          })(),
+                          zIndex: 999999,
+                        }}
+                      >
+                        {violationRiderSearchDropdown.map((rider) => {
+                          const isSelected =
+                            selectedViolationRider === rider.name;
+                          const initials = rider.name
+                            .split(" ")
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((w) => w.charAt(0).toUpperCase())
+                            .join("");
+                          const avatarUrl = rider.profile_url || null;
+
+                          return (
+                            <button
+                              key={rider.name}
+                              type="button"
+                              className={`violation-rider-option${isSelected ? " is-selected" : ""}`}
+                              onClick={() => {
+                                setSelectedViolationRider(
+                                  isSelected ? null : rider.name,
+                                );
+                                setFullscreenMapSearchRider("");
+                              }}
+                            >
+                              {/* Avatar */}
+                              <div className="violation-rider-avatar-wrap">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={rider.name}
+                                    className="violation-rider-avatar-img"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      e.currentTarget.nextSibling.style.display =
+                                        "flex";
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="violation-rider-avatar-initials"
+                                  style={{
+                                    display: avatarUrl ? "none" : "flex",
+                                  }}
+                                >
+                                  {initials}
+                                </span>
+                              </div>
+
+                              {/* Info */}
+                              <div className="violation-rider-info">
+                                <span
+                                  className="violation-rider-name"
+                                  style={{ fontWeight: isSelected ? 700 : 600 }}
+                                >
+                                  {rider.name}
+                                </span>
+                                <span className="violation-rider-count">
+                                  {rider.violationCount} violation
+                                  {rider.violationCount !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+
+                              {/* Selected badge */}
+                              {isSelected && (
+                                <span className="violation-rider-selected-badge">
+                                  Selected
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>,
+                      document.body,
+                    )}
+                </div>
+                {selectedViolationRider && (
+                  <span className="violation-map-search-info is-selected">
+                    {selectedViolationRider}:{" "}
+                    {filteredViolationPointIndicators.length} violations
+                  </span>
+                )}
+                {!selectedViolationRider && fullscreenMapSearchRider && (
+                  <span className="violation-map-search-info">
+                    {filteredViolationPointIndicators.length} violations
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 className="violation-full-map-close"
-                onClick={() => setViolationMapModalOpen(false)}
+                onClick={() => {
+                  setViolationMapModalOpen(false);
+                  setFullscreenMapSearchRider("");
+                  setSelectedViolationRider(null);
+                }}
               >
                 Close
               </button>
