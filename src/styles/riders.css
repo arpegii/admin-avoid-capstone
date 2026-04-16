@@ -1462,8 +1462,8 @@ body.dark .weather-forecast-chip strong {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas:
-    "streak streak"
-    "profile main";
+    "barangay streak"
+    "profile  main";
   gap: 14px;
   align-items: start;
   padding: 14px;
@@ -1571,8 +1571,8 @@ body.dark .weather-forecast-chip strong {
   color: var(--c-text);
   padding: 8px 11px;
   font: inherit;
+  cursor: pointer;
 }
-.rider-edit-field input:focus,
 .rider-edit-field select:focus {
   outline: none;
   border-color: rgba(232, 25, 44, 0.45);
@@ -5221,5 +5221,65 @@ body.dark .flood-rider-avatar-fallback {
   }
   50% {
     transform: translateY(-2px);
+  }
+}
+/* ── Assigned Barangay corner pill ── */
+.rider-barangay-corner {
+  grid-area: barangay;
+  display: flex;
+  align-items: flex-start;
+}
+
+.rider-barangay-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-blue);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.dark .rider-barangay-pill {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.rider-edit-field-barangay {
+  min-width: 180px;
+  max-width: 200px;
+}
+.rider-edit-field-barangay input {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 5px 9px;
+}
+
+/* Mobile: stack barangay above streak */
+@media (max-width: 768px) {
+  .rider-info-hero {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "barangay"
+      "streak"
+      "profile"
+      "main";
+    justify-items: center;
+  }
+  .rider-barangay-corner {
+    justify-content: center;
+  }
+  .rider-edit-field-barangay {
+    min-width: unset;
+    width: 100%;
+    max-width: 100%;
   }
 }

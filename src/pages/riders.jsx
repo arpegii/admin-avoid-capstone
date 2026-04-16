@@ -183,12 +183,14 @@ const createRiderEditFormState = (rider = null) => ({
   username: toEditableText(rider?.username),
   email: toEditableText(rider?.email),
   pnumber: sanitizePhilippinePhoneInput(rider?.pnumber),
+  assigned_barangay: toEditableText(rider?.assigned_barangay),
 });
 
 const buildComparableRiderEditValues = (source = null) => ({
   username: toEditableText(source?.username).trim(),
   email: toEditableText(source?.email).trim().toLowerCase(),
   pnumber: sanitizePhilippinePhoneInput(source?.pnumber),
+  assigned_barangay: toEditableText(source?.assigned_barangay).trim(),
 });
 
 const validateRiderEditForm = (form) => {
@@ -215,6 +217,7 @@ const buildRiderEditPayload = (form) => {
     username: toEditableText(form?.username).trim(),
     email: toEditableText(form?.email).trim().toLowerCase(),
     pnumber: normalizePhilippinePhoneNumber(form?.pnumber),
+    assigned_barangay: toEditableText(form?.assigned_barangay).trim() || null,
   };
 };
 
@@ -2301,7 +2304,7 @@ export default function Riders() {
       const { data: riderData, error: riderError } = await supabaseClient
         .from("users")
         .select(
-          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url",
+          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url, assigned_barangay",
         )
         .eq("username", riderName)
         .maybeSingle();
@@ -2443,7 +2446,7 @@ export default function Riders() {
         .update(payload)
         .eq("user_id", selectedRiderInfo.user_id)
         .select(
-          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url",
+          "user_id, username, email, fname, lname, mname, gender, age, status, pnumber, profile_url, assigned_barangay",
         )
         .single();
 
@@ -3543,6 +3546,60 @@ export default function Riders() {
                     </p>
                   ) : null}
                   <div className="rider-info-hero">
+                    {/* Upper-left: Barangay */}
+                    <div className="rider-barangay-corner">
+                      {riderEditMode ? (
+                        <label className="rider-edit-field rider-edit-field-barangay">
+                          <span>Assigned Barangay</span>
+                          <select
+                            value={riderEditForm.assigned_barangay}
+                            onChange={(e) =>
+                              handleRiderEditChange(
+                                "assigned_barangay",
+                                e.target.value,
+                              )
+                            }
+                          >
+                            <option value="">— Select barangay —</option>
+                            <option value="Barangay Cupang">
+                              Barangay Cupang
+                            </option>
+                            <option value="Barangay Mambugan">
+                              Barangay Mambugan
+                            </option>
+                            <option value="Barangay Mayamot">
+                              Barangay Mayamot
+                            </option>
+                          </select>
+                        </label>
+                      ) : (
+                        <span className="rider-barangay-pill">
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 14 14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M7 1.5C4.79 1.5 3 3.29 3 5.5c0 3.25 4 7 4 7s4-3.75 4-7c0-2.21-1.79-4-4-4z" />
+                            <circle
+                              cx="7"
+                              cy="5.5"
+                              r="1.2"
+                              fill="currentColor"
+                              stroke="none"
+                            />
+                          </svg>
+                          {selectedRiderInfo?.assigned_barangay ||
+                            "No barangay assigned"}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Upper-right: Streak */}
                     <span
                       className={`rider-streak-pill rider-streak-pill-corner ${selectedRiderInfo?.metDailyQuotaToday ? "is-met" : "is-miss"}`}
                     >
@@ -3589,6 +3646,8 @@ export default function Riders() {
                         })()}
                       </span>
                     </span>
+
+                    {/* Avatar */}
                     <div className="rider-info-profile">
                       {selectedRiderInfo?.profile_url ? (
                         <button
@@ -3613,6 +3672,8 @@ export default function Riders() {
                         </div>
                       )}
                     </div>
+
+                    {/* Main info */}
                     <div className="rider-info-main">
                       <div className="rider-info-headline">
                         {riderEditMode ? (
@@ -3655,9 +3716,7 @@ export default function Riders() {
                           {(() => {
                             const n =
                               selectedRiderInfo?.status?.toLowerCase() || "";
-                            const statusClass = ["online", "active"].includes(
-                              n,
-                            )
+                            const statusClass = ["online", "active"].includes(n)
                               ? "is-online"
                               : ["offline", "inactive"].includes(n)
                                 ? "is-offline"
