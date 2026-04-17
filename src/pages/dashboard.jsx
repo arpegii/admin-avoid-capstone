@@ -2229,6 +2229,7 @@ const HorizontalBarList = ({
   items,
   colorClass = "emerald",
   showAvatar = false,
+  hideValue = false,
 }) => {
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
@@ -2260,14 +2261,16 @@ const HorizontalBarList = ({
           <div className="hbar-body">
             <div className="hbar-meta">
               <span className="hbar-label">{item.label}</span>
-              <span className="hbar-value">{item.value}</span>
+              {!hideValue && <span className="hbar-value">{item.value}</span>}
             </div>
-            <div className="hbar-track">
-              <div
-                className={`hbar-fill hbar-fill-${colorClass}`}
-                style={{ width: `${(item.value / max) * 100}%` }}
-              />
-            </div>
+            {!hideValue && (
+              <div className="hbar-track">
+                <div
+                  className={`hbar-fill hbar-fill-${colorClass}`}
+                  style={{ width: `${(item.value / max) * 100}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -5889,12 +5892,13 @@ const Dashboard = () => {
                     </p>
                   )}
                 </ChartCard>
-                <ChartCard title="Top Performers" subtitle="No Violations">
+                <ChartCard title="Riders With No Violations" subtitle="">
                   {topCleanRidersWithAvatars.length > 0 ? (
                     <HorizontalBarList
                       items={topCleanRidersWithAvatars.slice(0, 5)}
                       colorClass="sky"
                       showAvatar={true}
+                      hideValue={true}
                     />
                   ) : (
                     <p
@@ -5932,16 +5936,6 @@ const Dashboard = () => {
               </div>
 
               <div className="charts-row-violations">
-                <ChartCard
-                  title="Rider efficiency scorecard"
-                  subtitle="Delivery share · violations · composite score"
-                >
-                  <RiderScorecardCard
-                    topRiders={topRidersWithAvatars}
-                    topFlaggedRiders={topFlaggedRidersWithAvatars}
-                    topCleanRiders={topCleanRidersWithAvatars}
-                  />
-                </ChartCard>
                 <div className="chart-card">
                   <div className="violation-toggle-header">
                     <h3>Violations Trend</h3>

@@ -527,7 +527,7 @@ body.dark .stat-card.accent-orange .stat-icon {
 }
 
 .charts-row-violations {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .charts-row-map-solo {
