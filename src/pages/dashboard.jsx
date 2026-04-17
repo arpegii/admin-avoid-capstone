@@ -2626,7 +2626,7 @@ const StatusDonutChart = ({
   );
 };
 
-// â”€â”€â”€ Recharts Chart 3: Violations Trend Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recharts Chart 3: Violations Trend Bar Chart
 
 const ViolationsTrendChart = ({
   violationLogs = [],
@@ -2717,10 +2717,9 @@ const ViolationsTrendChart = ({
         </div>
       </div>
       <ResponsiveContainer width="100%" height={188}>
-        <BarChart
+        <LineChart
           data={chartData}
           margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-          barCategoryGap="30%"
         >
           <CartesianGrid
             strokeDasharray="4 4"
@@ -2741,114 +2740,223 @@ const ViolationsTrendChart = ({
           />
           <Tooltip
             content={<RcTooltip />}
-            cursor={{ fill: "#f4f6fb", rx: 6 }}
+            cursor={{
+              stroke: "#f0f2f7",
+              strokeWidth: 1.5,
+              strokeDasharray: "4 4",
+            }}
           />
-          <Bar dataKey="Violations" shape={<CustomBar />} />
-        </BarChart>
+          <Line
+            type="monotone"
+            dataKey="Violations"
+            stroke="#ef4444"
+            strokeWidth={2.5}
+            dot={(props) => {
+              const { cx, cy, value } = props;
+              if (value === 0) return null;
+              const isMax = value === maxVal;
+              return (
+                <circle
+                  key={`dot-${cx}-${cy}`}
+                  cx={cx}
+                  cy={cy}
+                  r={isMax ? 5 : 3}
+                  fill={isMax ? "#ef4444" : "#fca5a5"}
+                  stroke="#fff"
+                  strokeWidth={2}
+                />
+              );
+            }}
+            activeDot={{
+              r: 5,
+              fill: "#ef4444",
+              stroke: "#fff",
+              strokeWidth: 2,
+            }}
+          />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
 };
 
-// â”€â”€â”€ Recharts Chart 4: Rate Overview Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Rider Efficiency Scorecard ──────────────────────────────────────────────
 
-const RateOverviewBar = (props) => {
-  const { x, y, width, height, fill } = props;
-  return (
-    <rect x={x} y={y} width={width} height={height} fill={fill} rx={8} ry={8} />
-  );
-};
-
-const RateOverviewTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      style={{
-        background: "#fff",
-        border: "1px solid #e8eaf0",
-        borderRadius: 10,
-        padding: "10px 14px",
-        boxShadow: "0 4px 20px rgba(30,40,80,0.12)",
-        fontFamily: "inherit",
-        fontSize: 13,
-      }}
-    >
-      <p
-        style={{
-          margin: "0 0 4px",
-          color: "#6b7280",
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.6px",
-        }}
-      >
-        {label}
-      </p>
-      <p
-        style={{
-          margin: 0,
-          fontWeight: 700,
-          color: payload[0]?.fill,
-          fontSize: 14,
-        }}
-      >
-        {payload[0]?.value?.toFixed(1)}%
-      </p>
-    </div>
-  );
-};
-
-const RateOverviewChart = ({
-  deliveryRate = 0,
-  delayRate = 0,
-  cancellationRate = 0,
+const RiderScorecardCard = ({
+  topRiders,
+  topFlaggedRiders,
+  topCleanRiders,
 }) => {
-  const data = [
-    { label: "Delivery", value: deliveryRate, fill: "rgba(22,163,74,0.82)" },
-    { label: "Delay", value: delayRate, fill: "rgba(245,158,11,0.82)" },
-    { label: "Cancel", value: cancellationRate, fill: "rgba(239,68,68,0.82)" },
-  ];
+  // Build a merged rider list with delivery count, violation count, and avatar
+  const riderMap = {};
+
+  (topRiders || []).forEach((r) => {
+    const key = r.label.toLowerCase();
+    if (!riderMap[key])
+      riderMap[key] = {
+        name: r.label,
+        deliveries: 0,
+        violations: 0,
+        avatarUrl: r.avatarUrl || null,
+      };
+    riderMap[key].deliveries = r.value;
+    if (r.avatarUrl) riderMap[key].avatarUrl = r.avatarUrl;
+  });
+
+  (topFlaggedRiders || []).forEach((r) => {
+    const key = r.label.toLowerCase();
+    if (!riderMap[key])
+      riderMap[key] = {
+        name: r.label,
+        deliveries: 0,
+        violations: 0,
+        avatarUrl: r.avatarUrl || null,
+      };
+    riderMap[key].violations = r.value;
+    if (r.avatarUrl && !riderMap[key].avatarUrl)
+      riderMap[key].avatarUrl = r.avatarUrl;
+  });
+
+  const allRiders = Object.values(riderMap);
+  const maxDeliveries = Math.max(...allRiders.map((r) => r.deliveries), 1);
+  const maxViolations = Math.max(...allRiders.map((r) => r.violations), 1);
+
+  const scored = allRiders
+    .map((r) => {
+      // AFTER
+      const deliveryScore = (r.deliveries / maxDeliveries) * 100;
+      const complianceScore = Math.max(0, 100 - r.violations * 10);
+      const score = Math.round(deliveryScore * 0.65 + complianceScore * 0.35);
+      return { ...r, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  const STATUS_STYLES = {
+    top: { label: "Top", bg: "#EAF3DE", color: "#3B6D11" },
+    average: { label: "Average", bg: "#F1EFE8", color: "#5F5E5A" },
+    risk: { label: "At risk", bg: "#FCEBEB", color: "#A32D2D" },
+  };
+
+  const SCORE_COLORS = {
+    top: "#3B6D11",
+    average: "#888780",
+    risk: "#A32D2D",
+  };
+
+  if (!scored.length) {
+    return (
+      <p
+        style={{
+          textAlign: "center",
+          color: "var(--dash-muted)",
+          padding: "2rem 0",
+          fontSize: "0.8rem",
+        }}
+      >
+        No rider data
+      </p>
+    );
+  }
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data}
-        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-        barCategoryGap="38%"
-      >
-        <CartesianGrid
-          strokeDasharray="4 4"
-          stroke="#f0f2f7"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="label"
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
-          dy={8}
-        />
-        <YAxis
-          axisLine={false}
-          tickLine={false}
-          tick={{ fill: "#9ca3af", fontSize: 11, fontFamily: "inherit" }}
-          tickFormatter={(v) => `${v}%`}
-          domain={[0, 100]}
-        />
-        <Tooltip
-          content={<RateOverviewTooltip />}
-          cursor={{ fill: "#f4f6fb", rx: 8 }}
-        />
-        <Bar
-          dataKey="value"
-          shape={(props) => (
-            <RateOverviewBar {...props} fill={data[props.index]?.fill} />
-          )}
-          isAnimationActive={true}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="rsc-table">
+      {/* Header */}
+      <div className="rsc-header-row">
+        <span className="rsc-th rsc-th-rider">Rider</span>
+        <span className="rsc-th">Deliveries</span>
+        <span className="rsc-th">Violations</span>
+        <span className="rsc-th rsc-th-score">Score</span>
+      </div>
+      {/* Rows */}
+      {scored.map((rider, idx) => {
+        const initials = rider.name
+          .trim()
+          .split(" ")
+          .slice(0, 2)
+          .map((w) => w.charAt(0).toUpperCase())
+          .join("");
+        return (
+          <div key={idx} className="rsc-row">
+            {/* Avatar + Name */}
+            <div className="rsc-cell rsc-cell-rider">
+              <div className="rsc-avatar">
+                {rider.avatarUrl ? (
+                  <img
+                    src={rider.avatarUrl}
+                    alt={rider.name}
+                    className="rsc-avatar-img"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      e.currentTarget.nextSibling.style.display = "flex";
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="rsc-avatar-fallback"
+                  style={{ display: rider.avatarUrl ? "none" : "flex" }}
+                >
+                  {initials}
+                </div>
+              </div>
+              <div className="rsc-rider-info">
+                <span className="rsc-rider-name">{rider.name}</span>
+                <span className="rsc-rider-sub">
+                  {rider.deliveries} deliveries
+                </span>
+              </div>
+            </div>
+            {/* Deliveries bar */}
+            <div className="rsc-cell rsc-cell-bar">
+              <span className="rsc-metric-val">{rider.deliveries}</span>
+              <div className="rsc-bar-track">
+                <div
+                  className="rsc-bar-fill rsc-bar-green"
+                  style={{
+                    width: `${(rider.deliveries / maxDeliveries) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+            {/* Violations bar */}
+            <div className="rsc-cell rsc-cell-bar">
+              <span
+                className="rsc-metric-val"
+                style={{
+                  color: rider.violations > 0 ? "#A32D2D" : "var(--dash-muted)",
+                }}
+              >
+                {rider.violations}
+              </span>
+              <div className="rsc-bar-track">
+                <div
+                  className="rsc-bar-fill rsc-bar-red"
+                  style={{
+                    width: `${(rider.violations / maxViolations) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+            {/* Score */}
+            <div
+              className="rsc-cell rsc-cell-score"
+              style={{
+                color:
+                  rider.score >= 60
+                    ? "#3B6D11"
+                    : rider.score >= 25
+                      ? "#888780"
+                      : "#A32D2D",
+              }}
+            >
+              {rider.score}
+            </div>
+          </div>
+        );
+      })}
+      {/* Formula footnote */}
+      <div className="rsc-formula"></div>
+    </div>
   );
 };
 
@@ -5824,11 +5932,14 @@ const Dashboard = () => {
               </div>
 
               <div className="charts-row-violations">
-                <ChartCard title="Rate Overview" subtitle="">
-                  <RateOverviewChart
-                    deliveryRate={analyticsSummary.deliveryRate}
-                    delayRate={analyticsSummary.delayRate}
-                    cancellationRate={analyticsSummary.cancellationRate}
+                <ChartCard
+                  title="Rider efficiency scorecard"
+                  subtitle="Delivery share · violations · composite score"
+                >
+                  <RiderScorecardCard
+                    topRiders={topRidersWithAvatars}
+                    topFlaggedRiders={topFlaggedRidersWithAvatars}
+                    topCleanRiders={topCleanRidersWithAvatars}
                   />
                 </ChartCard>
                 <div className="chart-card">
