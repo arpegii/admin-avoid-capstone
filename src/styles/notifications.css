@@ -1,9 +1,6 @@
-/* ═══════════════════════════════════════════════════════════════
-   NOTIFICATION CENTER  ·  AVOID admin — red/white brand
-   All classes prefixed nc- to avoid collisions.
-   ═══════════════════════════════════════════════════════════════ */
+/* Notification Center */
 
-/* ── Root wrapper ───────────────────────────────────────────── */
+/* Root wrapper */
 .nc-root {
   position: relative;
   display: flex;
@@ -73,7 +70,7 @@
   }
 }
 
-/* ── Badge ──────────────────────────────────────────────────── */
+/* Badge */
 .nc-bell-badge {
   position: absolute;
   top: -5px;
@@ -116,9 +113,7 @@
   }
 }
 
-/* ══════════════════════════════════════════════════════════════
-   DROPDOWN  (position/top/right/z-index injected inline)
-══════════════════════════════════════════════════════════════ */
+/* Dropdown */
 .nc-dropdown {
   width: 370px;
   max-height: 500px;
@@ -145,7 +140,7 @@
   }
 }
 
-/* ── Dropdown Header ─────────────────────────────────────────── */
+/* Dropdown Header */
 .nc-dropdown-header {
   display: flex;
   align-items: center;
@@ -405,9 +400,7 @@
   color: #e8192c;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TOAST STACK  (position: fixed, renders at document.body)
-══════════════════════════════════════════════════════════════ */
+/* Toast Stack */
 .nc-toast-stack {
   position: fixed;
   top: 68px; /* clears the navbar */
@@ -420,7 +413,7 @@
   width: 340px;
 }
 
-/* ── Single toast card ───────────────────────────────────────── */
+/* Single toast card */
 .nc-toast {
   pointer-events: all;
   position: relative;

@@ -1,12 +1,8 @@
-/* ═══════════════════════════════════════════════════════
-   PARCEL MANAGEMENT — Editorial Operations Aesthetic
-   Fonts: Syne (display) + DM Sans (body) + DM Mono (data)
-   Palette: warm off-white · obsidian · crimson accent
-═══════════════════════════════════════════════════════ */
+/* Parcel Management */
 
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap");
 
-/* ── Page shell ── */
+/* Page shell */
 .parcels-page {
   flex: 1;
   padding: calc(58px + 2rem) 2rem 3rem !important;
@@ -30,7 +26,7 @@
   border-radius: 3px;
 }
 
-/* ── Page title ── */
+/* Page title */
 .parcels-page .page-title {
   font-size: clamp(1.35rem, 2vw, 1.75rem);
   font-weight: 900;
@@ -52,7 +48,7 @@
   flex-shrink: 0;
 }
 
-/* ═══════════════ TOOLBAR / FILTER BAR ═══════════════ */
+/* Toolbar / Filter Bar */
 
 .parcels-filter-section {
   background: #ffffff;
@@ -131,7 +127,7 @@
   width: 220px;
 }
 
-/* ── Custom select trigger ── */
+/* Custom select trigger */
 .parcel-filter-modern-trigger {
   width: 100%;
   height: 38px;
@@ -231,7 +227,7 @@
   }
 }
 
-/* ═══════════════ TABLE ═══════════════ */
+/* Table */
 
 .parcels-table-wrapper {
   background: #ffffff;
@@ -276,7 +272,7 @@
   width: 7%;
 }
 
-/* ── Header ── */
+/* Header */
 .parcel-table thead tr {
   border-bottom: 1px solid #ede8e3;
 }
@@ -301,7 +297,7 @@
   text-align: center;
 }
 
-/* ── Body rows ── */
+/* Body rows */
 .parcel-table tbody tr {
   border-bottom: 1px solid #f0ebe6;
   transition: background 0.14s;
@@ -315,7 +311,7 @@
   border-bottom: none;
 }
 
-/* ── Cells ── */
+/* Cells */
 .parcel-table tbody td {
   padding: 13px 14px;
   color: #5a4a4a;
@@ -347,7 +343,7 @@
   text-align: center;
 }
 
-/* ── Status pills ── */
+/* Status pills */
 .parcel-status-pill {
   display: inline-flex;
   align-items: center;
@@ -405,7 +401,7 @@
   }
 }
 
-/* ── View button ── */
+/* View button */
 .parcel-table .btn-view {
   background: #e8192c;
   color: #fff;
@@ -434,7 +430,7 @@
   }
 }
 
-/* ═══════════════ TABLE FOOTER & PAGINATION ═══════════════ */
+/* Table Footer & Pagination */
 
 .parcels-table-footer {
   padding: 12px 20px;
@@ -523,7 +519,7 @@
   white-space: nowrap;
 }
 
-/* ═══════════════ MODAL OVERLAY ═══════════════ */
+/* Modal Overlay */
 
 .parcels-modal-overlay {
   position: fixed;
@@ -561,7 +557,7 @@
   }
 }
 
-/* ── Modal header (used by track + csv modals) ── */
+/* Modal header */
 .parcels-modal-header {
   padding: 20px 24px 18px;
   border-bottom: 1px solid #ede8e3;
@@ -604,7 +600,7 @@
   }
 }
 
-/* ── Modal body (used by track + csv modals) ── */
+/* Modal body */
 .parcels-modal-body {
   padding: 22px 24px;
   background: #faf8f6;
@@ -623,7 +619,7 @@
   }
 }
 
-/* ═══════════════ VIEW PARCEL MODAL ═══════════════ */
+/* View Parcel Modal */
 
 .view-parcel-modal {
   background: #fff;
@@ -656,7 +652,7 @@
   max-height: 92vh;
 }
 
-/* ── Hero header ── */
+/* Hero header */
 .vpd-hero {
   position: relative;
   background: #ffffff;
@@ -857,7 +853,7 @@
   padding-top: 10px;
 }
 
-/* ── Scrollable body ── */
+/* Scrollable body */
 .vpd-body {
   flex: 1;
   overflow-y: auto;
@@ -879,14 +875,14 @@
   border-radius: 3px;
 }
 
-/* ── Two-column layout ── */
+/* Two-column layout */
 .vpd-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-/* ── Info cards ── */
+/* Info cards */
 .vpd-info-card {
   background: #fff;
   border: 1px solid #e8e3dd;
@@ -951,7 +947,7 @@
   word-break: break-word;
 }
 
-/* ── Address card ── */
+/* Address card */
 .vpd-address-text {
   margin: 0 0 16px;
   font-family: "DM Sans", sans-serif;
@@ -1059,7 +1055,7 @@
   box-shadow: none;
 }
 
-/* ── Bottom row: attempts + proof side by side ── */
+/* Bottom row: attempts + proof side by side */
 .vpd-bottom-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1067,7 +1063,7 @@
   align-items: start;
 }
 
-/* ── Attempt History ── */
+/* Attempt History */
 .vpd-attempts {
   display: flex;
   flex-direction: column;
@@ -1156,7 +1152,7 @@
   color: #b8ada6;
 }
 
-/* ── Proof of Delivery ── */
+/* Proof of Delivery */
 .vpd-proof-card {
   background: #fff;
   border: 1px solid #e8e3dd;
@@ -1204,7 +1200,7 @@
   color: #b8ada6;
 }
 
-/* ── Proof of Delivery side panel ── */
+/* Proof of Delivery side panel */
 .vpd-proof-panel {
   flex: 1;
   display: flex;
@@ -1990,7 +1986,7 @@
   text-align: center;
 }
 
-/* ═══════════════ RESPONSIVE ═══════════════ */
+/* Responsive */
 
 @media (max-width: 1100px) {
   .parcels-page {
@@ -2090,7 +2086,7 @@
   }
 }
 
-/* ═══════════════ DARK MODE ═══════════════ */
+/* Dark Mode */
 
 body.dark .parcels-page {
   background: #0f172a;

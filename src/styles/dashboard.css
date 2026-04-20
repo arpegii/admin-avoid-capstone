@@ -1,4 +1,4 @@
-/* ─── CSS Variables & Base ─────────────────────────────────────────────────── */
+/* CSS Variables & Base */
 :root {
   --dash-bg-1: var(--theme-bg);
   --dash-bg-2: var(--theme-accent-soft);
@@ -18,7 +18,7 @@
   --dash-radius: 16px;
 }
 
-/* ─── Page Shell ─────────────────────────────────────────────────────────────── */
+/* Page Shell */
 .dashboard-page {
   position: relative;
   flex: 1;
@@ -75,7 +75,7 @@ body.tnav-hidden .dashboard-page {
   );
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────────────── */
+/* Header */
 .dashboard-page .dash-header {
   display: flex;
   justify-content: space-between;
@@ -124,7 +124,7 @@ body.tnav-hidden .dashboard-page {
   flex-wrap: nowrap;
 }
 
-/* ─── Generate Report Button ─────────────────────────────────────────────────── */
+/* Generate Report Button */
 .dashboard-page .dash-generate-report-btn {
   display: inline-flex;
   align-items: center;
@@ -155,7 +155,7 @@ body.tnav-hidden .dashboard-page {
   box-shadow: 0 10px 22px rgba(185, 28, 28, 0.36);
 }
 
-/* ─── Year Filter Pill ───────────────────────────────────────────────────────── */
+/* Year Filter Pill */
 .dashboard-page .dash-year-filter {
   display: inline-flex;
   align-items: center;
@@ -197,7 +197,7 @@ body.tnav-hidden .dashboard-page {
   flex-shrink: 0;
 }
 
-/* ─── Analytics Dashboard Grid ───────────────────────────────────────────────── */
+/* Analytics Dashboard Grid */
 .analytics-dashboard-grid {
   display: flex;
   flex-direction: column;
@@ -215,18 +215,16 @@ body.tnav-hidden .dashboard-page {
   pointer-events: none;
 }
 
-/* ─── KPI Rows ───────────────────────────────────────────────────────────────── */
+/* KPI Rows */
 .analytics-dashboard-grid .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.65rem;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════
-   REDESIGNED STAT CARDS
-   ═══════════════════════════════════════════════════════════════════════════════ */
+/* Redesigned Stat Cards */
 
-/* ─── Card shell ─────────────────────────────────────────────────────────────── */
+/* Card shell */
 .stat-card {
   position: relative;
   border-radius: 18px;
@@ -250,7 +248,7 @@ body.tnav-hidden .dashboard-page {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
-/* ─── Background gradient wash (very subtle) ─────────────────────────────────── */
+/* Background gradient wash (very subtle) */
 .stat-card::after {
   content: "";
   position: absolute;
@@ -284,7 +282,7 @@ body.tnav-hidden .dashboard-page {
   opacity: 0.065;
 }
 
-/* ─── Inner padding wrapper ──────────────────────────────────────────────────── */
+/* Inner padding wrapper */
 .stat-inner {
   position: relative;
   z-index: 1;
@@ -294,7 +292,7 @@ body.tnav-hidden .dashboard-page {
   gap: 0.3rem;
 }
 
-/* ─── Header row: label (left) + icon (right) ────────────────────────────────── */
+/* Header row: label (left) + icon (right) */
 .stat-header {
   display: flex;
   align-items: center;
@@ -312,7 +310,7 @@ body.tnav-hidden .dashboard-page {
   white-space: nowrap;
 }
 
-/* ─── Icon pill ──────────────────────────────────────────────────────────────── */
+/* Icon pill */
 .stat-icon {
   flex-shrink: 0;
   width: 30px;
@@ -371,7 +369,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   background: rgba(249, 115, 22, 0.16);
 }
 
-/* ─── Value ──────────────────────────────────────────────────────────────────── */
+/* Value */
 .stat-value {
   font-size: clamp(1.4rem, 1.85vw, 1.72rem);
   font-weight: 800;
@@ -383,7 +381,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   text-overflow: ellipsis;
 }
 
-/* ─── Footer: sub text + trend badge ────────────────────────────────────────── */
+/* Footer: sub text + trend badge */
 .stat-footer {
   display: flex;
   align-items: center;
@@ -415,7 +413,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* ─── Stat value animations ──────────────────────────────────────────────────── */
+/* Stat value animations */
 @keyframes statValueIn {
   0% {
     opacity: 0;
@@ -451,7 +449,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   animation: statSubIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
-/* ─── Chart Card ─────────────────────────────────────────────────────────────── */
+/* Chart Card */
 .chart-card {
   padding: 0.9rem 1rem;
   border-radius: var(--dash-radius);
@@ -503,7 +501,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   display: block;
 }
 
-/* ─── Chart Rows ─────────────────────────────────────────────────────────────── */
+/* Chart Rows */
 .charts-row-main,
 .charts-row-mid,
 .charts-row-riders,
@@ -534,7 +532,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   grid-template-columns: 1fr;
 }
 
-/* ─── Violation Toggled Card ─────────────────────────────────────────────────── */
+/* Violation Toggled Card */
 .violation-toggled-card {
   display: flex;
   flex-direction: column;
@@ -596,7 +594,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   background: rgba(200, 16, 46, 0.06);
 }
 
-/* ─── Horizontal Bar List ─────────────────────────────────────────────────────── */
+/* Horizontal Bar List */
 .hbar-list {
   display: flex;
   flex-direction: column;
@@ -675,7 +673,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   background: linear-gradient(90deg, #0284c7, #38bdf8);
 }
 
-/* ─── HBar Avatar ───────────────────────────────────────────────────────────── */
+/* HBar Avatar */
 .hbar-avatar {
   flex-shrink: 0;
   width: 34px;
@@ -870,7 +868,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   }
 }
 
-/* ─── Modal Overlay (shared) ─────────────────────────────────────────────────── */
+/* Modal Overlay */
 .dashboard-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1459,7 +1457,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   box-shadow: 0 4px 14px rgba(232, 25, 44, 0.32);
 }
 
-/* ─── Fullscreen Violation Map Modal ─────────────────────────────────────────── */
+/* Fullscreen Violation Map Modal */
 .violation-full-map-modal {
   width: min(1320px, 98vw);
   max-width: 98vw;
@@ -1807,15 +1805,6 @@ body.dark
   color: rgba(226, 232, 240, 0.7);
 }
 
-/* ─── Violation Rider Search Container & Dropdown ─────────────────────────── */
-.violation-search-container {
-  position: relative;
-  z-index: 99999;
-  flex: 1;
-  min-width: 240px;
-  max-width: 420px;
-}
-
 .violation-full-map-close {
   position: relative;
   right: auto;
@@ -1867,7 +1856,7 @@ body.dark
   overflow: hidden;
 }
 
-/* ─── Leaflet / Violation map markers ───────────────────────────────────────── */
+/* Leaflet / Violation map markers */
 .violation-warning-marker-wrap {
   background: transparent;
   border: none;
@@ -2033,7 +2022,7 @@ body.dark
   line-height: 1.5;
 }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 1280px) {
   .charts-row-main {
     grid-template-columns: 1fr;

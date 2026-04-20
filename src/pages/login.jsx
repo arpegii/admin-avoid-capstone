@@ -64,7 +64,7 @@ export default function Login({ setOtpVerified }) {
     return err?.status === 429 || message.includes("rate limit");
   };
 
-  // ------------------- LOGIN (Step 1: Password) -------------------
+  // Login (Step 1: Password)
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -112,7 +112,7 @@ export default function Login({ setOtpVerified }) {
     }
   };
 
-  // ------------------- SEND OTP -------------------
+  // Send OTP
   const sendOTP = async (targetEmail = normalizedEmail) => {
     const { error: otpError } = await supabaseClient.auth.signInWithOtp({
       email: targetEmail,
@@ -121,7 +121,7 @@ export default function Login({ setOtpVerified }) {
     if (otpError) throw otpError;
   };
 
-  // ------------------- VERIFY OTP -------------------
+  // Verify OTP
   const handleVerifyOTP = useCallback(
     async (e) => {
       e.preventDefault();
@@ -166,7 +166,7 @@ export default function Login({ setOtpVerified }) {
     [normalizedEmail, otpCode, setOtpVerified],
   );
 
-  // ------------------- RESEND OTP -------------------
+  // Resend OTP
   const handleResendOTP = async () => {
     if (resendCooldown > 0) return;
     setError("");
@@ -314,7 +314,7 @@ export default function Login({ setOtpVerified }) {
     return () => clearTimeout(timerId);
   }, [otpResultModal.open, otpResultModal.type, navigate]);
 
-  // ------------------- RENDER -------------------
+  // Render
   return (
     <div className="login-page ui-auth-page font-sans">
       {/* Floating decorative shapes */}

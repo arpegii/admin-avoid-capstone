@@ -46,7 +46,7 @@ import "../styles/dashboard.css";
 import PageSpinner from "../components/PageSpinner";
 import { exportReportAsWorkbook } from "../utils/reportExcel";
 
-// â”€â”€â”€ Utility helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Utility helpers
 
 const humanizeLabel = (label) => {
   if (!label) return "";
@@ -525,7 +525,7 @@ const countBy = (rows = [], resolver) => {
   return map;
 };
 
-// â”€â”€â”€ Analytics Builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Analytics Builders
 
 const buildParcelsAnalytics = (parcels = []) => {
   const deliveredRows = parcels.filter((p) => isDeliveredStatus(p?.status));
@@ -1064,7 +1064,7 @@ const resolveReportGeneratedBy = async () => {
     const userId = user?.id;
     const userEmail = user?.email;
 
-    // ── Priority 1: admin_profile table (most accurate for admins) ──
+    // -- Priority 1: admin_profile table (most accurate for admins) --
     if (userId) {
       const { data: adminRows } = await supabaseClient
         .from("admin_profile")
@@ -1078,7 +1078,7 @@ const resolveReportGeneratedBy = async () => {
       if (adminName) return adminName;
     }
 
-    // ── Priority 2: try by email if user_id didn't match ──
+    // -- Priority 2: try by email if user_id didn't match --
     if (userEmail) {
       const { data: adminByEmail } = await supabaseClient
         .from("admin_profile")
@@ -1092,7 +1092,7 @@ const resolveReportGeneratedBy = async () => {
       if (adminName) return adminName;
     }
 
-    // ── Priority 3: Supabase auth metadata fallback ──
+    // -- Priority 3: Supabase auth metadata fallback --
     const metadata = user?.user_metadata || {};
     const metaName = String(
       metadata.full_name ||
@@ -1106,7 +1106,7 @@ const resolveReportGeneratedBy = async () => {
     ).trim();
     if (metaName) return metaName;
 
-    // ── Priority 4: derive from email ──
+    // -- Priority 4: derive from email --
     if (userEmail) {
       const localPart = String(userEmail)
         .split("@")[0]
@@ -1161,7 +1161,7 @@ const useAnimatedNumber = (target, duration = 420) => {
   return display;
 };
 
-// â”€â”€â”€ Transition key hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Transition key hook
 
 const useTransitionKey = (dep) => {
   const [key, setKey] = useState(0);
@@ -1175,7 +1175,7 @@ const useTransitionKey = (dep) => {
   return key;
 };
 
-// â”€â”€â”€ FloatSelect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// FloatSelect
 
 const FLOAT_SELECT_STYLE_ID = "float-select-injected-styles";
 const injectFloatSelectStyles = () => {
@@ -1447,7 +1447,7 @@ const FloatSelect = ({
   );
 };
 
-// â”€â”€â”€ KPI Chart Modal Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// KPI Chart Modal Config
 // NOTE: buildChartData now receives `selectedYear` as second arg so yearly tabs
 // can be conditionally excluded when a specific year is selected.
 
@@ -1785,7 +1785,7 @@ const buildKpiChartConfig = (selectedYear) => {
   };
 };
 
-// â”€â”€â”€ KPI Chart Modal Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// KPI Chart Modal Component
 
 const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
   // Build config dynamically based on currently selected year
@@ -1946,7 +1946,7 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* â”€â”€ Modal Header â”€â”€ */}
+        {/* -- Modal Header -- */}
         <div
           style={{
             background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}cc 100%)`,
@@ -2031,7 +2031,7 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
           </button>
         </div>
 
-        {/* â”€â”€ Modal Body â”€â”€ */}
+        {/* -- Modal Body -- */}
         <div style={{ padding: 20, overflowY: "auto", background: "#f8fafc" }}>
           {/* Summary pills */}
           <div
@@ -2141,7 +2141,7 @@ const KpiChartModal = ({ kpiKey, dashboardData, selectedYear, onClose }) => {
   );
 };
 
-// â”€â”€â”€ REDESIGNED Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// REDESIGNED Stat Card
 
 const StatCard = ({
   icon,
@@ -2211,7 +2211,7 @@ const StatCard = ({
   );
 };
 
-// â”€â”€â”€ Chart card wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Chart card wrapper
 
 const ChartCard = ({ title, subtitle, children, className = "" }) => (
   <div className={`chart-card ${className}`.trim()}>
@@ -2223,7 +2223,7 @@ const ChartCard = ({ title, subtitle, children, className = "" }) => (
   </div>
 );
 
-// â”€â”€â”€ Horizontal bar list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Horizontal bar list
 
 const HorizontalBarList = ({
   items,
@@ -2343,7 +2343,7 @@ const REPORT_TYPE_OPTIONS = [
   { value: "overall", label: "Overall Reports", Icon: IconOverall },
 ];
 
-// â”€â”€â”€ Recharts: Shared custom tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recharts: Shared custom tooltip
 
 const RcTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -2399,7 +2399,7 @@ const RcTooltip = ({ active, payload, label }) => {
   );
 };
 
-// â”€â”€â”€ Recharts Chart 1: Deliveries vs Delays Line Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recharts Chart 1: Deliveries vs Delays Line Chart
 
 const DeliveriesLineChart = ({
   monthGrowth = [],
@@ -2481,7 +2481,7 @@ const DeliveriesLineChart = ({
   );
 };
 
-// â”€â”€â”€ Recharts Chart 2: Status Breakdown Donut Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recharts Chart 2: Status Breakdown Donut Chart
 
 const DONUT_COLORS = ["#16a34a", "#ef4444", "#94a3b8"];
 const DONUT_LABELS = ["Delivered", "Cancelled", "In Progress"];
@@ -2783,7 +2783,7 @@ const ViolationsTrendChart = ({
   );
 };
 
-// ─── Rider Efficiency Scorecard ──────────────────────────────────────────────
+// Rider Efficiency Scorecard
 
 const RiderScorecardCard = ({
   topRiders,
@@ -2963,7 +2963,7 @@ const RiderScorecardCard = ({
   );
 };
 
-// â”€â”€â”€ PDF Generation Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PDF Generation Helpers
 
 const PDF_BRAND_RED = [153, 0, 0];
 const PDF_BRAND_DARK = [17, 24, 39];
@@ -3404,7 +3404,7 @@ const pdfAddPageFooter = (
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(...PDF_SLATE_400);
-  doc.text(`${reportTitle} · Confidential`, 12, pageHeight - 4);
+  doc.text(`${reportTitle} ? Confidential`, 12, pageHeight - 4);
   doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - 12, pageHeight - 4, {
     align: "right",
   });
@@ -4323,7 +4323,7 @@ const buildPdfDoc = async (
   return doc;
 };
 
-// â”€â”€â”€ Main Dashboard Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Main Dashboard Component
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
@@ -4366,6 +4366,8 @@ const Dashboard = () => {
   const [violationRiderSearchResults, setViolationRiderSearchResults] =
     useState([]);
   const [violationRiderAvatars, setViolationRiderAvatars] = useState({});
+  const [violationSearchCurrentPage, setViolationSearchCurrentPage] =
+    useState(1);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -4382,7 +4384,7 @@ const Dashboard = () => {
   const [cleanRiderAvatars, setCleanRiderAvatars] = useState({});
   const [kpiModalKey, setKpiModalKey] = useState(null);
 
-  // â”€â”€ Refs â”€â”€
+  // Refs
   const yearFilterRef = useRef(null);
   const violationMapRef = useRef(null);
   const violationLeafletMapRef = useRef(null);
@@ -4397,7 +4399,7 @@ const Dashboard = () => {
     year: "numeric",
   });
 
-  // â”€â”€ Inject animation + popup styles once â”€â”€
+  // Inject animation + popup styles once
   useEffect(() => {
     const styleId = "dash-value-anim-styles";
     if (document.getElementById(styleId)) return;
@@ -4443,7 +4445,7 @@ const Dashboard = () => {
     document.head.appendChild(style);
   }, []);
 
-  // â”€â”€ Animated values â”€â”€
+  // Animated values
   const transitionKey = useTransitionKey(selectedYear);
   const animTotalParcels = useAnimatedNumber(dashboardData.totalParcels);
   const animDelivered = useAnimatedNumber(dashboardData.delivered);
@@ -5145,7 +5147,7 @@ const Dashboard = () => {
     loadAnalytics();
   }, [selectedYear, yearFilterReady, availableYears, currentYear]);
 
-  // â”€â”€ Fetch profile pictures for most flagged riders â”€â”€
+  // Fetch profile pictures for most flagged riders
   useEffect(() => {
     if (!dashboardData.topFlaggedRiders.length) return;
     async function fetchFlaggedRiderAvatars() {
@@ -5172,7 +5174,7 @@ const Dashboard = () => {
     fetchFlaggedRiderAvatars();
   }, [dashboardData.topFlaggedRiders]);
 
-  // â”€â”€ Fetch profile pictures for top riders â”€â”€
+  // Fetch profile pictures for top riders
   useEffect(() => {
     if (!dashboardData.topRiders.length) return;
     async function fetchTopRiderAvatars() {
@@ -5199,7 +5201,7 @@ const Dashboard = () => {
     fetchTopRiderAvatars();
   }, [dashboardData.topRiders]);
 
-  // â"€â"€ Fetch profile pictures for clean riders â"€â"€
+  // ?"??"? Fetch profile pictures for clean riders ?"??"?
   useEffect(() => {
     if (!dashboardData.topCleanRiders.length) return;
     async function fetchCleanRiderAvatars() {
@@ -5289,17 +5291,8 @@ const Dashboard = () => {
   const filteredViolationPointIndicators = useMemo(() => {
     let filtered = violationPointIndicators;
 
-    // Filter by search term if provided (wildcard search - matches anywhere in the string)
-    if (fullscreenMapSearchRider.trim()) {
-      const searchTerm = fullscreenMapSearchRider.toLowerCase().trim();
-      filtered = filtered.filter((point) => {
-        const riderName = (point.rider_name || "").toLowerCase();
-        const location = (point.location || "").toLowerCase();
-        return riderName.includes(searchTerm) || location.includes(searchTerm);
-      });
-    }
-
-    // Filter by selected rider if provided
+    // Only filter by selected rider if provided
+    // Filtering is NOT applied while typing in search field
     if (selectedViolationRider) {
       filtered = filtered.filter(
         (point) =>
@@ -5309,28 +5302,31 @@ const Dashboard = () => {
     }
 
     return filtered;
-  }, [
-    violationPointIndicators,
-    fullscreenMapSearchRider,
-    selectedViolationRider,
-  ]);
+  }, [violationPointIndicators, selectedViolationRider]);
 
   // Get unique rider names for search results
   const violationRiderSearchDropdown = useMemo(() => {
-    if (!fullscreenMapSearchRider.trim()) return [];
+    if (!fullscreenMapSearchRider.trim()) {
+      setViolationSearchCurrentPage(1);
+      return [];
+    }
     const searchTerm = fullscreenMapSearchRider.toLowerCase().trim();
     const uniqueRiders = new Map();
 
+    // Search by rider name or violation type only
     violationPointIndicators.forEach((point) => {
       const riderName = point.rider_name || "";
-      if (
-        riderName.toLowerCase().includes(searchTerm) &&
-        !uniqueRiders.has(riderName)
-      ) {
+      const violationType = point.violation_type || "";
+
+      const matchesSearchTerm =
+        riderName.toLowerCase().includes(searchTerm) ||
+        violationType.toLowerCase().includes(searchTerm);
+
+      if (matchesSearchTerm && !uniqueRiders.has(riderName)) {
         uniqueRiders.set(riderName, {
           name: riderName,
           violationCount: 0,
-          profile_url: point.profile_url || null, // ← already there, just confirm
+          profile_url: point.profile_url || null,
         });
       }
     });
@@ -5345,7 +5341,19 @@ const Dashboard = () => {
     return riderArray.sort((a, b) => b.violationCount - a.violationCount);
   }, [violationPointIndicators, fullscreenMapSearchRider]);
 
-  // â”€â”€ Map effects â”€â”€
+  // Pagination constants
+  const VIOLATION_DROPDOWN_PAGE_SIZE = 5;
+  const totalViolationPages = Math.ceil(
+    violationRiderSearchDropdown.length / VIOLATION_DROPDOWN_PAGE_SIZE,
+  );
+  const paginatedViolationDropdown = useMemo(() => {
+    const startIdx =
+      (violationSearchCurrentPage - 1) * VIOLATION_DROPDOWN_PAGE_SIZE;
+    const endIdx = startIdx + VIOLATION_DROPDOWN_PAGE_SIZE;
+    return violationRiderSearchDropdown.slice(startIdx, endIdx);
+  }, [violationRiderSearchDropdown, violationSearchCurrentPage]);
+
+  // Map effects
   useEffect(() => {
     if (loading || !violationMapRef.current) return;
     const existing = violationLeafletMapRef.current;
@@ -5420,7 +5428,7 @@ const Dashboard = () => {
     };
   }, []);
 
-  // â”€â”€ Report logic â”€â”€
+  // Report logic
   const fetchReportData = async (selType, selStart, selEnd, selCol) => {
     let data = [],
       columns = [];
@@ -5669,7 +5677,7 @@ const Dashboard = () => {
     return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% YoY`;
   }, [dashboardData.yearGrowth]);
 
-  // â”€â”€ Derived animated display values â”€â”€
+  // Derived animated display values
   const animDeliveryRate =
     analyticsSummary.totalParcels > 0
       ? (animDelivered / analyticsSummary.totalParcels) * 100
@@ -5710,7 +5718,7 @@ const Dashboard = () => {
           <PageSpinner fullScreen label="Loading dashboard..." />
         ) : (
           <>
-            {/* â”€â”€ Header â”€â”€ */}
+            {/* -- Header -- */}
             <div className="dash-header">
               <div className="dash-header-copy">
                 <h1 className="page-title">Dashboard</h1>
@@ -5744,7 +5752,7 @@ const Dashboard = () => {
             <div
               className={`analytics-dashboard-grid ${isYearSwitching ? "year-switching" : ""}`}
             >
-              {/* â”€â”€ Row 1: KPI Cards â”€â”€ */}
+              {/* -- Row 1: KPI Cards -- */}
               <div className="kpi-row">
                 <StatCard
                   icon={<FaBoxOpen />}
@@ -5785,7 +5793,7 @@ const Dashboard = () => {
                 />
               </div>
 
-              {/* â”€â”€ Row 2: Secondary KPIs â”€â”€ */}
+              {/* -- Row 2: Secondary KPIs -- */}
               <div className="kpi-row">
                 <StatCard
                   icon={<FaPercent />}
@@ -5844,7 +5852,7 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* â”€â”€ Row 3: Delivery trend + Status mix â”€â”€ */}
+              {/* -- Row 3: Delivery trend + Status mix -- */}
               <div className="charts-row-main">
                 <ChartCard
                   title="Deliveries vs. Delays"
@@ -5947,7 +5955,7 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ Row 6: Map â”€â”€ */}
+              {/* -- Row 6: Map -- */}
               <div className="charts-row-map-solo">
                 <div className="chart-card">
                   <div className="analytics-map-header">
@@ -5985,7 +5993,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* â”€â”€ KPI Chart Modal â€” now passes selectedYear so tabs update reactively â”€â”€ */}
+      {/* -- KPI Chart Modal � now passes selectedYear so tabs update reactively -- */}
       {kpiModalKey && (
         <KpiChartModal
           kpiKey={kpiModalKey}
@@ -5995,7 +6003,7 @@ const Dashboard = () => {
         />
       )}
 
-      {/* â”€â”€ Fullscreen Map Modal â”€â”€ */}
+      {/* -- Fullscreen Map Modal -- */}
       {violationMapModalOpen && (
         <div
           className="dashboard-modal-overlay violation-fullscreen-overlay"
@@ -6013,11 +6021,12 @@ const Dashboard = () => {
                     <FaSearch className="violation-search-icon" />
                     <input
                       type="text"
-                      placeholder="Search by rider name or location"
+                      placeholder="Search by rider name or violation type"
                       value={fullscreenMapSearchRider}
-                      onChange={(e) =>
-                        setFullscreenMapSearchRider(e.target.value)
-                      }
+                      onChange={(e) => {
+                        setFullscreenMapSearchRider(e.target.value);
+                        setViolationSearchCurrentPage(1);
+                      }}
                       className="violation-map-search-input"
                     />
                   </div>
@@ -6053,78 +6062,166 @@ const Dashboard = () => {
                               : "300px";
                           })(),
                           zIndex: 999999,
+                          display: "flex",
+                          flexDirection: "column",
                         }}
                       >
-                        {violationRiderSearchDropdown.map((rider) => {
-                          const isSelected =
-                            selectedViolationRider === rider.name;
-                          const initials = rider.name
-                            .split(" ")
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .map((w) => w.charAt(0).toUpperCase())
-                            .join("");
-                          const avatarUrl = rider.profile_url || null;
+                        <div style={{ flex: 1, overflowY: "auto" }}>
+                          {paginatedViolationDropdown.map((rider) => {
+                            const isSelected =
+                              selectedViolationRider === rider.name;
+                            const initials = rider.name
+                              .split(" ")
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .map((w) => w.charAt(0).toUpperCase())
+                              .join("");
+                            const avatarUrl = rider.profile_url || null;
 
-                          return (
+                            return (
+                              <button
+                                key={rider.name}
+                                type="button"
+                                className={`violation-rider-option${isSelected ? " is-selected" : ""}`}
+                                onClick={() => {
+                                  setSelectedViolationRider(
+                                    isSelected ? null : rider.name,
+                                  );
+                                  setFullscreenMapSearchRider("");
+                                }}
+                              >
+                                {/* Avatar */}
+                                <div className="violation-rider-avatar-wrap">
+                                  {avatarUrl ? (
+                                    <img
+                                      src={avatarUrl}
+                                      alt={rider.name}
+                                      className="violation-rider-avatar-img"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                        e.currentTarget.nextSibling.style.display =
+                                          "flex";
+                                      }}
+                                    />
+                                  ) : null}
+                                  <span
+                                    className="violation-rider-avatar-initials"
+                                    style={{
+                                      display: avatarUrl ? "none" : "flex",
+                                    }}
+                                  >
+                                    {initials}
+                                  </span>
+                                </div>
+
+                                {/* Info */}
+                                <div className="violation-rider-info">
+                                  <span
+                                    className="violation-rider-name"
+                                    style={{
+                                      fontWeight: isSelected ? 700 : 600,
+                                    }}
+                                  >
+                                    {rider.name}
+                                  </span>
+                                  <span className="violation-rider-count">
+                                    {rider.violationCount} violation
+                                    {rider.violationCount !== 1 ? "s" : ""}
+                                  </span>
+                                </div>
+
+                                {/* Selected badge */}
+                                {isSelected && (
+                                  <span className="violation-rider-selected-badge">
+                                    Selected
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Pagination buttons */}
+                        {totalViolationPages > 1 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              padding: "8px 6px",
+                              borderTop: "1px solid #e2e8f0",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              flexShrink: 0,
+                            }}
+                          >
                             <button
-                              key={rider.name}
                               type="button"
-                              className={`violation-rider-option${isSelected ? " is-selected" : ""}`}
-                              onClick={() => {
-                                setSelectedViolationRider(
-                                  isSelected ? null : rider.name,
-                                );
-                                setFullscreenMapSearchRider("");
+                              onClick={() =>
+                                setViolationSearchCurrentPage((p) =>
+                                  Math.max(1, p - 1),
+                                )
+                              }
+                              disabled={violationSearchCurrentPage === 1}
+                              style={{
+                                padding: "6px 10px",
+                                fontSize: "12px",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "6px",
+                                background: "#ffffff",
+                                cursor:
+                                  violationSearchCurrentPage === 1
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  violationSearchCurrentPage === 1 ? 0.5 : 1,
                               }}
                             >
-                              {/* Avatar */}
-                              <div className="violation-rider-avatar-wrap">
-                                {avatarUrl ? (
-                                  <img
-                                    src={avatarUrl}
-                                    alt={rider.name}
-                                    className="violation-rider-avatar-img"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = "none";
-                                      e.currentTarget.nextSibling.style.display =
-                                        "flex";
-                                    }}
-                                  />
-                                ) : null}
-                                <span
-                                  className="violation-rider-avatar-initials"
-                                  style={{
-                                    display: avatarUrl ? "none" : "flex",
-                                  }}
-                                >
-                                  {initials}
-                                </span>
-                              </div>
-
-                              {/* Info */}
-                              <div className="violation-rider-info">
-                                <span
-                                  className="violation-rider-name"
-                                  style={{ fontWeight: isSelected ? 700 : 600 }}
-                                >
-                                  {rider.name}
-                                </span>
-                                <span className="violation-rider-count">
-                                  {rider.violationCount} violation
-                                  {rider.violationCount !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-
-                              {/* Selected badge */}
-                              {isSelected && (
-                                <span className="violation-rider-selected-badge">
-                                  Selected
-                                </span>
-                              )}
+                              Prev
                             </button>
-                          );
-                        })}
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: "#64748b",
+                                minWidth: "40px",
+                                textAlign: "center",
+                              }}
+                            >
+                              {violationSearchCurrentPage} /{" "}
+                              {totalViolationPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViolationSearchCurrentPage((p) =>
+                                  Math.min(totalViolationPages, p + 1),
+                                )
+                              }
+                              disabled={
+                                violationSearchCurrentPage ===
+                                totalViolationPages
+                              }
+                              style={{
+                                padding: "6px 10px",
+                                fontSize: "12px",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "6px",
+                                background: "#ffffff",
+                                cursor:
+                                  violationSearchCurrentPage ===
+                                  totalViolationPages
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  violationSearchCurrentPage ===
+                                  totalViolationPages
+                                    ? 0.5
+                                    : 1,
+                              }}
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
                       </div>,
                       document.body,
                     )}
@@ -6165,7 +6262,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* â”€â”€ Report Modal â”€â”€ */}
+      {/* -- Report Modal -- */}
       {reportModalOpen && (
         <div
           className="dashboard-modal-overlay"
@@ -6376,7 +6473,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* â”€â”€ Validation Modal â”€â”€ */}
+      {/* -- Validation Modal -- */}
       {showReportValidation && (
         <div
           className="dashboard-modal-overlay"

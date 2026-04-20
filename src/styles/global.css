@@ -1,4 +1,4 @@
-/* ================= RESET & BASE ================= */
+/* Reset & Base */
 * {
   margin: 0;
   padding: 0;
@@ -17,7 +17,7 @@ body {
   --font-sans: "App UI", "DM Sans", "Segoe UI", Arial, sans-serif;
   --font-mono: "App UI", "DM Sans", "Segoe UI", Arial, sans-serif;
 
-  /* ── Light-mode surface tokens ── */
+  /* Light-mode surface tokens */
   --theme-bg: #f9f5f5;
   --theme-surface: #ffffff;
   --theme-surface-alt: #fdf2f3;
@@ -26,7 +26,7 @@ body {
   --theme-text: #1a0a0c;
   --theme-muted: #78504f;
 
-  /* ── Brand / Red (vivid crimson matching email header) ── */
+  /* Brand / Red */
   --theme-accent: #e8192c;
   --theme-accent-strong: #a30c1a;
   --theme-accent-soft: #ffd9dc;
@@ -38,7 +38,7 @@ body {
   --page-bg-soft: var(--theme-bg);
   --top-nav-height: 58px;
 
-  /* ── Top nav tokens ── */
+  /* Top nav tokens */
   --tnav-h: 58px;
   --tnav-bg: var(--theme-gradient-red);
   --tnav-border: rgba(255, 255, 255, 0.08);
@@ -48,7 +48,7 @@ body {
   --tnav-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 20px rgba(0, 0, 0, 0.35);
 
-  /* ── Dropdown — light mode ── */
+  /* Dropdown — light mode */
   --tnav-dropdown-bg: #ffffff;
   --tnav-dropdown-border: rgba(232, 25, 44, 0.12);
   --tnav-dropdown-shadow:
@@ -66,7 +66,7 @@ textarea {
   font-family: var(--font-sans);
 }
 
-/* ================= DASHBOARD CONTAINER ================= */
+/* Dashboard Container */
 .dashboard-container {
   display: flex;
   flex-direction: column;
@@ -89,7 +89,7 @@ body.tnav-hidden .page-with-topnav {
   padding-top: 0 !important;
 }
 
-/* ── Profile page only: extra gap below top nav ── */
+/* Profile page only: extra gap below top nav */
 .profile-main-content.page-with-topnav {
   padding-top: calc(var(--tnav-h) + 20px) !important;
 }
