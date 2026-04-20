@@ -2278,7 +2278,7 @@ const HorizontalBarList = ({
   );
 };
 
-// â”€â”€â”€ Report Type SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Report Type SVG Icons
 
 const IconParcel = () => (
   <svg
@@ -5289,7 +5289,7 @@ const Dashboard = () => {
   const filteredViolationPointIndicators = useMemo(() => {
     let filtered = violationPointIndicators;
 
-    // Filter by search term if provided
+    // Filter by search term if provided (wildcard search - matches anywhere in the string)
     if (fullscreenMapSearchRider.trim()) {
       const searchTerm = fullscreenMapSearchRider.toLowerCase().trim();
       filtered = filtered.filter((point) => {
@@ -6013,7 +6013,7 @@ const Dashboard = () => {
                     <FaSearch className="violation-search-icon" />
                     <input
                       type="text"
-                      placeholder="Search by rider name or location..."
+                      placeholder="Search by rider name or location"
                       value={fullscreenMapSearchRider}
                       onChange={(e) =>
                         setFullscreenMapSearchRider(e.target.value)
@@ -6021,7 +6021,6 @@ const Dashboard = () => {
                       className="violation-map-search-input"
                     />
                   </div>
-                  {/* Rider search results dropdown */}
                   {/* Rider search results dropdown */}
                   {violationRiderSearchDropdown.length > 0 &&
                     ReactDOM.createPortal(

@@ -1553,7 +1553,7 @@ body.dark .stat-card.accent-orange .stat-icon {
   top: 50%;
   transform: translateY(-50%);
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #475569;
   pointer-events: none;
   z-index: 2;
   transition: color 0.2s ease;
@@ -1798,13 +1798,22 @@ body.dark .violation-map-search-info {
 }
 
 body.dark .violation-search-icon {
-  color: rgba(226, 232, 240, 0.45);
+  color: rgba(226, 232, 240, 0.7);
 }
 
 body.dark
   .violation-search-wrapper:has(.violation-map-search-input:focus)
   .violation-search-icon {
   color: rgba(226, 232, 240, 0.7);
+}
+
+/* ─── Violation Rider Search Container & Dropdown ─────────────────────────── */
+.violation-search-container {
+  position: relative;
+  z-index: 99999;
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
 }
 
 .violation-full-map-close {
@@ -2603,9 +2612,7 @@ body.dark .stat-chart-btn:hover {
   color: #fb7185;
   border-color: rgba(200, 16, 46, 0.3);
 }
-.violation-search-container .violation-map-search-input {
-  padding-left: 42px !important;
-}
+
 .violation-search-container .violation-search-wrapper {
   position: relative;
   display: flex;
@@ -2653,9 +2660,6 @@ body.dark .stat-chart-btn:hover {
   white-space: nowrap;
 }
 
-.rsc-th-rider {
-  /* left-align default */
-}
 .rsc-th-score {
   text-align: center;
 }
