@@ -53,7 +53,7 @@ body.dark {
   --c-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5), 0 24px 48px rgba(0, 0, 0, 0.4);
 }
 
-/* Page Shell */
+/* ── Page Shell ── */
 .riders-page {
   font-family: var(--riders-font);
   flex: 1;
@@ -79,7 +79,7 @@ body.dark {
   gap: 0;
 }
 
-/* Page Header */
+/* ── Page Header ── */
 .rider-header-row {
   display: flex;
   align-items: center;
@@ -150,7 +150,7 @@ body.dark {
   transform: translateY(0);
 }
 
-/* Stats Strip */
+/* ── Stats Strip ── */
 .rider-stats-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -222,7 +222,7 @@ body.dark {
   color: var(--c-accent);
 }
 
-/* Main Grid */
+/* ── Main Grid ── */
 .riders-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -405,7 +405,10 @@ body.dark {
   border-color: rgba(232, 25, 44, 0.35);
 }
 
-/* Weather Card */
+/* ══════════════════════════════════════════════
+   WEATHER CARD — solid floating panel
+   Hardcoded colours so it never bleeds into map
+══════════════════════════════════════════════ */
 .weather-forecast-card {
   position: absolute;
   bottom: 52px;
@@ -577,7 +580,7 @@ body.dark .weather-forecast-chip strong {
   padding: 8px 14px;
 }
 
-/* Zoom controls */
+/* ── Zoom controls: push up to clear the Leaflet attribution ── */
 .rider-map-canvas-wrap .leaflet-top.leaflet-left,
 .rider-full-map-stack .leaflet-top.leaflet-left,
 .track-rider-map .leaflet-top.leaflet-left {
@@ -623,7 +626,9 @@ body.dark .weather-forecast-chip strong {
   border-bottom: none;
 }
 
-/* Table Section */
+/* ══════════════════════
+   TABLE SECTION
+══════════════════════ */
 .rider-table-section {
   grid-column: 1;
   grid-row: 2;
@@ -945,7 +950,9 @@ body.dark .weather-forecast-chip strong {
 
 /* ══════════════════════
    SIDEBAR (Insights)
-═══Sidebar (Insights)
+══════════════════════ */
+.rider-insights-card {
+  grid-column: 2;
   grid-row: 1 / 3;
   display: flex;
   flex-direction: column;
@@ -1089,6 +1096,9 @@ body.dark .weather-forecast-chip strong {
    LOCATION POPUP
 ══════════════════════ */
 .rider-location-popup {
+  min-width: 192px;
+  display: grid;
+  gap: 6px;
   padding: 10px 12px;
   font-family: var(--riders-font);
   font-size: 13px;
@@ -1182,6 +1192,9 @@ body.dark .weather-forecast-chip strong {
 .riders-modal-overlay {
   position: fixed;
   top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
